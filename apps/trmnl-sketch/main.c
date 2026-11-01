@@ -68,6 +68,7 @@ static int f_post(void *u, const char *url, const void *body, size_t n, uint8_t 
 
 static const app_setting_decl_t decl[] = {
     { "printer", "Printer address (IP, or IP:port; the port is 631 if left out)", 0, 0, 64, APP_SETTING_TEXT },
+    { "cleanup_s", "Clean the screen after this many idle seconds (0: never)", 0, 0, 600, APP_SETTING_NUMBER },
     { "pen_area", "Tablet area on the page (fill: every tablet edge is a screen edge; keep: no stretching)", "fill|keep", 0, 0, APP_SETTING_CHOICE },
 };
 
@@ -117,7 +118,7 @@ int app_main(const app_api_t *a)
     for (;;) {
         uint32_t now = api->millis();
         rect_t out[SK_MAX_RECTS];
-        push(sk_flush(&sk, now, out), out);
+        do push(sk_flush(&sk, api->millis(), out), out); while (sk_flash_busy(&sk)); /* the inverted half, then the clean one */
         if (sk.print_req) sk_run_print(&sk); /* "Printing..." is on the glass; blocks while the job goes out */
         sk_tick(&sk, now);
         if (sk.share_req > 0 && !sharing) {

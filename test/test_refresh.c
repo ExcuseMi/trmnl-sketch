@@ -73,7 +73,7 @@ static void run_stroke(const char *name, float px_per_ms, int hover, double max_
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
     sim_t sm = { malloc((size_t)TS * TH), 0, 0, 0, 0, 0 };
     rect_t out[SK_MAX_RECTS];
-    CHECK(sk_flush(&r.s, r.now, out) == SK_FULL); /* the first screen is one full refresh */
+    CHECK(rig_flush(&r, r.now, out) == SK_FULL); /* the first screen is one full refresh */
     memcpy(sm.panel, r.fb, (size_t)TS * TH);
     float x = 150, y = 150, vx = px_per_ms * 0.8f, vy = px_per_ms * 0.6f;
     uint32_t t0 = r.now;
@@ -102,7 +102,8 @@ static void run_stroke(const char *name, float px_per_ms, int hover, double max_
     for (int i = 0; i < 4; i++) { /* the last batch */
         r.now += SK_BATCH_MS;
         int n = sk_flush(&r.s, r.now, out);
-        if (n > 0) panel_apply(&sm, &r, out, n);
+        if (n == SK_FULL) memcpy(sm.panel, r.fb, (size_t)TS * TH); /* the legend left the page: a whole-page flash */
+        else if (n > 0) panel_apply(&sm, &r, out, n);
     }
     double secs = (double)(r.now - t0) / 1000.0;
     /* every pixel that changed on the frame is on the panel */
@@ -133,7 +134,7 @@ static void test_batch_time(void)
     rig_t r;
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
     rect_t out[SK_MAX_RECTS];
-    sk_flush(&r.s, r.now, out);
+    rig_flush(&r, r.now, out);
     rig_pen(&r, 500, 500, APP_PEN_TIP | APP_PEN_IN_RANGE, 30000);
     CHECK(sk_flush(&r.s, r.s.last_push + 3, out) == 0); /* 3 ms after the last push: wait */
     CHECK(sk_next_due(&r.s, r.s.last_push + 3) <= SK_BATCH_MS - 3);

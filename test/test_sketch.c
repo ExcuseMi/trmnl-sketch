@@ -160,7 +160,7 @@ static void test_clear(void)
     memcpy(drawn, r.s.page.px, sizeof(drawn));
     memset(white, 0xff, sizeof(white));
     rect_t out[SK_MAX_RECTS];
-    sk_flush(&r.s, r.now, out);
+    rig_flush(&r, r.now, out);
     key(&r, 4); /* button 5: clear */
     /* the page was saved before clearing: the flash holds the drawing twice (the page, and a copy that stays) */
     canvas_t chk = { calloc(1, sizeof(drawn)), TW, TH, TS };
@@ -178,7 +178,7 @@ static void test_clear(void)
     }
     settle(&r);
     CHECK(page_is(&r, white) && same_page_and_fb(&r));
-    CHECK(sk_flush(&r.s, r.now + 100, out) == SK_FULL); /* a clean full refresh */
+    CHECK(rig_flush(&r, r.now + 100, out) == SK_FULL); /* a clean full refresh */
     CHECK(r.fs.removes == 0);
     touch(&r, APP_TOUCH_LEFT, APP_GESTURE_TAP); /* undo the clear */
     CHECK(page_is(&r, drawn) && same_page_and_fb(&r)); /* the exact pixels */
@@ -218,7 +218,7 @@ static void test_pages_and_autosave(void)
     settle(&r);
     CHECK(page_is(&r, white) && same_page_and_fb(&r));
     rect_t out[SK_MAX_RECTS];
-    CHECK(sk_flush(&r.s, r.now + 100, out) == SK_FULL); /* a page change is a clean full refresh */
+    CHECK(rig_flush(&r, r.now + 100, out) == SK_FULL); /* a page change is a clean full refresh */
     rig_line(&r, 600, 700, 1300, 1100, 50000, 0);
     uint8_t p2[TS * TH];
     memcpy(p2, r.s.page.px, sizeof(p2));
@@ -358,12 +358,12 @@ static void test_turn(void)
     uint8_t page[TS * TH];
     memcpy(page, r.s.page.px, sizeof(page));
     rect_t out[SK_MAX_RECTS];
-    sk_flush(&r.s, r.now, out);
+    rig_flush(&r, r.now, out);
     app_touchbar_t bar;
     tbfw_layout(APP_ORIENT_BAR_LEFT, &bar);
     sk_set_orient(&r.s, APP_ORIENT_BAR_LEFT, &bar);
     CHECK(page_is(&r, page) && same_page_and_fb(&r)); /* the page is kept, nothing else is left on the glass */
-    CHECK(sk_flush(&r.s, r.now + 100, out) == SK_FULL);
+    CHECK(rig_flush(&r, r.now + 100, out) == SK_FULL);
     CHECK(r.s.map.sw == TH && r.s.map.sh == TW);
     rig_end(&r);
 }

@@ -158,6 +158,7 @@ void sk_note_hide(sketch_t *s)
     fb_put(s, &s->note);
     mark(s, &s->note);
     s->note_on = s->legend = 0;
+    if (s->mode == SK_DRAW) s->ovl_gone = 1; /* the page is cleaned once the tip is up (skflash.c) */
 }
 
 static void note_set(sketch_t *s, const box_t *b, uint32_t until)
@@ -407,7 +408,7 @@ void sk_set_size(sketch_t *s, int size, uint32_t now)
     picked(s, name[size], now);
 }
 
-static void tb_flash(sketch_t *s) { box_union(&s->flash, &s->tb_box); }
+static void tb_flash(sketch_t *s) { sk_flash(s, &s->tb_box); }
 
 static void tb_place(sketch_t *s) /* the strip for the screen in the user's frame, and its box in the framebuffer */
 {
@@ -431,7 +432,8 @@ void sk_toolbar(sketch_t *s, uint32_t now)
         s->tb_on = s->tb_hold = 0;
         s->tb_hot = -1;
         cv_copy_box(&s->fb, &s->page, &s->tb_box);
-        return tb_flash(s);
+        s->ovl_gone = 1; /* the whole page is flashed clean (it covers the strip): skflash.c */
+        return;
     }
     sk_note_hide(s);
     hist_end(&s->hist);
@@ -483,6 +485,8 @@ static void stroke_tail(sketch_t *s, uint32_t now)
 void sk_pen(sketch_t *s, unsigned flags, unsigned x, unsigned y, unsigned pressure, uint32_t now)
 {
     s->barrel = (flags & (APP_PEN_BARREL | APP_PEN_BARREL2)) != 0;
+    s->tip = (flags & APP_PEN_TIP) != 0;
+    s->last_act = now;
     int fx, fy, inside = pm_map(&s->map, x, y, &fx, &fy);
     if (s->mode != SK_DRAW) return sk_menu_pen(s, flags, fx, fy, inside, now);
     int tip = (flags & APP_PEN_TIP) != 0, range = (flags & (APP_PEN_IN_RANGE | APP_PEN_TIP)) != 0;
@@ -539,6 +543,7 @@ void sk_pen(sketch_t *s, unsigned flags, unsigned x, unsigned y, unsigned pressu
 void sk_pen_key(sketch_t *s, unsigned keys, unsigned changed, uint32_t now)
 {
     unsigned down = keys & changed;
+    s->last_act = now;
     if (s->mode != SK_DRAW) {
         if (down) sk_menu_key(s, down, now);
         return;
@@ -560,6 +565,7 @@ void sk_pen_key(sketch_t *s, unsigned keys, unsigned changed, uint32_t now)
 
 void sk_touch(sketch_t *s, int zone, int gesture, uint32_t now)
 {
+    s->last_act = now;
     if (s->mode == SK_SHARE) { /* any touch ends the phone page */
         s->share_req = -1;
         if (s->share_kind == 2) sk_cfg_reload(s); /* the settings form was open */
@@ -605,40 +611,23 @@ void sk_tick(sketch_t *s, uint32_t now)
 
 int sk_flush(sketch_t *s, uint32_t now, rect_t *out)
 {
-    if (s->want_full) {
-        s->want_full = 0;
-        if (s->mode >= SK_GALLERY && s->ui.px) { /* the screen as it is, then the pointer on it */
-            memcpy(s->fb.px, s->ui.px, (size_t)s->fb.stride * (size_t)s->fb.h);
-            s->cursor = 0;
-            sk_menu_cursor(s);
-        }
-        rs_init(&s->pend);
-        box_clear(&s->flash);
-        s->last_push = now;
-        s->pushed_px += (uint32_t)(s->fb.w * s->fb.h);
-        s->pushed_rects++;
-        return SK_FULL;
-    }
-    if (!box_empty(&s->flash)) { /* the toolbar came or went: its strip alone, clean */
-        out[0] = (rect_t){ (int16_t)s->flash.x0, (int16_t)s->flash.y0, (int16_t)(s->flash.x1 - s->flash.x0 + 1), (int16_t)(s->flash.y1 - s->flash.y0 + 1), 1 };
-        box_clear(&s->flash);
-        s->pushed_px += (uint32_t)(out[0].w * out[0].h);
-        s->pushed_rects++;
-        s->last_push = now;
-        return 1;
-    }
+    int n = sk_flash_step(s, now, out);
+    if (n != SK_NOFLASH) return n;
     if (!s->pend.n || (uint32_t)(now - s->last_push) < SK_BATCH_MS) return 0;
-    int n = rs_take(&s->pend, out);
+    n = rs_take(&s->pend, out);
     for (int i = 0; i < n; i++) s->pushed_px += (uint32_t)(out[i].w * out[i].h);
     s->pushed_rects += (uint32_t)n;
     s->last_push = now;
+    s->ghost = 1; /* a partial refresh left its traces: the idle clean-up has something to do */
     return n;
 }
 
 uint32_t sk_next_due(const sketch_t *s, uint32_t now)
 {
     uint32_t due = 1000000;
-    if (s->want_full || !box_empty(&s->flash)) return 0;
+    if (s->want_full || !box_empty(&s->flash) || s->fl_phase) return 0;
+    uint32_t cd = sk_cleanup_due(s, now);
+    if (cd < due) due = cd;
     if (s->pend.n) {
         int32_t d = (int32_t)(s->last_push + SK_BATCH_MS - now);
         due = d < 0 ? 0 : (uint32_t)d;
@@ -667,6 +656,8 @@ void sk_cfg_reload(sketch_t *s)
     char b[8];
     int n = s->env.cfg_get ? s->env.cfg_get(s->env.user, "pen_area", b, 7) : -1;
     s->fill = !(n == 4 && !memcmp(b, "keep", 4)); /* fill unless it says keep */
+    s->cleanup_s = cfg_int(s, "cleanup_s", 5);
+    if (s->cleanup_s > 600) s->cleanup_s = 600;
     pm_init(&s->map, s->orient, s->fb.w, s->fb.h, s->um_w, s->um_h, s->fill);
 }
 

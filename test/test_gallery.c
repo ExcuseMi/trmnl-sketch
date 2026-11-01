@@ -158,10 +158,13 @@ static void test_full_refresh_only_when_a_screen_opens_or_closes(void)
     sk_pen_key(&r.s, 1u << 6, 1u << 6, r.now += 50); /* previous page */
     sk_pen_key(&r.s, 0, 1u << 6, r.now);
     CHECK(rig_frame(&r, out) == SK_FULL && r.fulls == f + 4); /* a page change flashes */
+    sk_tick(&r.s, r.now += 3000); /* the page's toast is gone and its clean-up flash done: ink is the thing left */
+    while (rig_frame(&r, out) != 0) {}
+    int f2 = r.fulls;
     int parts = r.parts;
     rig_line(&r, 200, 600, 900, 700, 40000, 0);
     n = rig_frame(&r, out);
-    CHECK(n > 0 && r.fulls == f + 4 && r.parts > parts); /* ink stays a partial refresh */
+    CHECK(n > 0 && r.fulls == f2 && r.parts > parts); /* ink stays a partial refresh */
     rig_end(&r);
 }
 

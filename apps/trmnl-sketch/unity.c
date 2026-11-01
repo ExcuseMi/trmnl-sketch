@@ -24,6 +24,7 @@
 #include "../../../trmnl-print/src/imgfit.c"
 #include "../../../trmnl-print/src/textlay.c"
 #include "../../../trmnl-print/src/printjob.c"
+#include "../../src/skflash.c"
 #include "../../src/sketch.c"
 #include "../../src/font.c"
 #include "../../src/gfx.c"

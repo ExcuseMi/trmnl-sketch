@@ -29,7 +29,7 @@ typedef struct {
 enum { SK_DRAW, SK_SHARE, SK_GALLERY, SK_ACTIONS, SK_CONFIRM, SK_BUSY, SK_RESULT }; /* from SK_GALLERY on: menu screens drawn from `ui` */
 #define SK_PRINTER_DEFAULT "192.0.2.40"
 #define SK_BLITS 40
-enum { SK_NONE = 0, SK_FULL = -1 }; /* sk_flush: nothing due / a full refresh */
+enum { SK_NONE = 0, SK_FULL = -1, SK_NOFLASH = -2 }; /* sk_flush: nothing due / a full refresh; SK_NOFLASH: only inside (sk_flash_step) */
 
 typedef struct {
     sk_env_t env;
@@ -48,7 +48,14 @@ typedef struct {
     int tb_on, tb_hold;  /* the toolbar is up; a pen press that began on it is still down */
     tb_layout_t tb;
     box_t tb_box;        /* the strip in the framebuffer, whole bytes */
-    box_t flash;         /* to refresh clean (the strip toggled), empty: none */
+    box_t flash;         /* to flash (sk_flash), empty: none */
+    box_t fl_box;        /* the flash under way: its inverted half was pushed, the clean half is next */
+    int fl_phase;
+    int tip;             /* the pen's tip is down */
+    int ovl_gone;        /* a note or the toolbar left the page: one whole-page flash when the tip is up */
+    int ghost;           /* a partial refresh was pushed since the last whole-screen flash */
+    int cleanup_s;       /* setting cleanup_s: idle seconds before the whole screen is flashed clean (0: off) */
+    uint32_t last_act;   /* the last pen, button or touch event */
     int lx, ly, px, py, lp; /* the open stroke's last two points and the byte of the last, for the tail */
     int tablet;          /* a tablet is connected (pen_info) */
     int stroke, barrel;  /* a stroke is open; a pen button is held */
@@ -119,6 +126,14 @@ int sk_print_page(sketch_t *s, int num);
 void sk_cpy(char *d, size_t cap, const char *s); /* bounded copy */
 /* What to push: SK_FULL (the whole screen, clean), else the number of rectangles in out (SK_MAX_RECTS at most) */
 int sk_flush(sketch_t *s, uint32_t now, rect_t *out);
+/* The one way to clean the glass: the area is pushed inverted (partially, fast), then as it is with a full refresh.
+   sk_flush hands out the two halves in two calls (sk_flash_busy after the first: call again at once, before any input
+   is handled: the inverted area is in the framebuffer until then). Page, gallery and menu switches (want_full), the
+   toolbar strip and the clean-up rules all use it (skflash.c) */
+void sk_flash(sketch_t *s, const box_t *area);
+int sk_flash_busy(const sketch_t *s);
+int sk_flash_step(sketch_t *s, uint32_t now, rect_t *out); /* inside sk_flush */
+uint32_t sk_cleanup_due(const sketch_t *s, uint32_t now);
 /* Milliseconds until sk_tick or sk_flush has something to do (idle: a large number) */
 uint32_t sk_next_due(const sketch_t *s, uint32_t now);
 /* Actions, also what the buttons and the touch bar call */

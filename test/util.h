@@ -33,7 +33,10 @@ typedef struct {
     uint8_t *fb;
     uint32_t now;
     int started;
-    char cfg_cur[8], cfg_size[8], cfg_brush[8], cfg_shade[8], cfg_pen_area[8];
+    char cfg_cur[8], cfg_size[8], cfg_brush[8], cfg_shade[8], cfg_pen_area[8], cfg_cleanup[8];
+    int inverted;       /* inverted halves seen (rig_flush) */
+    int bare_fulls;     /* full refreshes handed out without their inverted half first: the flash helper was bypassed */
+    box_t pre;          /* the area of the last inverted half */
 } rig_t;
 
 static int fake_post(void *u, const char *url, const void *body, size_t n, uint8_t *resp, size_t cap, size_t *rn)
@@ -57,7 +60,7 @@ static int fake_post(void *u, const char *url, const void *body, size_t n, uint8
 static int rig_get(void *u, const char *k, char *b, int cap)
 {
     rig_t *r = u;
-    const char *v = !strcmp(k, "cur") ? r->cfg_cur : !strcmp(k, "size") ? r->cfg_size : !strcmp(k, "brush") ? r->cfg_brush : !strcmp(k, "shade") ? r->cfg_shade : !strcmp(k, "printer") ? r->cfg_printer : !strcmp(k, "pen_area") ? r->cfg_pen_area : "";
+    const char *v = !strcmp(k, "cur") ? r->cfg_cur : !strcmp(k, "size") ? r->cfg_size : !strcmp(k, "brush") ? r->cfg_brush : !strcmp(k, "shade") ? r->cfg_shade : !strcmp(k, "printer") ? r->cfg_printer : !strcmp(k, "pen_area") ? r->cfg_pen_area : !strcmp(k, "cleanup_s") ? r->cfg_cleanup : "";
     int n = (int)strlen(v);
     if (n > cap) n = cap;
     memcpy(b, v, (size_t)n);
@@ -93,16 +96,37 @@ static inline void rig_new(rig_t *r, int orient)
     r->pr.status = 200;
     rig_start(r, orient);
 }
-/* What the glue does each turn: flush, and count the full and partial refreshes it would push */
-static inline int rig_frame(rig_t *r, rect_t *out)
+/* What the glue does each turn: flush (a flash is its inverted half, then the clean one at once), and count the full and
+   partial refreshes it would push. A full refresh without the inverted half of the same area before it is counted in
+   bare_fulls (rig_end checks it is 0: every clean-up goes through sk_flash) */
+static inline int rig_flush(rig_t *r, uint32_t now, rect_t *out)
 {
-    int n = sk_flush(&r->s, r->now += 100, out);
+    int n = sk_flush(&r->s, now, out);
+    if (sk_flash_busy(&r->s)) { /* the inverted half: n == 1, a partial rectangle */
+        CHECK(n == 1 && out[0].flash == 0);
+        r->inverted++;
+        box_clear(&r->pre);
+        box_add(&r->pre, out[0].x, out[0].y);
+        box_add(&r->pre, out[0].x + out[0].w - 1, out[0].y + out[0].h - 1);
+        r->parts++;
+        rect_t o2[SK_MAX_RECTS];
+        n = sk_flush(&r->s, now, o2);
+        CHECK(!sk_flash_busy(&r->s));
+        if (n == SK_FULL) CHECK(r->pre.x0 == 0 && r->pre.y0 == 0 && r->pre.x1 == TW - 1 && r->pre.y1 == TH - 1);
+        else CHECK(n == 1 && o2[0].flash == 1 && o2[0].x == out[0].x && o2[0].y == out[0].y && o2[0].w == out[0].w && o2[0].h == out[0].h);
+        if (n == 1) out[0] = o2[0];
+        if (n == SK_FULL) r->fulls++;
+        return n;
+    }
+    if (n == SK_FULL || (n > 0 && out[0].flash)) r->bare_fulls++;
     if (n == SK_FULL) r->fulls++;
     else if (n > 0) r->parts += n;
     return n;
 }
+static inline int rig_frame(rig_t *r, rect_t *out) { return rig_flush(r, r->now += 100, out); }
 static inline void rig_end(rig_t *r)
 {
+    CHECK(r->bare_fulls == 0);
     for (int i = 0; i < 4; i++) free(r->pr.body[i]);
     sk_free(&r->s);
     free(r->fb);

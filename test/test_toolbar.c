@@ -88,9 +88,9 @@ static void test_flash_only_strip(void)
     CHECK((long)out[0].w * out[0].h < (long)TW * TH / 8);
     CHECK(rig_frame(&r, out) == 0); /* nothing else follows */
     CHECK(sk_next_due(&r.s, r.now) > 100);
-    key(&r, 3); /* hiding: again only the strip, clean */
+    key(&r, 3); /* hiding: the strip left the page, one whole-page flash (rule a), which covers the strip */
     n = rig_frame(&r, out);
-    CHECK(n == 1 && out[0].flash == 1 && out[0].h == r.s.tb.y1 + 1);
+    CHECK(n == SK_FULL);
     CHECK(rig_frame(&r, out) == 0);
     /* the portrait positions: the strip is a column of the panel, byte aligned */
     rig_end(&r);
