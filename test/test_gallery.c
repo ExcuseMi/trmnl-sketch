@@ -155,8 +155,7 @@ static void test_full_refresh_only_when_a_screen_opens_or_closes(void)
     tap(&r, APP_TOUCH_LEFT);
     tap(&r, APP_TOUCH_MIDDLE); /* Open: back to drawing */
     CHECK(rig_frame(&r, out) == SK_FULL && r.fulls == f + 3 && r.s.mode == SK_DRAW);
-    sk_pen_key(&r.s, 1u << 6, 1u << 6, r.now += 50); /* previous page */
-    sk_pen_key(&r.s, 0, 1u << 6, r.now);
+    sk_goto_page(&r.s, 0, r.now += 50); /* another page */
     CHECK(rig_frame(&r, out) == SK_FULL && r.fulls == f + 4); /* a page change flashes */
     sk_tick(&r.s, r.now += 3000); /* the page's toast is gone and its clean-up flash done: ink is the thing left */
     while (rig_frame(&r, out) != 0) {}

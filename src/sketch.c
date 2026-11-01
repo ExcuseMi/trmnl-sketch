@@ -286,31 +286,6 @@ void sk_goto_page(sketch_t *s, int index, uint32_t now)
     sk_toast(s, page_text(s, b), now);
 }
 
-static int cur_pos(const sketch_t *s, int *present) /* where the page on screen is in the list */
-{
-    int i = pg_index(&s->pg, s->cur);
-    *present = i >= 0;
-    if (i >= 0) return i;
-    i = 0;
-    while (i < s->pg.n && s->pg.nums[i] < s->cur) i++;
-    return i;
-}
-
-static void step_page(sketch_t *s, int dir, uint32_t now)
-{
-    if (!sk_leave_page(s, now)) return sk_toast(s, "Could not save this page", now);
-    pg_scan(&s->pg);
-    int present, pos = cur_pos(s, &present);
-    int target = dir > 0 ? (present ? pos + 1 : pos) : pos - 1;
-    if (s->pg.n == 0 || target < 0 || target >= s->pg.n) {
-        if (s->pg.n == 0) return sk_make_page(s, now);
-        return sk_toast(s, target < 0 ? "First page" : "Last page", now);
-    }
-    sk_open_page(s, s->pg.nums[target], now);
-    char b[24];
-    sk_toast(s, page_text(s, b), now);
-}
-
 /* A new page only from a page with ink: no run of empty pages (owner 2026-11-01) */
 void sk_new_page(sketch_t *s, uint32_t now)
 {
@@ -562,8 +537,7 @@ void sk_pen_key(sketch_t *s, unsigned keys, unsigned changed, uint32_t now)
         case 3: sk_toolbar(s, now); break;
         case 4: sk_clear(s, now); break;
         case 5: sk_new_page(s, now); break;
-        case 6: step_page(s, -1, now); break;
-        default: step_page(s, 1, now); break;
+        default: sk_to_gallery(s, now); break; /* 7 and 8: the menu (no page stepping: the gallery is the way between pages) */
         }
     }
 }
@@ -579,12 +553,7 @@ void sk_touch(sketch_t *s, int zone, int gesture, uint32_t now)
         return;
     }
     if (s->mode >= SK_GALLERY) return sk_menu_touch(s, zone, gesture, now);
-    if (gesture == APP_GESTURE_SWIPE_LEFT) step_page(s, 1, now);
-    else if (gesture == APP_GESTURE_SWIPE_RIGHT) step_page(s, -1, now);
-    else if (gesture == APP_GESTURE_HOLD && zone == APP_TOUCH_MIDDLE) sk_clear(s, now);
-    else if (gesture == APP_GESTURE_TAP && zone == APP_TOUCH_LEFT) sk_undo(s, now);
-    else if (gesture == APP_GESTURE_TAP && zone == APP_TOUCH_RIGHT) sk_redo(s, now);
-    else if (gesture == APP_GESTURE_TAP && zone == APP_TOUCH_MIDDLE) sk_to_gallery(s, now);
+    if (gesture == APP_GESTURE_TAP && zone == APP_TOUCH_MIDDLE) sk_to_gallery(s, now); /* the one extra way in; nothing else on the bar */
 }
 
 void sk_share_update(sketch_t *s, int start_rc, const app_webshare_status_t *st)

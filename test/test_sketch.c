@@ -135,11 +135,11 @@ static void test_undo_redo_buttons(void)
     }
     key(&r, 0); /* tablet button 1: undo */
     CHECK(page_is(&r, snap[2]));
-    touch(&r, APP_TOUCH_LEFT, APP_GESTURE_TAP); /* the touch bar: undo */
+    key(&r, 0); /* undo again */
     CHECK(page_is(&r, snap[1]));
     key(&r, 1); /* button 2: redo */
     CHECK(page_is(&r, snap[2]));
-    touch(&r, APP_TOUCH_RIGHT, APP_GESTURE_TAP);
+    key(&r, 1);
     CHECK(page_is(&r, snap[3]));
     settle(&r);
     CHECK(same_page_and_fb(&r));
@@ -180,12 +180,12 @@ static void test_clear(void)
     CHECK(page_is(&r, white) && same_page_and_fb(&r));
     CHECK(rig_flush(&r, r.now + 100, out) == SK_FULL); /* a clean full refresh */
     CHECK(r.fs.removes == 0);
-    touch(&r, APP_TOUCH_LEFT, APP_GESTURE_TAP); /* undo the clear */
+    key(&r, 0); /* undo the clear */
     CHECK(page_is(&r, drawn) && same_page_and_fb(&r)); /* the exact pixels */
-    touch(&r, APP_TOUCH_MIDDLE, APP_GESTURE_HOLD); /* hold the middle: clear */
+    key(&r, 4); /* button 5: clear */
     CHECK(page_is(&r, white));
     key(&r, 4); /* clearing an empty page is a note, not a stroke */
-    touch(&r, APP_TOUCH_LEFT, APP_GESTURE_TAP);
+    key(&r, 0);
     CHECK(page_is(&r, drawn));
     free(chk.px);
     rig_end(&r);
@@ -218,22 +218,16 @@ static void test_pages_and_autosave(void)
     rig_line(&r, 600, 700, 1300, 1100, 50000, 0);
     uint8_t p2[TS * TH];
     memcpy(p2, r.s.page.px, sizeof(p2));
-    key(&r, 6); /* previous: saves page 2 first */
+    sk_goto_page(&r.s, 0, r.now += 50); /* the first page (as the gallery does): saves page 2 first */
     settle(&r);
     CHECK(r.s.cur == 1 && page_is(&r, p1) && same_page_and_fb(&r));
-    key(&r, 7); /* next */
-    CHECK(r.s.cur == 2 && page_is(&r, p2));
-    touch(&r, APP_TOUCH_RIGHT, APP_GESTURE_SWIPE_RIGHT); /* a swipe right: the previous page */
-    CHECK(r.s.cur == 1);
-    touch(&r, APP_TOUCH_RIGHT, APP_GESTURE_SWIPE_LEFT); /* left: the next */
-    CHECK(r.s.cur == 2);
-    key(&r, 7); /* no page after the last */
+    sk_goto_page(&r.s, 1, r.now += 50);
     CHECK(r.s.cur == 2 && page_is(&r, p2));
     /* a restart (power off) comes back on the same page with the same pixels; undo does not reach into the old run */
     idle(&r, 3000);
     rig_start(&r, APP_ORIENT_BAR_BOTTOM);
     CHECK(r.s.cur == 2 && page_is(&r, p2) && !hist_can_undo(&r.s.hist));
-    key(&r, 6);
+    sk_goto_page(&r.s, 0, r.now += 50);
     CHECK(r.s.cur == 1 && page_is(&r, p1));
     /* a stroke not yet saved when the power goes is lost, the page before it is whole */
     rig_line(&r, 100, 100, 400, 1300, 50000, 0);
@@ -364,8 +358,40 @@ static void test_turn(void)
     rig_end(&r);
 }
 
+/* The drawing page has no page stepping and no touch-bar actions of its own: buttons 7 and 8 open the menu, the bar's
+   middle tap too (the one extra way), and a swipe, a left or right tap and a hold do nothing */
+static void test_no_stepping_no_bar_actions(void)
+{
+    rig_t r;
+    rig_new(&r, APP_ORIENT_BAR_BOTTOM);
+    rig_line(&r, 200, 300, 1000, 500, 50000, 0);
+    key(&r, 5);
+    rig_line(&r, 300, 400, 900, 700, 50000, 0);
+    uint8_t before[TS * TH];
+    memcpy(before, r.s.page.px, sizeof(before));
+    int cur = r.s.cur;
+    touch(&r, APP_TOUCH_MIDDLE, APP_GESTURE_SWIPE_LEFT);
+    touch(&r, APP_TOUCH_MIDDLE, APP_GESTURE_SWIPE_RIGHT);
+    touch(&r, APP_TOUCH_LEFT, APP_GESTURE_TAP);
+    touch(&r, APP_TOUCH_RIGHT, APP_GESTURE_TAP);
+    touch(&r, APP_TOUCH_MIDDLE, APP_GESTURE_HOLD);
+    CHECK(r.s.mode == SK_DRAW && r.s.cur == cur && page_is(&r, before));
+    key(&r, 6);
+    CHECK(r.s.mode == SK_GALLERY); /* 7: the menu */
+    touch(&r, APP_TOUCH_MIDDLE, APP_GESTURE_HOLD);
+    key(&r, 4); /* 5: back out of it */
+    CHECK(r.s.mode == SK_DRAW && r.s.cur == cur);
+    key(&r, 7);
+    CHECK(r.s.mode == SK_GALLERY); /* 8: the menu too */
+    key(&r, 4);
+    touch(&r, APP_TOUCH_MIDDLE, APP_GESTURE_TAP);
+    CHECK(r.s.mode == SK_GALLERY);
+    rig_end(&r);
+}
+
 int main(void)
 {
+    test_no_stepping_no_bar_actions();
     test_legend_and_ink();
     test_pressure_and_size();
     test_eraser();
