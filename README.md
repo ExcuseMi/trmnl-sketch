@@ -30,7 +30,7 @@ Sketch for the TRMNL X with a USB pen tablet (XP-Pen Deco 01 V2; firmware API 2.
 | page files: temp + rename, bad file moved to `-bad.png`, list | `src/pages.c`, `src/pngio.c` (1-bit PNG, no library) |
 | rectangles pushed to the panel (merged, at most 6, byte aligned, every 40 ms) | `src/rects.c`, `src/sketch.c` (`sk_flush`) |
 | controller (all decisions), screens | `src/sketch.c`, `src/skui.c` |
-| app glue | `apps/trmnl-sketch/main.c` (+ `unity.c`, see below) |
+| app glue | `apps/trmnl-sketch/main.c` |
 
 Files in the app folder: `sketch/skNNNN.png` pages; `skNNNN-cleared.png` (the page as it was before the last clear), `skNNNN-bad.png` (a page file that could not be read, kept). Settings: `cur` (page), `size`, `brush`, `shade`; on the phone page (Settings in the page menu): `pen_area` (`fill` default: every tablet edge is a screen edge; `keep`: no stretching), `cleanup_s` (idle seconds before the whole screen is flashed clean, default 5, 0 = off).
 
@@ -38,4 +38,4 @@ Clean-up: every flash is `sk_flash` (`src/skflash.c`): the area inverted with a 
 
 Limits: the page lives in the panel's frame, so turning the X turns the sketch with it; the tablet keeps its upright frame in every position (with `pen_area` keep the page is covered: a landscape tablet on a portrait page uses its middle part). Not in: colours, layers, shapes, text, zoom.
 
-`make test` (host, ASan/UBSan), `make shots`, `make elf` (firmware fork's build with its import check). The linker of the toolchain aborts on some output paths for this app; `make elf` tries several and `apps/trmnl-sketch/unity.c` builds the sources as one object.
+`make test` (host, ASan/UBSan), `make shots`, `make elf` (firmware fork's build with its import check). The sources are listed in `apps/trmnl-sketch/build.flags`.

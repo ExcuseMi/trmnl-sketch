@@ -1,3 +1,34 @@
 # For the firmware fork's apps/build.sh (paths relative to this folder). Run `make fonts` in the repo root first.
-# The sources come in through unity.c (one object): separate objects crashed the Xtensa linker.
 -I../../src -I../../../trmnl-print/src -I../../gen
+# the app's sources (Print's job code is one source, no copy)
+../../gen/fonts_gen.c
+../../src/canvas.c
+../../src/brush.c
+../../src/tbicons.c
+../../src/toolbar.c
+../../src/penmap.c
+../../src/hist.c
+../../src/pngio.c
+../../src/pages.c
+../../src/rects.c
+../../src/skui.c
+../../src/skpills.c
+../../src/skmenu.c
+../../src/gallery.c
+../../src/skprint.c
+../../src/skgal.c
+../../../trmnl-print/src/pcl.c
+../../../trmnl-print/src/pwg.c
+../../../trmnl-print/src/ipp.c
+../../../trmnl-print/src/imgfit.c
+../../../trmnl-print/src/textlay.c
+../../../trmnl-print/src/printer.c
+../../../trmnl-print/src/printjob.c
+../../src/skcfg.c
+../../src/sksize.c
+../../src/skflash.c
+../../src/fill.c
+../../src/skfill.c
+../../src/sketch.c
+../../src/font.c
+../../src/gfx.c

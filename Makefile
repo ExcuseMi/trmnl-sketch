@@ -20,11 +20,7 @@ build/tbfw.o: host/tbfw.cpp $(FW)/lib/trmnl/src/touchbar_layout.cpp
 build/%: test/%.c $(CORE) $(HOST) test/check.h test/util.h $(wildcard src/*.h host/*.h)
 	@mkdir -p build
 	$(CC) $(CFLAGS) $< $(CORE) $(HOST) -o $@ -lm -lz -lstdc++
-# The app is built from one unit (apps/trmnl-sketch/unity.c): a name two sources both define passes the separate test
-# builds and breaks only the ELF (2026-11-01: BLK, WHT, MARGIN). This compiles that unit on the host with every test run.
-unity-check: gen/fonts_gen.c
-	$(CC) -fsyntax-only -std=gnu11 -Wall -Wextra -Werror -Wshadow -Isrc -I$(PRINT) -Igen -I$(FW)/include apps/trmnl-sketch/unity.c
-test: $(TESTS) unity-check
+test: $(TESTS)
 	@for t in $(TESTS); do ./$$t || exit 1; done
 build/shots: host/shots.c host/shots_fill.c host/png.c $(CORE) $(HOST) test/util.h $(wildcard src/*.h host/*.h)
 	@mkdir -p build
@@ -34,13 +30,10 @@ shots: build/shots
 	./build/shots shots
 clean:
 	rm -rf build shots gen
-.PHONY: all fonts test shots clean unity-check
-# The app ELF, with the firmware fork's import check (every libc call must be in the loader's table).
-# The Xtensa linker (ld 2.43.1, --gc-sections --strip-all) aborts with "double free or corruption" for some output
-# paths on this app (heap layout; no ELF is made then, so nothing broken can ship): each try uses another path length.
+.PHONY: all fonts test shots clean
+# The app ELF with the firmware fork's import check (every libc call must be in the loader's table); the sources are
+# listed in apps/trmnl-sketch/build.flags. apps/build.sh links one path for every app (its libgcc copy is the linker fix).
 elf: gen/fonts_gen.c
-	@mkdir -p build/elf; ok=0; for n in sk sk2 a bb cccc ddddddd eeeeeeee; do d=$${TMPDIR:-/tmp}/sketch-elf-$$n; rm -rf $$d; \
-	  if OUT=$$d $(FW)/apps/build.sh $(CURDIR)/apps/trmnl-sketch >/dev/null 2>&1; then cp $$d/trmnl-sketch.elf build/elf/; rm -rf $$d; ok=1; break; fi; \
-	  rm -rf $$d; done; [ $$ok = 1 ] || { echo "the linker crashed on every path: see Makefile"; exit 1; }; \
-	  ls -l build/elf/trmnl-sketch.elf; sha256sum build/elf/trmnl-sketch.elf
+	@mkdir -p build/elf; d=$${TMPDIR:-/tmp}/sketch-elf; rm -rf $$d; OUT=$$d $(FW)/apps/build.sh $(CURDIR)/apps/trmnl-sketch && cp $$d/trmnl-sketch.elf build/elf/ && rm -rf $$d
+	@ls -l build/elf/trmnl-sketch.elf; sha256sum build/elf/trmnl-sketch.elf
 .PHONY: elf
