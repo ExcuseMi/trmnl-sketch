@@ -167,6 +167,8 @@ static const char *page_text(sketch_t *s, char *buf)
     return buf;
 }
 
+static void new_page(sketch_t *s, uint32_t now);
+
 static int leave_page(sketch_t *s, uint32_t now) /* saves the page on screen first; 0 when it could not */
 {
     hist_end(&s->hist);
@@ -179,7 +181,7 @@ void sk_goto_page(sketch_t *s, int index, uint32_t now)
 {
     if (!leave_page(s, now)) return toast(s, "Could not save this page", now);
     pg_scan(&s->pg);
-    if (s->pg.n == 0) return sk_new_page(s, now);
+    if (s->pg.n == 0) return new_page(s, now);
     if (index < 0 || index >= s->pg.n) return toast(s, index < 0 ? "First page" : "Last page", now);
     open_page(s, s->pg.nums[index], now);
     char b[24];
@@ -203,7 +205,7 @@ static void step_page(sketch_t *s, int dir, uint32_t now)
     int present, pos = cur_pos(s, &present);
     int target = dir > 0 ? (present ? pos + 1 : pos) : pos - 1;
     if (s->pg.n == 0 || target < 0 || target >= s->pg.n) {
-        if (s->pg.n == 0) return sk_new_page(s, now);
+        if (s->pg.n == 0) return new_page(s, now);
         return toast(s, target < 0 ? "First page" : "Last page", now);
     }
     open_page(s, s->pg.nums[target], now);
@@ -211,7 +213,14 @@ static void step_page(sketch_t *s, int dir, uint32_t now)
     toast(s, page_text(s, b), now);
 }
 
+/* A new page only from a page with ink: no run of empty pages (owner 2026-11-01) */
 void sk_new_page(sketch_t *s, uint32_t now)
+{
+    if (is_blank(&s->page)) return toast(s, "This page is still empty", now);
+    new_page(s, now);
+}
+
+static void new_page(sketch_t *s, uint32_t now)
 {
     if (!leave_page(s, now)) return toast(s, "Could not save this page", now);
     pg_scan(&s->pg);

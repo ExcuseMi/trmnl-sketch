@@ -210,6 +210,9 @@ static void test_pages_and_autosave(void)
     CHECK(!memfs_find(&r.fs, "sketch/sk0001.tmp"));
     key(&r, 5); /* new page */
     CHECK(r.s.cur == 2 && memfs_find(&r.fs, "sketch/sk0002.png"));
+    key(&r, 5); /* again on the empty page: refused, no run of empty pages (owner 2026-11-01) */
+    key(&r, 5);
+    CHECK(r.s.cur == 2 && !memfs_find(&r.fs, "sketch/sk0003.png"));
     uint8_t white[TS * TH];
     memset(white, 0xff, sizeof(white));
     settle(&r);
