@@ -12,7 +12,7 @@
 static void mkg(const sketch_t *s, gfx_t *g) { gfx_init(g, s->fb.px, s->fb.w, s->fb.h, s->fb.stride, s->orient); }
 static void mark(sketch_t *s, const box_t *b) { rs_add(&s->pend, b, s->fb.w, s->fb.h); }
 static int hit(const box_t *a, const box_t *b) { return !box_empty(a) && !box_empty(b) && a->x0 <= b->x1 && b->x0 <= a->x1 && a->y0 <= b->y1 && b->y0 <= a->y1; }
-static void cfg_num(sketch_t *s, const char *key, int v)
+void sk_cfg_num(sketch_t *s, const char *key, int v)
 {
     char d[8];
     int n = 0, t[8], k = 0;
@@ -37,7 +37,7 @@ static int cfg_int(sketch_t *s, const char *key, int def)
 
 static void whole(box_t *b, const canvas_t *c) { *b = (box_t){ 0, 0, c->w - 1, c->h - 1 }; }
 static void tb_place(sketch_t *s);
-static void tb_paint(sketch_t *s)
+void sk_tb_paint(sketch_t *s)
 {
     gfx_t g;
     mkg(s, &g);
@@ -68,7 +68,7 @@ static void pl_place(sketch_t *s) /* the Tools and Menu pills for the screen in 
 static void fb_put(sketch_t *s, const box_t *b)
 {
     cv_copy_box(&s->fb, &s->page, b);
-    if (s->tb_on && hit(b, &s->tb_box)) tb_paint(s);
+    if (s->tb_on && hit(b, &s->tb_box)) sk_tb_paint(s);
     if (hit(b, &s->pl_box)) pl_paint(s);
 }
 
@@ -77,7 +77,7 @@ void sk_show_page(sketch_t *s)
     box_t b;
     whole(&b, &s->page);
     cv_copy_box(&s->fb, &s->page, &b);
-    if (s->tb_on) tb_paint(s);
+    if (s->tb_on) sk_tb_paint(s);
     pl_paint(s);
 }
 
@@ -129,7 +129,7 @@ static void tb_pointer(sketch_t *s, int ux, int uy)
     if (s->tb_ptr && item == old && (fx - s->cx) * (fx - s->cx) + (fy - s->cy) * (fy - s->cy) < 9) return;
     s->tb_hot = item;
     sk_cursor_hide(s);
-    tb_paint(s);
+    sk_tb_paint(s);
     box_t b;
     if (item != old)
         for (int k = 0; k < 2; k++) {
@@ -155,7 +155,7 @@ static void tb_pointer_off(sketch_t *s)
     sk_cursor_hide(s);
     if (old >= 0 && s->tb_on) {
         box_t b;
-        tb_paint(s);
+        sk_tb_paint(s);
         tb_item_box(s, old, &b);
         mark(s, &b);
     }
@@ -273,7 +273,7 @@ void sk_open_page(sketch_t *s, int num, uint32_t now)
     sk_show_page(s);
     s->want_full = 1;
     s->dirty = 0;
-    cfg_num(s, "cur", num);
+    sk_cfg_num(s, "cur", num);
     (void)now;
 }
 
@@ -350,7 +350,7 @@ void sk_make_page(sketch_t *s, uint32_t now)
     s->cursor = s->note_on = s->legend = 0;
     sk_show_page(s);
     s->want_full = 1;
-    cfg_num(s, "cur", num);
+    sk_cfg_num(s, "cur", num);
     char b[24];
     sk_toast(s, page_text(s, b), now);
 }
@@ -395,71 +395,35 @@ static void toggle_eraser(sketch_t *s, uint32_t now)
 {
     if (s->sty.brush == BR_ERASER) s->sty.brush = (uint8_t)s->last_ink;
     else s->last_ink = s->sty.brush, s->sty.brush = BR_ERASER;
-    if (s->tb_on) tb_paint(s), mark(s, &s->tb_box);
+    if (s->tb_on) sk_tb_paint(s), mark(s, &s->tb_box);
     sk_toast(s, s->sty.brush == BR_ERASER ? "Eraser on" : "Eraser off", now);
 }
 
 /* ---- brush, shade, size and the toolbar ---- */
 
-static void picked(sketch_t *s, const char *text, uint32_t now)
+void sk_picked(sketch_t *s, const char *text, uint32_t now)
 {
-    if (s->tb_on) tb_paint(s), mark(s, &s->tb_box);
+    if (s->tb_on) sk_tb_paint(s), mark(s, &s->tb_box);
     sk_toast(s, text, now);
 }
 
 void sk_set_brush(sketch_t *s, int brush, uint32_t now)
 {
     if (brush < 0 || brush >= BR_N) return;
-    if (brush != BR_ERASER) s->last_ink = brush, cfg_num(s, "brush", brush);
+    if (brush != BR_ERASER) s->last_ink = brush, sk_cfg_num(s, "brush", brush);
     if (s->sty.brush == BR_ERASER) s->era_size = s->sty.size;
     else s->ink_size = s->sty.size;
     s->sty.brush = (uint8_t)brush;
     s->sty.size = brush == BR_ERASER ? s->era_size : s->ink_size;
-    picked(s, brush_name(brush), now);
+    sk_picked(s, brush_name(brush), now);
 }
 
 void sk_set_shade(sketch_t *s, int shade, uint32_t now)
 {
     if (shade < 0 || shade >= SH_N) return;
     s->sty.shade = (uint8_t)shade;
-    cfg_num(s, "shade", shade);
-    picked(s, shade_name(shade), now);
-}
-
-static void size_store(sketch_t *s, int size)
-{
-    s->sty.size = (uint8_t)size;
-    if (s->sty.brush == BR_ERASER) s->era_size = (uint8_t)size, cfg_num(s, "esize", size);
-    else s->ink_size = (uint8_t)size, cfg_num(s, "size", size);
-}
-
-void sk_set_size(sketch_t *s, int size, uint32_t now)
-{
-    if (size < SK_SIZE_MIN || size > SK_SIZE_MAX) return;
-    size_store(s, size);
-    char t[12] = "Size: ";
-    int n = 6;
-    if (size >= 10) t[n++] = (char)('0' + size / 10);
-    t[n++] = (char)('0' + size % 10), t[n] = 0;
-    picked(s, t, now);
-}
-
-/* The knob follows the pen along the track: the strip is repainted in the framebuffer, only the slider's box is pushed */
-static void slider_drag(sketch_t *s, int ux)
-{
-    int size = tb_slider_size(&s->tb, ux);
-    if (size == s->sty.size && s->tb_hot == TI_SIZE) return;
-    s->sty.size = (uint8_t)size;
-    s->tb_hot = TI_SIZE;
-    tb_paint(s);
-    int x0, y0, x1, y1;
-    box_t b;
-    gfx_t g;
-    mkg(s, &g);
-    tb_slider_box(&s->tb, &x0, &y0, &x1, &y1);
-    ui_fb_box(&g, x0, y0, x1, y1, &b);
-    box_clip(&b, s->fb.w, s->fb.h);
-    mark(s, &b);
+    sk_cfg_num(s, "shade", shade);
+    sk_picked(s, shade_name(shade), now);
 }
 
 static void tb_flash(sketch_t *s) { sk_flash(s, &s->tb_box); }
@@ -494,7 +458,7 @@ void sk_toolbar(sketch_t *s, uint32_t now)
     s->stroke = 0;
     tb_place(s);
     s->tb_on = 1;
-    tb_paint(s);
+    sk_tb_paint(s);
     tb_flash(s);
 }
 
@@ -570,10 +534,10 @@ void sk_pen(sketch_t *s, unsigned flags, unsigned x, unsigned y, unsigned pressu
             sk_cursor_hide(s);
             if (!was) tb_press(s, tb_hit(&s->tb, ux, uy), now);
         }
-        if (s->tb_drag) slider_drag(s, ux);
+        if (s->tb_drag) sk_slider_drag(s, ux);
         return;
     }
-    if (tip && s->tb_drag) return slider_drag(s, ux); /* dragged off the strip: the knob stays at the track's end */
+    if (tip && s->tb_drag) return sk_slider_drag(s, ux); /* dragged off the strip: the knob stays at the track's end */
     if (tip && s->tb_hold) return; /* dragged off the strip: no ink until the pen lifts */
     if (tip && inside) {
         if (!s->stroke) {

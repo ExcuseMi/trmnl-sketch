@@ -27,6 +27,7 @@
 #include "../../../trmnl-print/src/printer.c"
 #include "../../../trmnl-print/src/printjob.c"
 #include "../../src/skcfg.c"
+#include "../../src/sksize.c"
 #include "../../src/skflash.c"
 #include "../../src/sketch.c"
 #include "../../src/font.c"

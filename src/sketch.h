@@ -122,6 +122,12 @@ void sk_cfg_reload(sketch_t *s);
 void sk_set_brush(sketch_t *s, int brush, uint32_t now);
 void sk_set_shade(sketch_t *s, int shade, uint32_t now);
 void sk_set_size(sketch_t *s, int size, uint32_t now);
+/* The size slider (sksize.c): the knob follows the pen at user x `ux`; only the slider's cells are pushed */
+void sk_slider_drag(sketch_t *s, int ux);
+/* sketch.c's own, shared with sksize.c: a setting's number, a toast with the strip repainted, the strip repainted in the framebuffer */
+void sk_cfg_num(sketch_t *s, const char *key, int v);
+void sk_picked(sketch_t *s, const char *text, uint32_t now);
+void sk_tb_paint(sketch_t *s);
 /* Shows the toolbar, or hides it again (the same tablet button): only the strip is refreshed, clean; the page under it is
    kept and comes back as it was */
 void sk_toolbar(sketch_t *s, uint32_t now);
