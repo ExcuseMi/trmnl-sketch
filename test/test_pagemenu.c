@@ -1,0 +1,500 @@
+/* The page menu, Exit, printing from it, damaged pages, and the walks through every screen with the pen only and with the
+   tablet buttons only. SPDX-License-Identifier: MIT */
+#include "check.h"
+#include <stdio.h>
+#include "util.h"
+
+static void tap(rig_t *r, int zone) { sk_touch(&r->s, zone, APP_GESTURE_TAP, r->now += 50); }
+static void btn(rig_t *r, int n)
+{
+    sk_pen_key(&r->s, 1u << (n - 1), 1u << (n - 1), r->now += 50);
+    sk_pen_key(&r->s, 0, 1u << (n - 1), r->now);
+}
+static void make_pages(rig_t *r, int n)
+{
+    for (int i = 0; i < n; i++) {
+        rig_line(r, 100 + i * 40, 200, 900 + i * 30, 300 + i * 20 % 700, 50000, 0);
+        r->now += 3000;
+        sk_tick(&r->s, r->now);
+        if (i + 1 < n) btn(r, 6);
+    }
+}
+static int read_all(rig_t *r, const char *path, uint8_t *buf, int cap)
+{
+    void *f = r->fs.fs.open(&r->fs, path, 0);
+    if (!f) return -1;
+    int n = r->fs.fs.read(&r->fs, f, buf, cap);
+    r->fs.fs.close(&r->fs, f);
+    return n;
+}
+static void frames(rig_t *r)
+{
+    rect_t out[SK_MAX_RECTS];
+    while (rig_frame(r, out) != 0) {}
+}
+
+/* ---- the pen only ---- */
+static void pen_xy(rig_t *r, int x, int y)
+{
+    rig_pen_user(r, x, y, APP_PEN_IN_RANGE, 0);
+    rig_pen_user(r, x, y, APP_PEN_TIP | APP_PEN_IN_RANGE, 20000);
+    rig_pen_user(r, x + 2, y + 1, APP_PEN_TIP | APP_PEN_IN_RANGE, 20000);
+    rig_pen_user(r, x + 2, y + 1, APP_PEN_IN_RANGE, 0);
+    rig_pen_user(r, 5, 5, 0, 0); /* out of range again: nothing is hovered between taps */
+}
+static void pen_pill(rig_t *r, int which) /* PL_TOOLS / PL_MENU on the drawing page */
+{
+    const pills_t *p = &r->s.pl;
+    pen_xy(r, (p->x0[which - 1] + p->x1[which - 1]) / 2, (p->y0 + p->y1) / 2);
+}
+static void pen_row(rig_t *r, int i) { pen_xy(r, r->s.lg.x + 50, r->s.lg.y0 + i * LIST_PITCH - 25); }
+static void pen_ctl(rig_t *r, int c) /* CTL_BACK, CTL_SETUP, or CTL_SEL (the OK of a result screen) */
+{
+    int x0, y0, x1, y1;
+    if (c == CTL_SEL) ui_pill_box(r->s.orient % 2 ? TH : TW, r->s.orient % 2 ? TW : TH, &r->s.bar, APP_TOUCH_MIDDLE, "OK", PILL_NONE, &x0, &y0, &x1, &y1);
+    else ui_ctl_box(&r->s.L, c, &x0, &y0, &x1, &y1);
+    pen_xy(r, (x0 + x1) / 2, (y0 + y1) / 2);
+}
+static void pen_tile(rig_t *r, int idx)
+{
+    int tx, ty;
+    gal_tile_xy(&r->s.L, idx % r->s.L.per, &tx, &ty);
+    pen_xy(r, tx + r->s.L.tw / 2, ty + r->s.L.th / 2);
+}
+static void pen_anywhere(rig_t *r) { pen_xy(r, 400, 300); }
+/* sk_run_print as the glue does after the "Printing..." screen was shown */
+static void run_print(rig_t *r)
+{
+    CHECK(r->s.mode == SK_BUSY && r->s.print_req);
+    frames(r);
+    sk_run_print(&r->s);
+}
+
+/* ---- the menu opens, Back brings the same drawing ---- */
+static void test_menu_and_exact_back(void)
+{
+    static rig_t r;
+    static uint8_t keep[TS * TH], fbkeep[TS * TH];
+    for (int way = 0; way < 6; way++) {
+        rig_new(&r, APP_ORIENT_BAR_BOTTOM);
+        make_pages(&r, 2);
+        btn(&r, 4); /* the toolbar, a brush, a shade, a size */
+        sk_set_brush(&r.s, BR_PENCIL, r.now += 50);
+        sk_set_shade(&r.s, 1, r.now += 50);
+        sk_set_size(&r.s, 2, r.now += 50);
+        rig_line(&r, 300, 800, 1200, 900, 40000, 0); /* ink not yet saved by the autosave */
+        rig_pen_user(&r, 5, 5, 0, 0); /* the pen leaves; the notes run out: nothing but page, toolbar and pills is on the screen */
+        r.now += 4000;
+        r.s.save_at = r.now + 100000; /* the autosave stays out of it: the menu writes the page */
+        sk_tick(&r.s, r.now);
+        frames(&r);
+        memcpy(keep, r.s.page.px, sizeof(keep));
+        memcpy(fbkeep, r.fb, sizeof(fbkeep));
+        bstyle_t sty = r.s.sty;
+        int cur = r.s.cur, tb = r.s.tb_on, n_undo = r.s.hist.st_cur;
+        CHECK(tb && r.s.dirty && !r.s.note_on);
+        if (way == 0) btn(&r, 7);
+        else if (way == 1) btn(&r, 8);
+        else if (way == 2) tap(&r, APP_TOUCH_MIDDLE);
+        else pen_pill(&r, PL_MENU);
+        CHECK(r.s.mode == SK_PAGEMENU && r.s.act_num == cur && r.s.pl_hold == 0);
+        frames(&r);
+        CHECK(r.s.list_n == 7 && !r.s.dirty); /* the page is written first: Print and Send work on the file */
+        char path[48];
+        pg_path(path, sizeof(path), cur, ".png");
+        CHECK(memfs_find(&r.fs, path) != 0);
+        CHECK(!memcmp(r.s.page.px, keep, sizeof(keep))); /* the page is still in memory, untouched */
+        if (way == 0 || way == 3) btn(&r, 5);              /* tablet 5 */
+        else if (way == 1) btn(&r, 7);                     /* the menu button again */
+        else if (way == 2) { for (int i = 0; i < 5; i++) tap(&r, APP_TOUCH_RIGHT); tap(&r, APP_TOUCH_MIDDLE); } /* the Back row */
+        else if (way == 4) pen_ctl(&r, CTL_BACK);          /* the Back pill */
+        else btn(&r, 8);
+        CHECK(r.s.mode == SK_DRAW && r.s.cur == cur);
+        CHECK(!memcmp(r.s.page.px, keep, sizeof(keep)) && !memcmp(r.fb, fbkeep, sizeof(fbkeep))); /* pixels as they were, on the screen too */
+        CHECK(!memcmp(&r.s.sty, &sty, sizeof(sty)) && r.s.tb_on == tb && r.s.hist.st_cur == n_undo); /* and the tool state */
+        sk_undo(&r.s, r.now += 50); /* the undo log survived the menu */
+        CHECK(memcmp(r.s.page.px, keep, sizeof(keep)) != 0);
+        rig_end(&r);
+    }
+}
+
+/* A save that fails keeps the drawing on screen: no menu on a page that could not be written */
+static void test_menu_needs_a_saved_page(void)
+{
+    static rig_t r;
+    rig_new(&r, APP_ORIENT_BAR_BOTTOM);
+    make_pages(&r, 1);
+    rig_line(&r, 300, 800, 1200, 900, 40000, 0);
+    r.fs.fail_write = 1;
+    btn(&r, 7);
+    CHECK(r.s.mode == SK_DRAW && r.s.note_on); /* "Could not save this page" */
+    r.fs.fail_write = 0;
+    btn(&r, 7);
+    CHECK(r.s.mode == SK_PAGEMENU);
+    rig_end(&r);
+}
+
+/* ---- Exit Sketch ---- */
+static void test_exit(void)
+{
+    static rig_t r;
+    static uint8_t file[SK_FILE_MAX];
+    rig_new(&r, APP_ORIENT_BAR_BOTTOM);
+    make_pages(&r, 1);
+    rig_line(&r, 300, 800, 1200, 900, 40000, 0);
+    btn(&r, 7);
+    for (int i = 0; i < 6; i++) btn(&r, 2); /* Exit Sketch is the last row */
+    CHECK(r.s.act_sel == 6 && !r.s.exit_req);
+    btn(&r, 4);
+    CHECK(r.s.exit_req && r.s.mode == SK_PAGEMENU); /* the glue leaves app_main, as after a long press */
+    CHECK(read_all(&r, "sketch/sk0001.png", file, SK_FILE_MAX) > 0);
+    rig_end(&r);
+    /* the save fails: one confirm step, never a silent loss */
+    rig_new(&r, APP_ORIENT_BAR_BOTTOM);
+    make_pages(&r, 1);
+    btn(&r, 7);
+    r.s.dirty = 1;
+    r.fs.fail_write = 1;
+    for (int i = 0; i < 6; i++) btn(&r, 2);
+    btn(&r, 4);
+    CHECK(!r.s.exit_req && r.s.mode == SK_CONFIRM && r.s.exit_unsaved);
+    btn(&r, 5); /* Back: the menu, on the Exit row */
+    CHECK(r.s.mode == SK_PAGEMENU && r.s.act_sel == 6 && !r.s.exit_req);
+    btn(&r, 4);
+    CHECK(r.s.mode == SK_CONFIRM);
+    btn(&r, 4); /* Exit without saving */
+    CHECK(r.s.exit_req);
+    rig_end(&r);
+}
+
+/* ---- the gallery from the menu ---- */
+static void test_gallery_from_menu(void)
+{
+    static rig_t r;
+    static uint8_t keep[TS * TH], file[SK_FILE_MAX];
+    rig_new(&r, APP_ORIENT_BAR_BOTTOM);
+    make_pages(&r, 3);
+    memcpy(keep, r.s.page.px, sizeof(keep));
+    btn(&r, 7);
+    for (int i = 0; i < 4; i++) btn(&r, 2);
+    btn(&r, 4);
+    CHECK(r.s.mode == SK_GALLERY && r.s.cur == 3 && r.s.sel == 1);
+    btn(&r, 5); /* Back from the gallery: the page you came from */
+    CHECK(r.s.mode == SK_DRAW && r.s.cur == 3 && !memcmp(r.s.page.px, keep, sizeof(keep)));
+    /* the menu again, the gallery, another drawing: it opens at once; the one left is on disk */
+    btn(&r, 7);
+    for (int i = 0; i < 4; i++) btn(&r, 2);
+    btn(&r, 4);
+    btn(&r, 2);
+    btn(&r, 2);
+    CHECK(r.s.sel == 3);
+    btn(&r, 4);
+    CHECK(r.s.mode == SK_DRAW && r.s.cur == 1);
+    int n = read_all(&r, "sketch/sk0003.png", file, SK_FILE_MAX);
+    CHECK(n > 0);
+    rig_end(&r);
+}
+
+/* ---- printing from the menu ---- */
+static void test_print_from_the_menu(void)
+{
+    static rig_t r;
+    static uint8_t file[SK_FILE_MAX];
+    rect_t out[SK_MAX_RECTS];
+    rig_new(&r, APP_ORIENT_BAR_BOTTOM);
+    make_pages(&r, 2);
+    r.prn.format = PJ_PCL;
+    btn(&r, 7);
+    btn(&r, 4);
+    CHECK(r.s.mode == SK_CONFIRM && r.pr.posts == 0); /* nothing is sent before the confirm */
+    btn(&r, 4);
+    CHECK(rig_frame(&r, out) == SK_FULL); /* "Printing..." is on the glass before the job goes out */
+    run_print(&r);
+    CHECK(r.s.mode == SK_RESULT && r.pr.posts >= 1 && strstr(r.pr.url, "10.1.2.3") && r.s.pres.pages == 1);
+    int n = read_all(&r, "sketch/sk0002.png", file, SK_FILE_MAX);
+    CHECK(n > 0);
+    fprinter_t direct; /* the same bytes the Print app sends for that file and printer, in the printer's format */
+    memset(&direct, 0, sizeof(direct));
+    direct.status = 200;
+    pj_net_t net = { PJ_PCL, fake_post, &direct };
+    pj_result_t res;
+    CHECK(pj_print_png(&net, &r.prn, file, (size_t)n, &res) == 0);
+    CHECK(direct.posts == r.pr.posts && direct.len[0] == r.pr.len[0] && !memcmp(direct.body[0], r.pr.body[0], direct.len[0]));
+    for (int i = 0; i < 4; i++) free(direct.body[i]);
+    btn(&r, 5);
+    CHECK(r.s.mode == SK_PAGEMENU);
+    /* the printer is off: a plain message, nothing crashed */
+    r.pr.status = -1;
+    btn(&r, 4);
+    btn(&r, 4);
+    run_print(&r);
+    CHECK(r.s.mode == SK_RESULT && r.s.pres.msg[0] && r.s.pres.jobs == 0 && !r.s.need_setup);
+    btn(&r, 5);
+    /* a firmware that cannot print */
+    r.s.env.net.post = 0;
+    btn(&r, 4);
+    CHECK(r.s.mode == SK_RESULT && strstr(r.s.pres.msg, "not available"));
+    btn(&r, 5);
+    r.s.env.net.post = fake_post;
+    /* a page file that is gone */
+    r.fs.fs.remove(&r.fs, "sketch/sk0002.png");
+    CHECK(sk_print_page(&r.s, 2) < 0 && strstr(r.s.pres.msg, "could not be read"));
+    /* an empty page has nothing to print */
+    btn(&r, 5);
+    btn(&r, 6);
+    btn(&r, 7);
+    r.pr.posts = 0;
+    btn(&r, 4);
+    CHECK(r.s.mode == SK_RESULT && strstr(r.s.pres.msg, "empty") && r.pr.posts == 0);
+    rig_end(&r);
+}
+
+/* No printer file: no job, the words from the coordinator, a "Set up printer" button the pen and button 6 reach */
+static void test_no_printer_offers_setup(void)
+{
+    static rig_t r;
+    for (int way = 0; way < 2; way++) {
+        rig_new(&r, APP_ORIENT_BAR_BOTTOM);
+        make_pages(&r, 1);
+        r.pr_rc = PJ_NO_PRINTER;
+        btn(&r, 7);
+        btn(&r, 4);
+        CHECK(r.s.mode == SK_RESULT && r.s.need_setup && !strcmp(r.s.pres.msg, "No printer yet: set one up in Print") && r.pr.posts == 0);
+        rect_t out[SK_MAX_RECTS];
+        CHECK(rig_frame(&r, out) == SK_FULL);
+        CHECK(!r.s.setup_req);
+        if (way == 0) pen_ctl(&r, CTL_SETUP);
+        else btn(&r, 6);
+        CHECK(r.s.setup_req && r.pr.posts == 0); /* the glue launches Print's setup and returns */
+        r.s.setup_req = 0;
+        pen_ctl(&r, CTL_BACK);
+        CHECK(r.s.mode == SK_PAGEMENU);
+        r.pr_rc = APP_ENOTSUP; /* an old firmware: a message, no setup button */
+        btn(&r, 4);
+        CHECK(r.s.mode == SK_RESULT && !r.s.need_setup && r.pr.posts == 0);
+        r.pr_rc = APP_EIO;
+        btn(&r, 5);
+        btn(&r, 4);
+        CHECK(r.s.mode == SK_RESULT && !r.s.need_setup && r.pr.posts == 0);
+        rig_end(&r);
+    }
+}
+
+/* ---- damaged pages ---- */
+static void test_damaged_page(void)
+{
+    static rig_t r;
+    static uint8_t junk[300], file[SK_FILE_MAX], before[SK_FILE_MAX];
+    for (int i = 0; i < 300; i++) junk[i] = (uint8_t)(i * 7 + 3);
+    rig_new(&r, APP_ORIENT_BAR_BOTTOM);
+    make_pages(&r, 3);
+    memfs_put(&r.fs, "sketch/sk0002.png", junk, sizeof(junk));
+    btn(&r, 7);
+    for (int i = 0; i < 4; i++) btn(&r, 2);
+    btn(&r, 4);
+    CHECK(r.s.mode == SK_GALLERY);
+    rect_t out[SK_MAX_RECTS];
+    rig_frame(&r, out);
+    CHECK(r.s.dmg_n == 1 && r.s.dmg[0] == 2); /* found while the tiles were drawn */
+    btn(&r, 2); /* tile 2 is page 2 (3 is newest) */
+    CHECK(r.s.sel == 2);
+    btn(&r, 4);
+    CHECK(r.s.mode == SK_ACTIONS && r.s.act_num == 2 && r.s.list_n == 2); /* never opened for drawing */
+    btn(&r, 4);
+    CHECK(r.s.mode == SK_SHARE && r.s.share_req == 1); /* its action: Send to phone */
+    btn(&r, 1);
+    CHECK(r.s.mode == SK_ACTIONS);
+    btn(&r, 5);
+    CHECK(r.s.mode == SK_GALLERY);
+    btn(&r, 5);
+    CHECK(r.s.mode == SK_DRAW && r.s.cur == 3);
+    int n = read_all(&r, "sketch/sk0002.png", file, SK_FILE_MAX);
+    CHECK(n == (int)sizeof(junk) && !memcmp(file, junk, sizeof(junk))); /* never deleted, never changed */
+    /* the app starts on the damaged page (its setting): it draws on another page and leaves the file alone */
+    strcpy(r.cfg_cur, "2");
+    rig_start(&r, APP_ORIENT_BAR_BOTTOM);
+    CHECK(r.s.cur != 2 && r.s.cur == 3);
+    rig_line(&r, 300, 800, 1200, 900, 40000, 0);
+    r.now += 3000;
+    sk_tick(&r.s, r.now);
+    memcpy(before, junk, sizeof(junk));
+    n = read_all(&r, "sketch/sk0002.png", file, SK_FILE_MAX);
+    CHECK(n == (int)sizeof(junk) && !memcmp(file, before, sizeof(junk)) && memfs_find(&r.fs, "sketch/sk0002-bad.png") == 0);
+    /* every page damaged: a new page, numbered past them */
+    memfs_put(&r.fs, "sketch/sk0003.png", junk, sizeof(junk));
+    memfs_put(&r.fs, "sketch/sk0001.png", junk, sizeof(junk));
+    rig_start(&r, APP_ORIENT_BAR_BOTTOM);
+    CHECK(r.s.cur == 4 && sk_is_blank(&r.s.page));
+    rig_end(&r);
+}
+
+/* ---- the walks: every screen and back, with the pen only, and with the tablet buttons only ---- */
+static void setup_walk(rig_t *r, int orient)
+{
+    static uint8_t junk[64];
+    rig_new(r, orient);
+    make_pages(r, 2);
+    memfs_put(&r->fs, "sketch/sk0003.png", junk, sizeof(junk)); /* a damaged page, newest */
+    rig_pen_user(r, 5, 5, 0, 0);
+}
+
+static void test_walk_with_the_pen_only(void)
+{
+    static rig_t r;
+    for (int o = 0; o < 4; o += 3) {
+        setup_walk(&r, o);
+        pen_pill(&r, PL_TOOLS);
+        CHECK(r.s.mode == SK_DRAW && r.s.tb_on);
+        pen_pill(&r, PL_TOOLS);
+        CHECK(!r.s.tb_on);
+        CHECK(!r.s.dirty || r.s.stroke == 0); /* no pill tap inked */
+        pen_pill(&r, PL_MENU);
+        CHECK(r.s.mode == SK_PAGEMENU);
+        rig_frame(&r, (rect_t[SK_MAX_RECTS]){ 0 });
+        pen_row(&r, 5); /* Back */
+        CHECK(r.s.mode == SK_DRAW);
+        pen_pill(&r, PL_MENU);
+        pen_ctl(&r, CTL_BACK);
+        CHECK(r.s.mode == SK_DRAW);
+        pen_pill(&r, PL_MENU);
+        pen_row(&r, 0); /* Print */
+        CHECK(r.s.mode == SK_CONFIRM);
+        pen_ctl(&r, CTL_BACK);
+        CHECK(r.s.mode == SK_PAGEMENU);
+        pen_row(&r, 0);
+        pen_row(&r, 0); /* the Print row of the confirm list */
+        CHECK(r.s.mode == SK_BUSY);
+        run_print(&r);
+        CHECK(r.s.mode == SK_RESULT);
+        pen_ctl(&r, CTL_SEL); /* OK */
+        CHECK(r.s.mode == SK_PAGEMENU);
+        r.pr_rc = PJ_NO_PRINTER;
+        pen_row(&r, 0);
+        CHECK(r.s.mode == SK_RESULT && r.s.need_setup);
+        pen_ctl(&r, CTL_SETUP);
+        CHECK(r.s.setup_req);
+        r.s.setup_req = 0;
+        pen_ctl(&r, CTL_BACK);
+        CHECK(r.s.mode == SK_PAGEMENU);
+        r.pr_rc = 0;
+        pen_row(&r, 1); /* Send to phone */
+        CHECK(r.s.mode == SK_SHARE && r.s.share_req == 1);
+        pen_anywhere(&r);
+        CHECK(r.s.mode == SK_PAGEMENU);
+        pen_row(&r, 2); /* Settings */
+        CHECK(r.s.mode == SK_SHARE && r.s.share_req == 2);
+        pen_anywhere(&r);
+        CHECK(r.s.mode == SK_PAGEMENU);
+        pen_row(&r, 4); /* Gallery */
+        CHECK(r.s.mode == SK_GALLERY);
+        rig_frame(&r, (rect_t[SK_MAX_RECTS]){ 0 });
+        pen_tile(&r, 1); /* the damaged one */
+        CHECK(r.s.mode == SK_ACTIONS);
+        pen_row(&r, 0);
+        CHECK(r.s.mode == SK_SHARE);
+        pen_anywhere(&r);
+        CHECK(r.s.mode == SK_ACTIONS);
+        pen_ctl(&r, CTL_BACK);
+        CHECK(r.s.mode == SK_GALLERY);
+        pen_ctl(&r, CTL_BACK);
+        CHECK(r.s.mode == SK_DRAW);
+        pen_pill(&r, PL_MENU);
+        pen_row(&r, 4);
+        pen_tile(&r, 3); /* page 1 */
+        CHECK(r.s.mode == SK_DRAW && r.s.cur == 1);
+        pen_pill(&r, PL_MENU);
+        pen_row(&r, 3); /* New page */
+        CHECK(r.s.mode == SK_DRAW && r.s.cur == 4);
+        pen_pill(&r, PL_MENU);
+        pen_row(&r, 6); /* Exit Sketch */
+        CHECK(r.s.exit_req);
+        rig_end(&r);
+    }
+}
+
+static void row_button(rig_t *r, int row) /* the selection to a list row with buttons 1 and 2 */
+{
+    for (int i = 0; i < 8; i++) btn(r, 1);
+    for (int i = 0; i < row; i++) btn(r, 2);
+    CHECK(r->s.act_sel == row);
+}
+
+static void test_walk_with_the_tablet_buttons_only(void)
+{
+    static rig_t r;
+    for (int o = 0; o < 4; o += 3) {
+        setup_walk(&r, o);
+        btn(&r, 4);
+        CHECK(r.s.tb_on);
+        btn(&r, 4);
+        btn(&r, 7);
+        CHECK(r.s.mode == SK_PAGEMENU);
+        btn(&r, 5);
+        CHECK(r.s.mode == SK_DRAW);
+        btn(&r, 8);
+        btn(&r, 8); /* the menu button again */
+        CHECK(r.s.mode == SK_DRAW);
+        btn(&r, 7);
+        row_button(&r, 0);
+        btn(&r, 4);
+        CHECK(r.s.mode == SK_CONFIRM);
+        btn(&r, 5);
+        CHECK(r.s.mode == SK_PAGEMENU);
+        btn(&r, 4);
+        btn(&r, 4);
+        run_print(&r);
+        CHECK(r.s.mode == SK_RESULT);
+        btn(&r, 5);
+        CHECK(r.s.mode == SK_PAGEMENU);
+        r.pr_rc = PJ_NO_PRINTER;
+        btn(&r, 4);
+        CHECK(r.s.mode == SK_RESULT && r.s.need_setup);
+        btn(&r, 6);
+        CHECK(r.s.setup_req);
+        r.s.setup_req = 0;
+        btn(&r, 5);
+        r.pr_rc = 0;
+        row_button(&r, 1);
+        btn(&r, 4);
+        CHECK(r.s.mode == SK_SHARE);
+        btn(&r, 1);
+        CHECK(r.s.mode == SK_PAGEMENU);
+        row_button(&r, 2);
+        btn(&r, 4);
+        CHECK(r.s.mode == SK_SHARE && r.s.share_req == 2);
+        btn(&r, 1);
+        row_button(&r, 4);
+        btn(&r, 4);
+        CHECK(r.s.mode == SK_GALLERY);
+        rig_frame(&r, (rect_t[SK_MAX_RECTS]){ 0 });
+        btn(&r, 1); /* from the page on screen (tile 2) to the damaged tile 1 */
+        btn(&r, 4);
+        CHECK(r.s.mode == SK_ACTIONS);
+        btn(&r, 4);
+        CHECK(r.s.mode == SK_SHARE);
+        btn(&r, 1);
+        btn(&r, 5);
+        CHECK(r.s.mode == SK_GALLERY);
+        btn(&r, 5);
+        CHECK(r.s.mode == SK_DRAW);
+        btn(&r, 7);
+        row_button(&r, 6);
+        btn(&r, 4);
+        CHECK(r.s.exit_req);
+        rig_end(&r);
+    }
+}
+
+int main(void)
+{
+    test_menu_and_exact_back();
+    test_menu_needs_a_saved_page();
+    test_exit();
+    test_gallery_from_menu();
+    test_print_from_the_menu();
+    test_no_printer_offers_setup();
+    test_damaged_page();
+    test_walk_with_the_pen_only();
+    test_walk_with_the_tablet_buttons_only();
+    return CHECK_DONE("test_pagemenu");
+}

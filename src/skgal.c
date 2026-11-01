@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "sk_cfg.h"
+#include "font.h"
 
 enum { MBLK_ = GFX_BLACK, MWHT_ = GFX_WHITE };
 
@@ -29,11 +30,11 @@ static int gidx_of(const sketch_t *s, int num)
 static int user_w(const sketch_t *s) { return s->orient == APP_ORIENT_BAR_LEFT || s->orient == APP_ORIENT_BAR_RIGHT ? s->fb.h : s->fb.w; }
 static int user_h(const sketch_t *s) { return s->orient == APP_ORIENT_BAR_LEFT || s->orient == APP_ORIENT_BAR_RIGHT ? s->fb.w : s->fb.h; }
 
-static void printer_addr(sketch_t *s, char *out, int cap)
+static int is_dmg(const sketch_t *s, int num)
 {
-    int n = s->env.cfg_get ? s->env.cfg_get(s->env.user, "printer", out, cap - 1) : -1;
-    if (n <= 0) n = (int)strlen(SK_PRINTER_DEFAULT), memcpy(out, SK_PRINTER_DEFAULT, (size_t)n);
-    out[n] = 0;
+    for (int i = 0; i < s->dmg_n; i++)
+        if (s->dmg[i] == num) return 1;
+    return 0;
 }
 
 /* The thumbnail of a page: cached, else made from the page on screen or from its file (read through `ui` as scratch) */
@@ -42,7 +43,12 @@ static const uint8_t *thumb_for(sketch_t *s, int num)
     const uint8_t *t = gal_find(&s->cache, num);
     if (t) return t;
     if (num == s->cur) return gal_make(&s->cache, num, &s->page);
-    if (pg_load(&s->pg, num, &s->ui) == PG_MISSING) return 0;
+    int rc = pg_load(&s->pg, num, &s->ui);
+    if (rc == PG_MISSING) return 0;
+    if (rc == PG_BAD) { /* never deleted, never opened for drawing: a "Damaged" tile */
+        if (!is_dmg(s, num) && s->dmg_n < SK_DMG_MAX) s->dmg[s->dmg_n++] = (uint16_t)num;
+        return 0;
+    }
     return gal_make(&s->cache, num, &s->ui);
 }
 
@@ -63,11 +69,30 @@ static void split_msg(const char *m, char a[64], char b[64])
     if (cut < n) sk_cpy(b, 64, m + cut + (m[cut] == ' '));
 }
 
+/* "Page 12" into t (24 bytes) */
+static void num_text(char *t, const char *pre, int v)
+{
+    char d[8];
+    int k = 0, m = 0;
+    while (*pre) t[k++] = *pre++;
+    do d[m++] = (char)('0' + v % 10), v /= 10; while (v);
+    while (m) t[k++] = d[--m];
+    t[k] = 0;
+}
+
+static void mtext_c(gfx_t *g, int cx, int y, const char *s)
+{
+    const font_face_t *f = font_get(FONT_BOLD, 46);
+    gfx_text(g, f, (int32_t)(cx - (int)((font_width64(f, s, 0) + 32) >> 6) / 2) * 64, y, s, 0, MBLK_);
+}
+
 static int gpages(const sketch_t *s) { return (gcount(s) + s->L.per - 1) / s->L.per; }
 /* The control as drawn on this screen (CTL_NONE: the screen has none like it) */
 static int ctl_live(const sketch_t *s, int c)
 {
-    if (!s->ui.px || (s->mode != SK_GALLERY && s->mode != SK_ACTIONS && s->mode != SK_CONFIRM)) return 0;
+    if (!s->ui.px || s->mode < SK_GALLERY || s->mode == SK_BUSY) return 0;
+    if (s->mode == SK_RESULT) return c == CTL_SEL || c == CTL_BACK || (c == CTL_SETUP && s->need_setup);
+    if (c == CTL_BACK) return 1;
     if (c == CTL_PREV) return s->mode == SK_GALLERY && s->sel / s->L.per > 0;
     if (c == CTL_NEXT) return s->mode == SK_GALLERY && s->sel / s->L.per + 1 < gpages(s);
     return c == CTL_UP || c == CTL_SEL || c == CTL_DOWN;
@@ -77,9 +102,10 @@ static int ctl_live(const sketch_t *s, int c)
 static int ctl_box(const sketch_t *s, int c, int *x0, int *y0, int *x1, int *y1)
 {
     if (c == CTL_PREV || c == CTL_NEXT) return ui_nav_box(&s->L, c, x0, y0, x1, y1), 1;
+    if (c == CTL_BACK || c == CTL_SETUP) return ui_ctl_box(&s->L, c, x0, y0, x1, y1), 1;
     if (c < CTL_UP || c > CTL_DOWN) return 0;
     int z = c == CTL_UP ? APP_TOUCH_LEFT : c == CTL_DOWN ? APP_TOUCH_RIGHT : APP_TOUCH_MIDDLE;
-    const char *lab = c == CTL_UP ? "Up" : c == CTL_DOWN ? "Down" : s->mode == SK_GALLERY ? (s->sel == 0 ? "New page" : "Open") : "Select";
+    const char *lab = c == CTL_UP ? "Up" : c == CTL_DOWN ? "Down" : s->mode == SK_GALLERY ? (s->sel == 0 ? "New page" : "Open") : s->mode == SK_RESULT ? "OK" : "Select";
     ui_pill_box(user_w(s), user_h(s), &s->bar, z, lab, c == CTL_UP ? PILL_UP : c == CTL_DOWN ? PILL_DOWN : PILL_NONE, x0, y0, x1, y1);
     return 1;
 }
@@ -92,6 +118,8 @@ static void menu_draw(sketch_t *s)
     s->blit_n = 0;
     gal_layout(&s->L, s->orient, user_w(s), user_h(s));
     int first = (s->sel / s->L.per) * s->L.per, n = gcount(s) - first, nums[64];
+    uint8_t dmg[64];
+    memset(dmg, 0, sizeof(dmg));
     if (n > s->L.per) n = s->L.per;
     if (n > 64) n = 64;
     if (s->mode == SK_GALLERY)
@@ -100,9 +128,10 @@ static void menu_draw(sketch_t *s)
             gal_tile_xy(&s->L, i, &x, &y);
             nums[i] = gnum(s, first + i);
             if (nums[i]) blit_add(s, nums[i], x, y);
+            dmg[i] = nums[i] && is_dmg(s, nums[i]);
         }
     int px = s->L.ax1 - s->L.tw - 12, py = (s->L.ay0 + s->L.ay1) / 2 - s->L.th / 2; /* the preview, framed as a gallery tile */
-    if (s->mode == SK_ACTIONS || s->mode == SK_CONFIRM) blit_add(s, s->act_num, px, py);
+    if (s->mode == SK_ACTIONS || s->mode == SK_CONFIRM || s->mode == SK_PAGEMENU) blit_add(s, s->act_num, px, py);
     cv_fill(&s->ui, 1);
     ui_g(s, &g);
     int hot = ctl_live(s, s->hot) ? s->hot : CTL_NONE;
@@ -110,41 +139,55 @@ static void menu_draw(sketch_t *s)
     switch (s->mode) {
     case SK_GALLERY: {
         int sel_slot = s->sel - first;
-        ui_gallery(&g, &s->L, nums, n, sel_slot, s->cur, s->sel / s->L.per, gpages(s), s->gnote, hot);
+        ui_gallery(&g, &s->L, nums, dmg, n, sel_slot, s->cur, s->sel / s->L.per, gpages(s), s->gnote, hot);
         ui_menu_pills(&g, &s->bar, s->sel == 0 ? "New page" : "Open", hot);
+        ui_button(&g, &s->L, CTL_BACK, hot == CTL_BACK);
         break;
     }
-    case SK_ACTIONS: {
-        static const char *const items[] = { "Open", "Print", "Send to phone", "Settings", "Back" };
-        int k = 0, v = s->act_num;
-        char d[8];
-        int m = 0;
-        memcpy(t, "Sketch ", 7), k = 7;
-        do d[m++] = (char)('0' + v % 10), v /= 10; while (v);
-        while (m) t[k++] = d[--m];
-        t[k] = 0;
-        ui_list(&g, &s->L, t, items, 5, s->act_sel, &s->lg);
-        s->list_n = 5;
+    case SK_PAGEMENU: {
+        static const char *const items[] = { "Print", "Send to phone", "Settings", "New page", "Gallery", "Back", "Exit Sketch" };
+        num_text(t, "Page ", s->act_num);
+        ui_list(&g, &s->L, t, items, 7, s->act_sel, &s->lg);
+        s->list_n = 7;
         gfx_rrect(&g, px - 10, py - 10, px + s->L.tw + 9, py + s->L.th + 9, 12, 2, MWHT_, MBLK_);
         ui_menu_pills(&g, &s->bar, "Select", hot);
+        ui_button(&g, &s->L, CTL_BACK, hot == CTL_BACK);
+        break;
+    }
+    case SK_ACTIONS: { /* a damaged page: the file can be rescued through the phone page */
+        static const char *const items[] = { "Send to phone", "Back" };
+        num_text(t, "Damaged ", s->act_num);
+        ui_list(&g, &s->L, t, items, 2, s->act_sel, &s->lg);
+        s->list_n = 2;
+        gfx_rrect(&g, px - 10, py - 10, px + s->L.tw + 9, py + s->L.th + 9, 12, 2, MWHT_, MBLK_);
+        mtext_c(&g, px + s->L.tw / 2, py + s->L.th / 2 + 14, "Damaged");
+        ui_footer(&g, &s->L, "This page cannot be opened. Send it to your phone to keep the file.");
+        ui_menu_pills(&g, &s->bar, "Select", hot);
+        ui_button(&g, &s->L, CTL_BACK, hot == CTL_BACK);
         break;
     }
     case SK_CONFIRM: {
-        static const char *const items[] = { "Print", "Back" };
-        ui_list(&g, &s->L, "Print this drawing?", items, 2, s->act_sel, &s->lg);
+        static const char *const items[] = { "Print", "Back" }, *const items2[] = { "Exit without saving", "Back" };
+        ui_list(&g, &s->L, s->exit_unsaved ? "Could not save this page" : "Print this drawing?", s->exit_unsaved ? items2 : items, 2, s->act_sel, &s->lg);
         s->list_n = 2;
         gfx_rrect(&g, px - 10, py - 10, px + s->L.tw + 9, py + s->L.th + 9, 12, 2, MWHT_, MBLK_);
-        char a[48] = "Printer: ";
-        printer_addr(s, a + 9, 36);
-        ui_footer(&g, &s->L, a);
+        char a[100] = "Printer: ";
+        if (!s->exit_unsaved) {
+            pj_printer_addr(&s->prn, a + 9, 80);
+            ui_footer(&g, &s->L, a);
+        }
         ui_menu_pills(&g, &s->bar, "Select", hot);
+        ui_button(&g, &s->L, CTL_BACK, hot == CTL_BACK);
         break;
     }
     case SK_BUSY: ui_message(&g, &s->L, "Printing...", "Sending the page to the printer.", "This takes a few seconds.", 0); break;
     default:
         split_msg(s->pres.msg, l1, l2);
         ui_message(&g, &s->L, s->pres.pages && s->pres.jobs ? "Printed" : "Not printed", l1, l2, 0);
-        ui_pill(&g, &s->bar, APP_TOUCH_MIDDLE, "OK", PILL_NONE, 0);
+        ui_pill(&g, &s->bar, APP_TOUCH_MIDDLE, "OK", PILL_NONE, hot == CTL_SEL);
+        ui_button(&g, &s->L, CTL_BACK, hot == CTL_BACK);
+        if (s->need_setup) ui_button(&g, &s->L, CTL_SETUP, hot == CTL_SETUP);
+        if (s->need_setup) ui_footer(&g, &s->L, "Tablet: button 6 sets up the printer, button 5 goes back.");
         break;
     }
     for (int i = 0; i < s->blit_n; i++) {
@@ -162,7 +205,8 @@ void sk_screen_render(sketch_t *s)
 
 /* ---- the pointer and the highlight: partial refreshes ---- */
 
-static int menu_pointer(const sketch_t *s) { return s->ui.px && (s->mode == SK_GALLERY || s->mode == SK_ACTIONS || s->mode == SK_CONFIRM || s->mode == SK_RESULT); }
+static int is_list(const sketch_t *s) { return s->mode == SK_ACTIONS || s->mode == SK_CONFIRM || s->mode == SK_PAGEMENU; }
+static int menu_pointer(const sketch_t *s) { return s->ui.px && (s->mode == SK_GALLERY || is_list(s) || s->mode == SK_RESULT); }
 
 void sk_menu_cursor(sketch_t *s)
 {
@@ -185,7 +229,7 @@ static void sel_box(sketch_t *s, int sel, box_t *b)
         int x, y, slot = sel - (s->sel / s->L.per) * s->L.per;
         gal_tile_xy(&s->L, slot, &x, &y);
         x0 = x - 10, y0 = y - 10, x1 = x + s->L.tw + 9, y1 = y + s->L.th + GAL_LABEL;
-    } else if (s->mode == SK_ACTIONS || s->mode == SK_CONFIRM) {
+    } else if (is_list(s)) {
         ui_list_row(&s->lg, sel, &x0, &y0, &x1, &y1);
     } else {
         return;
@@ -235,24 +279,46 @@ static void sel_set(sketch_t *s, int v)
     redraw_boxes(s, &a, &b, &n);
 }
 
-void sk_to_gallery(sketch_t *s, uint32_t now)
+static void to_menu(sketch_t *s, int mode, int sel)
 {
-    if (s->mode == SK_DRAW && !sk_leave_page(s, now)) return sk_toast(s, "Could not save this page", now);
+    s->mode = mode;
+    s->act_sel = sel;
+    sk_screen_render(s);
+}
+
+/* The page menu: the menu of the page on screen. The page is written first (Print and Send to phone work on its file) and
+   stays in memory: Back brings it, the tool state and the toolbar back as they were */
+void sk_to_pagemenu(sketch_t *s, uint32_t now)
+{
+    if (s->mode != SK_DRAW) return;
+    if (!sk_save_page(s, now)) return sk_toast(s, "Could not save this page", now);
     if (!s->ui.px) {
         s->ui.px = malloc((size_t)s->fb.stride * (size_t)s->fb.h);
         s->ui.w = s->fb.w, s->ui.h = s->fb.h, s->ui.stride = s->fb.stride;
-        if (!s->ui.px) return sk_toast(s, "Not enough memory for the gallery", now);
+        if (!s->ui.px) return sk_toast(s, "Not enough memory for the menu", now);
     }
-    pg_scan(&s->pg);
     sk_cursor_hide(s);
     sk_note_hide(s);
     s->cursor = 0;
-    s->tb_on = s->tb_hold = 0; /* the toolbar is for drawing only */
-    s->mode = SK_GALLERY;
+    s->tb_back = s->tb_on;
+    s->tb_on = s->tb_hold = s->pl_hold = 0; /* the toolbar and the pills are for drawing only */
+    s->act_num = s->cur;
+    s->exit_unsaved = s->need_setup = 0;
+    s->ptr_down = 0;
+    to_menu(s, SK_PAGEMENU, 0);
+}
+
+/* The gallery, from the page menu: the page on screen is not left until another one is picked */
+void sk_to_gallery(sketch_t *s, uint32_t now)
+{
+    (void)now;
+    if (s->mode != SK_PAGEMENU || !s->ui.px) return;
+    pg_scan(&s->pg);
+    s->dmg_n = 0;
     s->sel = gidx_of(s, s->cur);
     s->gnote[0] = 0;
     s->ptr_down = 0;
-    sk_screen_render(s);
+    to_menu(s, SK_GALLERY, s->act_sel);
 }
 
 static void to_draw(sketch_t *s)
@@ -262,7 +328,7 @@ static void to_draw(sketch_t *s)
     s->ui.px = 0;
     gal_cache_free(&s->cache);
     s->mode = SK_DRAW;
-    sk_show_page(s);
+    sk_resume_draw(s);
     s->want_full = 1;
 }
 
@@ -277,52 +343,73 @@ static void gal_activate(sketch_t *s, uint32_t now)
         to_draw(s);
         return sk_make_page(s, now);
     }
-    s->act_num = num;
-    s->act_sel = 0;
-    s->mode = SK_ACTIONS;
-    sk_screen_render(s);
+    if (is_dmg(s, num)) { /* cannot be opened for drawing; its one action rescues the file */
+        s->act_num = num;
+        return to_menu(s, SK_ACTIONS, 0);
+    }
+    to_draw(s);
+    if (num == s->cur) return;
+    if (!sk_leave_page(s, now)) return sk_toast(s, "Could not save this page", now);
+    pg_scan(&s->pg);
+    sk_open_page(s, num, now);
+}
+
+/* Back: the screen before this one (the drawing from the page menu and the gallery) */
+static void menu_back(sketch_t *s)
+{
+    switch (s->mode) {
+    case SK_ACTIONS: to_menu(s, SK_GALLERY, s->act_sel); break;
+    case SK_CONFIRM: to_menu(s, SK_PAGEMENU, s->exit_unsaved ? 6 : 0); break;
+    case SK_RESULT: to_menu(s, SK_PAGEMENU, 0); break;
+    default: to_draw(s); /* the page menu, the gallery */
+    }
+}
+
+static void share_from(sketch_t *s, int kind)
+{
+    sk_cursor_hide(s);
+    /* the phone page: the files (download the drawings) or the settings form */
+    s->ret_mode = s->mode;
+    s->mode = SK_SHARE;
+    s->share_req = s->share_kind = kind;
+    s->share_rc = 0;
+    memset(&s->share_shown, 0xff, sizeof(s->share_shown));
+}
+
+static void print_start(sketch_t *s)
+{
+    s->ret_mode = SK_PAGEMENU;
+    if (sk_is_blank(&s->page)) {
+        memset(&s->pres, 0, sizeof(s->pres));
+        sk_cpy(s->pres.msg, sizeof(s->pres.msg), "This page is empty: nothing to print.");
+        s->need_setup = 0;
+        return to_menu(s, SK_RESULT, 0);
+    }
+    if (sk_print_check(s) < 0) return to_menu(s, SK_RESULT, 0);
+    s->exit_unsaved = 0;
+    to_menu(s, SK_CONFIRM, 0);
 }
 
 static void list_select(sketch_t *s, uint32_t now)
 {
-    if (s->mode == SK_ACTIONS) {
+    if (s->mode == SK_PAGEMENU) {
         switch (s->act_sel) {
-        case 0:
-            to_draw(s);
-            if (s->act_num != s->cur) sk_open_page(s, s->act_num, now);
-            break;
-        case 1:
-            if (!s->env.net.post) {
-                s->pres = (pj_result_t){ "Printing is not available on this firmware.", 0, 0 };
-                s->mode = SK_RESULT;
-            } else {
-                s->mode = SK_CONFIRM;
-                s->act_sel = 0;
-            }
-            sk_screen_render(s);
-            break;
-        case 2: case 3:
-            sk_cursor_hide(s);
-            /* the phone page: the files (download the drawings) or the settings form (the printer's address) */
-            s->mode = SK_SHARE;
-            s->share_req = s->act_sel == 2 ? 1 : 2;
-            s->share_kind = s->share_req;
-            s->share_rc = 0;
-            memset(&s->share_shown, 0xff, sizeof(s->share_shown));
-            break;
-        default:
-            s->mode = SK_GALLERY;
-            sk_screen_render(s);
+        case 0: print_start(s); break;
+        case 1: case 2: share_from(s, s->act_sel); break;
+        case 3: to_draw(s), sk_new_page(s, now); break;
+        case 4: sk_to_gallery(s, now); break;
+        case 5: to_draw(s); break;
+        default: /* Exit Sketch: the page is saved, the app returns as after a long press; only a failed save asks first */
+            if (sk_save_page(s, now)) s->exit_req = 1;
+            else s->exit_unsaved = 1, to_menu(s, SK_CONFIRM, 0);
         }
+    } else if (s->mode == SK_ACTIONS) {
+        if (s->act_sel == 0) share_from(s, 1);
+        else menu_back(s);
     } else if (s->mode == SK_CONFIRM) {
-        if (s->act_sel == 0) {
-            s->mode = SK_BUSY;
-            s->print_req = 1;
-        } else {
-            s->mode = SK_ACTIONS;
-            s->act_sel = 1;
-        }
-        sk_screen_render(s);
+        if (s->act_sel != 0) return menu_back(s);
+        if (s->exit_unsaved) s->exit_req = 1;
+        else s->mode = SK_BUSY, s->print_req = 1, sk_screen_render(s);
     }
 }
 
@@ -330,7 +417,7 @@ static void menu_move(sketch_t *s, int dir)
 {
     int v, n;
     if (s->mode == SK_GALLERY) v = s->sel + dir, n = gcount(s);
-    else if (s->mode == SK_ACTIONS || s->mode == SK_CONFIRM) v = s->act_sel + dir, n = s->list_n;
+    else if (is_list(s)) v = s->act_sel + dir, n = s->list_n;
     else return;
     if (v >= 0 && v < n) sel_set(s, v);
 }
@@ -347,7 +434,7 @@ void sk_menu_touch(sketch_t *s, int zone, int gesture, uint32_t now)
 {
     if (s->mode == SK_BUSY) return;
     if (s->mode == SK_RESULT) {
-        if (gesture == APP_GESTURE_TAP) s->mode = SK_GALLERY, sk_screen_render(s);
+        if (gesture == APP_GESTURE_TAP) menu_back(s);
         return;
     }
     if (s->mode == SK_GALLERY && (gesture == APP_GESTURE_SWIPE_LEFT || gesture == APP_GESTURE_SWIPE_RIGHT)) {
@@ -365,7 +452,7 @@ void sk_menu_touch(sketch_t *s, int zone, int gesture, uint32_t now)
 /* The control under a user-frame point (a little generous: the pen is not exact), or CTL_NONE */
 static int ctl_at(const sketch_t *s, int ux, int uy)
 {
-    for (int c = CTL_UP; c <= CTL_NEXT; c++) {
+    for (int c = CTL_UP; c <= CTL_SETUP; c++) {
         int x0, y0, x1, y1;
         if (ctl_live(s, c) && ctl_box(s, c, &x0, &y0, &x1, &y1) && ux >= x0 - 20 && ux <= x1 + 20 && uy >= y0 - 20 && uy <= y1 + 20) return c;
     }
@@ -399,28 +486,32 @@ static void ctl_press(sketch_t *s, int c, uint32_t now)
 {
     if (c == CTL_UP || c == CTL_DOWN) menu_move(s, c == CTL_UP ? -1 : 1);
     else if (c == CTL_PREV || c == CTL_NEXT) gal_page(s, c == CTL_PREV ? -1 : 1);
+    else if (c == CTL_SETUP) s->setup_req = 1; /* the glue starts Print's setup and ends the app */
+    else if (c == CTL_BACK || s->mode == SK_RESULT) menu_back(s);
     else if (s->mode == SK_GALLERY) gal_activate(s, now);
     else list_select(s, now);
 }
 
 /* The tablet's buttons in the menu screens: 1 and 2 (and 7, 8 in lists) move the selection, 7 and 8 turn the gallery's
-   screen of tiles, 4 opens, 5 goes back (the gallery: closes it), 6 is the New page tile */
+   screen of tiles (in the page menu 7 and 8 close it, as they opened it), 4 selects, 5 goes back, 6 is the New page tile */
 void sk_menu_key(sketch_t *s, unsigned down, uint32_t now)
 {
     if (s->mode == SK_BUSY) return;
-    if (s->mode == SK_SHARE || s->mode == SK_RESULT) return sk_touch(s, APP_TOUCH_MIDDLE, APP_GESTURE_TAP, now);
+    if (s->mode == SK_SHARE) return sk_touch(s, APP_TOUCH_MIDDLE, APP_GESTURE_TAP, now);
+    if (s->mode == SK_RESULT) { /* button 6 sets up the printer when that is what the screen offers */
+        if (s->need_setup && (down >> 5 & 1)) s->setup_req = 1;
+        else if (down & 0x18u) menu_back(s);
+        return;
+    }
     for (int b = 0; b < 8; b++) {
-        int gal = s->mode == SK_GALLERY;
+        int gal = s->mode == SK_GALLERY, pm = s->mode == SK_PAGEMENU;
         if (!(down >> b & 1) || (s->mode < SK_GALLERY)) continue;
-        if (b == 0 || (b == 6 && !gal)) menu_move(s, -1);
-        else if (b == 1 || (b == 7 && !gal)) menu_move(s, 1);
-        else if (b == 6) gal_page(s, -1);
-        else if (b == 7) gal_page(s, 1);
+        if (b == 0 || (b == 6 && !gal && !pm)) menu_move(s, -1);
+        else if (b == 1 || (b == 7 && !gal && !pm)) menu_move(s, 1);
+        else if (b == 6 || b == 7) gal ? gal_page(s, b == 6 ? -1 : 1) : menu_back(s);
         else if (b == 3) ctl_press(s, CTL_SEL, now);
         else if (b == 5 && gal) sel_set(s, 0), gal_activate(s, now);
-        else if (b == 4 && gal) to_draw(s);
-        else if (b == 4 && s->mode == SK_ACTIONS) s->mode = SK_GALLERY, sk_screen_render(s);
-        else if (b == 4 && s->mode == SK_CONFIRM) s->mode = SK_ACTIONS, s->act_sel = 1, sk_screen_render(s);
+        else if (b == 4) menu_back(s);
     }
 }
 
@@ -431,7 +522,7 @@ static int item_at(const sketch_t *s, int ux, int uy)
         int slot = gal_hit(&s->L, ux, uy), idx = (s->sel / s->L.per) * s->L.per + slot;
         return slot >= 0 && idx < gcount(s) ? idx : -1;
     }
-    if (s->mode == SK_ACTIONS || s->mode == SK_CONFIRM) {
+    if (is_list(s)) {
         for (int i = 0; i < s->list_n; i++) {
             int b = s->lg.y0 + i * LIST_PITCH;
             if (ux >= s->lg.x - 100 && ux < s->L.ax1 && uy >= b - 80 && uy < b + 30) return i;
@@ -496,6 +587,8 @@ void sk_run_print(sketch_t *s)
         return sk_toast(s, s->pres.pages ? "Printed" : "Not printed", s->last_push);
     }
     s->mode = SK_RESULT;
+    s->ret_mode = SK_PAGEMENU;
+    s->need_setup = 0;
     sk_screen_render(s);
 }
 

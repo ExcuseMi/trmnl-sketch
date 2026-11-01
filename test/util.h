@@ -29,7 +29,8 @@ typedef struct {
     memfs_t fs;
     fprinter_t pr;
     int fulls, parts;   /* full and partial refreshes the glue would have pushed */
-    char cfg_printer[40];
+    int pr_rc;          /* what the default printer lookup answers (0, PJ_NO_PRINTER, ...) */
+    pj_printer_t prn;   /* the default printer (printer.cfg) */
     sketch_t s;
     uint8_t *fb;
     uint32_t now;
@@ -58,10 +59,17 @@ static int fake_post(void *u, const char *url, const void *body, size_t n, uint8
     return p->status;
 }
 
+static int rig_printer(void *u, pj_printer_t *out)
+{
+    rig_t *r = u;
+    *out = r->prn;
+    return r->pr_rc;
+}
+
 static int rig_get(void *u, const char *k, char *b, int cap)
 {
     rig_t *r = u;
-    const char *v = !strcmp(k, "cur") ? r->cfg_cur : !strcmp(k, "size") ? r->cfg_size : !strcmp(k, "brush") ? r->cfg_brush : !strcmp(k, "shade") ? r->cfg_shade : !strcmp(k, "printer") ? r->cfg_printer : !strcmp(k, "pen_area") ? r->cfg_pen_area : !strcmp(k, "cleanup_s") ? r->cfg_cleanup : "";
+    const char *v = !strcmp(k, "cur") ? r->cfg_cur : !strcmp(k, "size") ? r->cfg_size : !strcmp(k, "brush") ? r->cfg_brush : !strcmp(k, "shade") ? r->cfg_shade : !strcmp(k, "pen_area") ? r->cfg_pen_area : !strcmp(k, "cleanup_s") ? r->cfg_cleanup : "";
     int n = (int)strlen(v);
     if (n > cap) n = cap;
     memcpy(b, v, (size_t)n);
@@ -84,7 +92,7 @@ static inline void rig_start(rig_t *r, int orient)
     memset(r->fb, 0xff, (size_t)TS * TH);
     app_touchbar_t bar;
     tbfw_layout(orient, &bar);
-    sk_env_t env = { &r->fs.fs, r, rig_get, rig_set, { PJ_PWG, fake_post, &r->pr } };
+    sk_env_t env = { &r->fs.fs, r, rig_get, rig_set, { PJ_PWG, fake_post, &r->pr }, rig_printer };
     if (sk_init(&r->s, &env, r->fb, TW, TH, TS, orient, &bar)) abort();
     sk_set_tablet(&r->s, UM_W, UM_H, 1);
     r->started = 1;
@@ -95,6 +103,10 @@ static inline void rig_new(rig_t *r, int orient)
     memfs_init(&r->fs);
     r->now = 1000;
     r->pr.status = 200;
+    memset(&r->prn, 0, sizeof(r->prn));
+    strcpy(r->prn.host, "10.1.2.3");
+    r->prn.port = 631;
+    strcpy(r->prn.path, "ipp/print");
     rig_start(r, orient);
 }
 /* What the glue does each turn: flush (a flash is its inverted half, then the clean one at once), and count the full and
@@ -178,5 +190,15 @@ static inline int fb_black(const rig_t *r) /* black pixels on the framebuffer */
         for (int b = 0; b < 8; b++) n += !((r->fb[i] >> b) & 1);
     return n;
 }
-static inline int same_page_and_fb(const rig_t *r) { return !memcmp(r->fb, r->s.page.px, (size_t)TS * TH); }
+/* the framebuffer is the page, except the Tools and Menu pills drawn over it */
+static inline int same_page_and_fb(const rig_t *r)
+{
+    const box_t *p = &r->s.pl_box;
+    for (int y = 0; y < TH; y++) {
+        int in = y >= p->y0 && y <= p->y1;
+        for (int x = 0; x < TS; x++)
+            if (!(in && x >= p->x0 / 8 && x <= p->x1 / 8) && r->fb[y * TS + x] != r->s.page.px[y * TS + x]) return 0;
+    }
+    return 1;
+}
 #endif

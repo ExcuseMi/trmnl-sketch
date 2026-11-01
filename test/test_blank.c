@@ -47,19 +47,26 @@ static int disk_pages(rig_t *r)
 /* every blank page there is: on disk, plus the one on screen when it is not on disk */
 static int blanks(rig_t *r) { return disk_blank(r) + (sk_is_blank(&r->s.page) && pg_index(&r->s.pg, r->s.cur) < 0); }
 
-/* gallery -> Open the tile of page `num` */
+/* the page menu, then its Gallery row */
+static void to_gallery(rig_t *r)
+{
+    tap(r, APP_TOUCH_MIDDLE);
+    CHECK(r->s.mode == SK_PAGEMENU);
+    for (int i = 0; i < 4; i++) tap(r, APP_TOUCH_RIGHT);
+    tap(r, APP_TOUCH_MIDDLE);
+    CHECK(r->s.mode == SK_GALLERY);
+}
+
+/* gallery -> the tile of page `num` (it opens at once) */
 static void gallery_open(rig_t *r, int num)
 {
-    tap(r, APP_TOUCH_MIDDLE); /* the gallery */
-    CHECK(r->s.mode == SK_GALLERY);
+    to_gallery(r);
     int want = 0;
     for (int i = 0; i < r->s.pg.n; i++)
         if (r->s.pg.nums[i] == num) want = r->s.pg.n - i; /* newest first, the new-page tile is 0 */
     while (r->s.sel < want) tap(r, APP_TOUCH_RIGHT);
     while (r->s.sel > want) tap(r, APP_TOUCH_LEFT);
-    tap(r, APP_TOUCH_MIDDLE); /* the drawing's list */
-    CHECK(r->s.mode == SK_ACTIONS);
-    tap(r, APP_TOUCH_MIDDLE); /* Open */
+    tap(r, APP_TOUCH_MIDDLE);
     CHECK(r->s.mode == SK_DRAW && r->s.cur == num);
 }
 
@@ -79,12 +86,11 @@ static void test_new_page_leaving(void)
         CHECK(disk_pages(&r) == 2 && blanks(&r) == 0 && !memfs_find(&r.fs, "sketch/sk0003.png"));
     }
     /* the New page tile from a drawing with ink, twice: the second one opens the same blank page */
-    tap(&r, APP_TOUCH_MIDDLE);
-    tap(&r, APP_TOUCH_LEFT);
+    to_gallery(&r);
     while (r.s.sel > 0) tap(&r, APP_TOUCH_LEFT);
     tap(&r, APP_TOUCH_MIDDLE);
     CHECK(r.s.mode == SK_DRAW && r.s.cur == 3 && blanks(&r) == 1);
-    tap(&r, APP_TOUCH_MIDDLE);
+    to_gallery(&r);
     while (r.s.sel > 0) tap(&r, APP_TOUCH_LEFT);
     tap(&r, APP_TOUCH_MIDDLE);
     CHECK(r.s.mode == SK_DRAW && r.s.cur == 3 && blanks(&r) == 1 && disk_pages(&r) == 2);
@@ -104,7 +110,7 @@ static void test_clear_then_leave(void)
     r.now += 3000;
     sk_tick(&r.s, r.now);
     CHECK(sk_is_blank(&r.s.page));
-    tap(&r, APP_TOUCH_MIDDLE); /* leave it: to the gallery */
+    gallery_open(&r, 1); /* leave it: to another drawing */
     CHECK(!memfs_find(&r.fs, "sketch/sk0002.png") && disk_pages(&r) == 1);
     CHECK(memfs_find(&r.fs, "sketch/sk0002-cleared.png")); /* what was cleared stays for undo */
     rig_end(&r);
@@ -139,7 +145,7 @@ static void test_start_cleanup(void)
     CHECK(j && j->n == sizeof(junk) && !memcmp(j->data, junk, sizeof(junk))); /* undecodable: kept untouched */
     CHECK(disk_blank(&r) == 0 && r.s.pg.n == 3);
     /* the gallery lists the three, none of them blank */
-    tap(&r, APP_TOUCH_MIDDLE);
+    to_gallery(&r);
     CHECK(r.s.mode == SK_GALLERY && r.s.pg.n == 3);
     rig_end(&r);
 }

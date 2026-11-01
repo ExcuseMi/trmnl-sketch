@@ -36,6 +36,7 @@ static int cfg_int(sketch_t *s, const char *key, int def)
 /* ---- the page on the screen ---- */
 
 static void whole(box_t *b, const canvas_t *c) { *b = (box_t){ 0, 0, c->w - 1, c->h - 1 }; }
+static void tb_place(sketch_t *s);
 static void tb_paint(sketch_t *s)
 {
     gfx_t g;
@@ -43,11 +44,32 @@ static void tb_paint(sketch_t *s)
     tb_draw(&g, &s->tb, &s->sty, s->tb_hot);
 }
 
-/* The page in box b goes to the screen; the strip of an open toolbar is drawn over it again if the box touched it */
+static void pl_paint(sketch_t *s)
+{
+    gfx_t g;
+    mkg(s, &g);
+    pl_draw(&g, &s->pl);
+}
+
+static void pl_place(sketch_t *s) /* the Tools and Menu pills for the screen in the user's frame, and their box in the framebuffer */
+{
+    gfx_t g;
+    box_t b;
+    mkg(s, &g);
+    pl_layout(&s->pl, s->orient, g.SW, g.SH);
+    ui_fb_box(&g, s->pl.x0[0], s->pl.y0, s->pl.x1[1], s->pl.y1, &b);
+    b.x0 &= ~7;
+    b.x1 |= 7;
+    box_clip(&b, s->fb.w, s->fb.h);
+    s->pl_box = b;
+}
+
+/* The page in box b goes to the screen; the strip of an open toolbar and the pills are drawn over it again if the box touched them */
 static void fb_put(sketch_t *s, const box_t *b)
 {
     cv_copy_box(&s->fb, &s->page, b);
     if (s->tb_on && hit(b, &s->tb_box)) tb_paint(s);
+    if (hit(b, &s->pl_box)) pl_paint(s);
 }
 
 void sk_show_page(sketch_t *s)
@@ -56,6 +78,14 @@ void sk_show_page(sketch_t *s)
     whole(&b, &s->page);
     cv_copy_box(&s->fb, &s->page, &b);
     if (s->tb_on) tb_paint(s);
+    pl_paint(s);
+}
+
+void sk_resume_draw(sketch_t *s) /* back from a menu screen: the toolbar as it was, the pills, the page */
+{
+    if (s->tb_back) tb_place(s), s->tb_on = 1, s->tb_hot = -1;
+    s->tb_back = 0;
+    sk_show_page(s);
 }
 
 void sk_cursor_hide(sketch_t *s)
@@ -145,7 +175,7 @@ static void cursor_show(sketch_t *s, int fx, int fy)
     if (s->cursor && s->cr == r && s->cb == br && (fx - s->cx) * (fx - s->cx) + (fy - s->cy) * (fy - s->cy) < 9) return;
     sk_cursor_hide(s);
     if (s->note_on && hit(&want, &s->note)) return; /* never over a note: restoring the page would eat it */
-    if (s->tb_on && hit(&want, &s->tb_box)) return;  /* nor over the toolbar */
+    if ((s->tb_on && hit(&want, &s->tb_box)) || hit(&want, &s->pl_box)) return; /* nor over the toolbar or the pills */
     box_t b;
     ui_cursor(&s->fb, fx, fy, br, s->sty.size, &b);
     mark(s, &b);
@@ -260,6 +290,13 @@ static const char *page_text(sketch_t *s, char *buf)
 }
 
 void sk_make_page(sketch_t *s, uint32_t now);
+
+int sk_save_page(sketch_t *s, uint32_t now) /* writes the page on screen if it changed: the menus work on its file; 0 when it could not */
+{
+    hist_end(&s->hist);
+    s->stroke = 0;
+    return !s->dirty || sk_is_blank(&s->page) || !do_save(s, now);
+}
 
 int sk_leave_page(sketch_t *s, uint32_t now) /* saves the page on screen first; 0 when it could not */
 {
@@ -473,7 +510,17 @@ void sk_pen(sketch_t *s, unsigned flags, unsigned x, unsigned y, unsigned pressu
     int on_bar = 0, ux, uy;
     gal_from_fb(s->orient, s->fb.w, s->fb.h, fx, fy, &ux, &uy);
     if (s->tb_on && inside) on_bar = tb_in(&s->tb, ux, uy);
+    int on_pl = inside ? pl_hit(&s->pl, ux, uy) : PL_NONE;
     if (!tip) s->tb_hold = 0;
+    if (!tip && s->pl_hold) { /* a pill is tapped when the pen lifts over the pill it came down on */
+        int w = s->pl_hold;
+        s->pl_hold = 0;
+        if (on_pl == w) return w == PL_TOOLS ? sk_toolbar(s, now) : sk_to_pagemenu(s, now);
+    }
+    if (tip && (s->pl_hold || (on_pl && !s->stroke && !s->tb_hold))) { /* a press on a pill never inks */
+        if (!s->pl_hold) s->pl_hold = on_pl, sk_cursor_hide(s);
+        return;
+    }
     if (tip && on_bar) { /* a press on the strip picks, never inks; a stroke dragged onto it just ends */
         int was = s->stroke;
         if (was) stroke_tail(s, now), hist_end(&s->hist), s->stroke = 0;
@@ -537,7 +584,7 @@ void sk_pen_key(sketch_t *s, unsigned keys, unsigned changed, uint32_t now)
         case 3: sk_toolbar(s, now); break;
         case 4: sk_clear(s, now); break;
         case 5: sk_new_page(s, now); break;
-        default: sk_to_gallery(s, now); break; /* 7 and 8: the menu (no page stepping: the gallery is the way between pages) */
+        default: sk_to_pagemenu(s, now); break; /* 7 and 8: the menu of this page (no page stepping: the gallery is the way between pages) */
         }
     }
 }
@@ -548,12 +595,12 @@ void sk_touch(sketch_t *s, int zone, int gesture, uint32_t now)
     if (s->mode == SK_SHARE) { /* any touch ends the phone page */
         s->share_req = -1;
         if (s->share_kind == 2) sk_cfg_reload(s); /* the settings form was open */
-        s->mode = SK_GALLERY;
+        s->mode = s->ret_mode;
         sk_screen_render(s);
         return;
     }
     if (s->mode >= SK_GALLERY) return sk_menu_touch(s, zone, gesture, now);
-    if (gesture == APP_GESTURE_TAP && zone == APP_TOUCH_MIDDLE) sk_to_gallery(s, now); /* the one extra way in; nothing else on the bar */
+    if (gesture == APP_GESTURE_TAP && zone == APP_TOUCH_MIDDLE) sk_to_pagemenu(s, now); /* the one extra way in; nothing else on the bar */
 }
 
 void sk_share_update(sketch_t *s, int start_rc, const app_webshare_status_t *st)
@@ -562,7 +609,7 @@ void sk_share_update(sketch_t *s, int start_rc, const app_webshare_status_t *st)
     share_view_t v;
     share_view(&v, start_rc, st);
     v.settings = s->share_kind == 2;
-    if (v.settings && v.up) sk_cpy(v.note, sizeof(v.note), "Save the form on your phone, then touch the bar.");
+    if (v.settings && v.up) sk_cpy(v.note, sizeof(v.note), "Save the form on your phone, then tap Back.");
     if (share_view_same(&v, &s->share_shown)) return;
     s->share_shown = s->share = v;
     gfx_t g;
@@ -639,14 +686,17 @@ void sk_set_orient(sketch_t *s, int orient, const app_touchbar_t *bar)
 {
     s->orient = orient;
     s->bar = *bar;
+    pl_place(s);
     pm_init(&s->map, orient, s->fb.w, s->fb.h, s->um_w, s->um_h, s->fill);
     s->hover_valid = 0;
     if (s->mode == SK_DRAW) {
         sk_cursor_hide(s);
         sk_note_hide(s);
         if (s->tb_on) tb_place(s);
+        pl_place(s);
         sk_show_page(s); /* nothing but the page (and the toolbar, if it is up) is left on the screen */
     } else if (s->mode >= SK_GALLERY) {
+        if (s->tb_back) tb_place(s);
         sk_screen_render(s);
     } else {
         memset(&s->share_shown, 0xff, sizeof(s->share_shown));
@@ -683,8 +733,16 @@ int sk_init(sketch_t *s, const sk_env_t *env, uint8_t *fb, int w, int h, int str
     sk_cfg_reload(s);
     int want = cfg_int(s, "cur", 0);
     int num = pg_index(&s->pg, want) >= 0 ? want : s->pg.n ? s->pg.nums[s->pg.n - 1] : 1;
+    if (s->pg.n && pg_load(&s->pg, num, &s->page) == PG_BAD) { /* a damaged page never opens for drawing: the newest one that decodes, else a new page */
+        int i = s->pg.n - 1;
+        while (i >= 0 && pg_load(&s->pg, s->pg.nums[i], &s->page) != PG_OK) i--;
+        num = i >= 0 ? s->pg.nums[i] : pg_next_num(&s->pg);
+        if (i < 0) num = num ? num : 1;
+    }
     s->cur = num;
-    if (s->pg.n) sk_open_page(s, num, 0); /* none: page 1 is the blank one, written with its first ink */
+    if (s->pg.n && pg_index(&s->pg, num) >= 0) sk_open_page(s, num, 0); /* none: the blank one is written with its first ink */
+    else cv_fill(&s->page, 1);
+    pl_place(s);
     sk_show_page(s);
     s->want_full = 1;
     gfx_t g;

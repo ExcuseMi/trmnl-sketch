@@ -5,6 +5,20 @@
 
 static void touch(rig_t *r, int zone, int gesture) { sk_touch(&r->s, zone, gesture, r->now += 50); }
 static void tap(rig_t *r, int zone) { touch(r, zone, APP_GESTURE_TAP); }
+static void btn(rig_t *r, int n) /* tablet button n (1..8) */
+{
+    sk_pen_key(&r->s, 1u << (n - 1), 1u << (n - 1), r->now += 50);
+    sk_pen_key(&r->s, 0, 1u << (n - 1), r->now);
+}
+/* The gallery is reached through the page menu: the menu button, then the Gallery row */
+static void open_gallery(rig_t *r)
+{
+    tap(r, APP_TOUCH_MIDDLE);
+    CHECK(r->s.mode == SK_PAGEMENU);
+    for (int i = 0; i < 4; i++) tap(r, APP_TOUCH_RIGHT);
+    tap(r, APP_TOUCH_MIDDLE);
+    CHECK(r->s.mode == SK_GALLERY);
+}
 
 /* n pages, each with a different line; the last one is on screen */
 static void make_pages(rig_t *r, int n)
@@ -61,7 +75,7 @@ static void test_selection_and_paging(void)
     static rig_t r;
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
     make_pages(&r, 20);
-    tap(&r, APP_TOUCH_MIDDLE);
+    open_gallery(&r);
     CHECK(r.s.mode == SK_GALLERY && r.s.sel == 1 && r.s.pg.n == 20); /* the page on screen is the newest: tile 1 */
     tap(&r, APP_TOUCH_LEFT);
     CHECK(r.s.sel == 0);
@@ -94,7 +108,7 @@ static void test_thumbnails_cache_and_edit(void)
     static rig_t r;
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
     make_pages(&r, 3);
-    tap(&r, APP_TOUCH_MIDDLE);
+    open_gallery(&r);
     int made = r.s.cache.made;
     CHECK(made >= 3);
     const uint8_t *t = gal_find(&r.s.cache, r.s.cur);
@@ -102,19 +116,17 @@ static void test_thumbnails_cache_and_edit(void)
     int before = thumb_sum(t);
     CHECK(before < GAL_TW * GAL_TH); /* ink makes it darker than white */
     /* back and forth without an edit: nothing is made again */
-    tap(&r, APP_TOUCH_MIDDLE); /* actions */
     tap(&r, APP_TOUCH_MIDDLE); /* open */
     CHECK(r.s.mode == SK_DRAW);
-    tap(&r, APP_TOUCH_MIDDLE);
+    open_gallery(&r);
     CHECK(r.s.cache.made == made + 3 || r.s.cache.made == made); /* the cache was freed on leaving: made again, but not twice */
     /* an edit changes the page's thumbnail */
-    tap(&r, APP_TOUCH_MIDDLE);
     tap(&r, APP_TOUCH_MIDDLE);
     CHECK(r.s.mode == SK_DRAW);
     rig_line(&r, 300, 900, 1500, 1000, 60000, 0);
     r.now += 3000;
     sk_tick(&r.s, r.now);
-    tap(&r, APP_TOUCH_MIDDLE);
+    open_gallery(&r);
     const uint8_t *t2 = gal_find(&r.s.cache, r.s.cur);
     CHECK(t2 && thumb_sum(t2) < before);
     /* a save drops that page's entry (the page changed under a cache that is still up) */
@@ -141,22 +153,27 @@ static void test_full_refresh_only_when_a_screen_opens_or_closes(void)
     rect_t out[SK_MAX_RECTS];
     rig_frame(&r, out);
     int f = r.fulls;
-    tap(&r, APP_TOUCH_MIDDLE); /* open the gallery */
+    open_gallery(&r);
     CHECK(rig_frame(&r, out) == SK_FULL && r.fulls == f + 1);
     r.now += 1000;
     tap(&r, APP_TOUCH_RIGHT); /* move: only the old and the new highlight */
     int n = rig_frame(&r, out);
     CHECK(n > 0 && r.fulls == f + 1);
-    tap(&r, APP_TOUCH_MIDDLE); /* a drawing tile: its action list */
-    CHECK(rig_frame(&r, out) == SK_FULL && r.fulls == f + 2);
+    tap(&r, APP_TOUCH_MIDDLE); /* a drawing tile: it opens at once */
+    CHECK(rig_frame(&r, out) == SK_FULL && r.fulls == f + 2 && r.s.mode == SK_DRAW);
+    tap(&r, APP_TOUCH_MIDDLE); /* the page menu: a full refresh, a row moves partially, Back is full again */
+    CHECK(rig_frame(&r, out) == SK_FULL && r.fulls == f + 3);
     r.now += 1000;
-    tap(&r, APP_TOUCH_RIGHT); /* a row of the list */
-    CHECK(rig_frame(&r, out) > 0 && r.fulls == f + 2);
-    tap(&r, APP_TOUCH_LEFT);
-    tap(&r, APP_TOUCH_MIDDLE); /* Open: back to drawing */
-    CHECK(rig_frame(&r, out) == SK_FULL && r.fulls == f + 3 && r.s.mode == SK_DRAW);
+    tap(&r, APP_TOUCH_RIGHT);
+    CHECK(rig_frame(&r, out) > 0 && r.fulls == f + 3);
+    tap(&r, APP_TOUCH_RIGHT);
+    tap(&r, APP_TOUCH_RIGHT);
+    tap(&r, APP_TOUCH_RIGHT);
+    tap(&r, APP_TOUCH_RIGHT);
+    tap(&r, APP_TOUCH_MIDDLE); /* Back */
+    CHECK(rig_frame(&r, out) == SK_FULL && r.fulls == f + 4 && r.s.mode == SK_DRAW);
     sk_goto_page(&r.s, 0, r.now += 50); /* another page */
-    CHECK(rig_frame(&r, out) == SK_FULL && r.fulls == f + 4); /* a page change flashes */
+    CHECK(rig_frame(&r, out) == SK_FULL && r.fulls == f + 5); /* a page change flashes */
     sk_tick(&r.s, r.now += 3000); /* the page's toast is gone and its clean-up flash done: ink is the thing left */
     while (rig_frame(&r, out) != 0) {}
     int f2 = r.fulls;
@@ -185,87 +202,11 @@ static void test_screen_has_thumbnails(void)
     static rig_t r;
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
     make_pages(&r, 4);
-    tap(&r, APP_TOUCH_MIDDLE);
+    open_gallery(&r);
     rect_t out[SK_MAX_RECTS];
     CHECK(rig_frame(&r, out) == SK_FULL);
     int w, b = tile_black(&r, 1, &w);
     CHECK(b > 50 && w > 5000); /* the newest page: its line in black dots on paper */
-    rig_end(&r);
-}
-
-static int read_all(rig_t *r, const char *path, uint8_t *buf, int cap)
-{
-    void *f = r->fs.fs.open(&r->fs, path, 0);
-    if (!f) return -1;
-    int n = r->fs.fs.read(&r->fs, f, buf, cap);
-    r->fs.fs.close(&r->fs, f);
-    return n;
-}
-
-static void test_print_from_the_action_list(void)
-{
-    static rig_t r;
-    static uint8_t file[SK_FILE_MAX];
-    rig_new(&r, APP_ORIENT_BAR_BOTTOM);
-    make_pages(&r, 2);
-    r.pr.ipp = 0;
-    strcpy(r.cfg_printer, "10.1.2.3");
-    tap(&r, APP_TOUCH_MIDDLE);
-    tap(&r, APP_TOUCH_MIDDLE);
-    tap(&r, APP_TOUCH_RIGHT); /* Print */
-    tap(&r, APP_TOUCH_MIDDLE);
-    CHECK(r.s.mode == SK_CONFIRM && r.pr.posts == 0); /* nothing is sent before the confirm */
-    tap(&r, APP_TOUCH_MIDDLE); /* Print */
-    CHECK(r.s.mode == SK_BUSY && r.s.print_req);
-    rect_t out[SK_MAX_RECTS];
-    CHECK(rig_frame(&r, out) == SK_FULL); /* "Printing..." is on the glass before the job goes out */
-    sk_run_print(&r.s);
-    CHECK(r.s.mode == SK_RESULT && r.pr.posts >= 1 && strstr(r.pr.url, "10.1.2.3") && r.s.pres.pages == 1);
-    /* the same bytes the Print app sends for that file */
-    int n = read_all(&r, "sketch/sk0002.png", file, SK_FILE_MAX);
-    CHECK(n > 0);
-    fprinter_t direct;
-    memset(&direct, 0, sizeof(direct));
-    direct.status = 200;
-    pj_net_t net = { PJ_PWG, fake_post, &direct };
-    pj_result_t res;
-    pj_printer_t pr3;
-    CHECK(pj_printer_parse("10.1.2.3", &pr3) == 0 && pj_print_png(&net, &pr3, file, (size_t)n, &res) == 0);
-    CHECK(direct.posts == r.pr.posts && direct.len[0] == r.pr.len[0] && !memcmp(direct.body[0], r.pr.body[0], direct.len[0]));
-    for (int i = 0; i < 4; i++) free(direct.body[i]);
-    CHECK(rig_frame(&r, out) == SK_FULL);
-    tap(&r, APP_TOUCH_MIDDLE); /* OK: back to the gallery */
-    CHECK(r.s.mode == SK_GALLERY && rig_frame(&r, out) == SK_FULL);
-    rig_end(&r);
-}
-
-static void test_print_errors(void)
-{
-    static rig_t r;
-    rig_new(&r, APP_ORIENT_BAR_BOTTOM);
-    make_pages(&r, 1);
-    r.pr.status = -1; /* PJ_NET_UNREACHABLE: the printer is off */
-    tap(&r, APP_TOUCH_MIDDLE);
-    tap(&r, APP_TOUCH_MIDDLE);
-    tap(&r, APP_TOUCH_RIGHT);
-    tap(&r, APP_TOUCH_MIDDLE);
-    tap(&r, APP_TOUCH_MIDDLE);
-    sk_run_print(&r.s);
-    CHECK(r.s.mode == SK_RESULT && r.s.pres.msg[0] && r.s.pres.jobs == 0); /* a plain message, nothing crashed */
-    tap(&r, APP_TOUCH_MIDDLE);
-    CHECK(r.s.mode == SK_GALLERY);
-    /* a firmware that cannot print: the item says so instead of failing */
-    r.s.env.net.post = 0;
-    tap(&r, APP_TOUCH_MIDDLE);
-    tap(&r, APP_TOUCH_RIGHT);
-    tap(&r, APP_TOUCH_MIDDLE);
-    CHECK(r.s.mode == SK_RESULT && strstr(r.s.pres.msg, "not available"));
-    /* a page file that is gone */
-    tap(&r, APP_TOUCH_MIDDLE);
-    r.s.env.net.post = fake_post;
-    r.fs.fs.remove(&r.fs, "sketch/sk0001.png");
-    r.s.act_num = 1;
-    CHECK(sk_print_page(&r.s, 1) < 0 && strstr(r.s.pres.msg, "could not be read"));
     rig_end(&r);
 }
 
@@ -281,7 +222,7 @@ static void test_pen_in_the_menus(void)
     static rig_t r;
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
     make_pages(&r, 3);
-    tap(&r, APP_TOUCH_MIDDLE);
+    open_gallery(&r);
     uint8_t keep[TS * TH];
     memcpy(keep, r.s.page.px, sizeof(keep));
     int x, y, x2, y2;
@@ -303,17 +244,12 @@ static void test_pen_in_the_menus(void)
     rig_pen(&r, x, y, APP_PEN_TIP | APP_PEN_IN_RANGE, 20000);
     rig_pen(&r, x2, y2, APP_PEN_IN_RANGE, 0);
     CHECK(r.s.mode == SK_GALLERY);
-    /* a press and release on one tile opens its action list */
+    CHECK(!memcmp(keep, r.s.page.px, sizeof(keep)) && !r.s.dirty && !r.s.stroke); /* the page took no ink from all of this */
+    /* a press and release on one tile opens that drawing at once */
     rig_pen(&r, x, y, APP_PEN_TIP | APP_PEN_IN_RANGE, 20000);
     rig_pen(&r, x + 3, y + 2, APP_PEN_TIP | APP_PEN_IN_RANGE, 20000);
     rig_pen(&r, x + 3, y + 2, APP_PEN_IN_RANGE, 0);
-    CHECK(r.s.mode == SK_ACTIONS && r.s.act_num == r.s.pg.nums[r.s.pg.n - 2]);
-    /* in the list: a tap on "Back" returns to the gallery; the page took no ink from all of this */
-    int ix = r.s.lg.x + 50, iy = r.s.lg.y0 + 4 * LIST_PITCH - 30; /* Back is the fifth row since Settings */
-    rig_pen(&r, ix, iy, APP_PEN_TIP | APP_PEN_IN_RANGE, 20000);
-    rig_pen(&r, ix, iy, APP_PEN_IN_RANGE, 0);
-    CHECK(r.s.mode == SK_GALLERY);
-    CHECK(!memcmp(keep, r.s.page.px, sizeof(keep)) && !r.s.dirty && !r.s.stroke);
+    CHECK(r.s.mode == SK_DRAW && r.s.cur == r.s.pg.nums[r.s.pg.n - 2]);
     rig_end(&r);
 }
 
@@ -322,11 +258,11 @@ static void test_new_page_tile_and_empty_rule(void)
     static rig_t r;
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
     make_pages(&r, 1);
-    tap(&r, APP_TOUCH_MIDDLE);
+    open_gallery(&r);
     tap(&r, APP_TOUCH_LEFT); /* the new-page tile */
     tap(&r, APP_TOUCH_MIDDLE);
     CHECK(r.s.mode == SK_DRAW && r.s.cur == 2 && r.s.pg.n == 1); /* a page with ink: a new one is made (blank: not on disk) */
-    tap(&r, APP_TOUCH_MIDDLE);
+    open_gallery(&r);
     tap(&r, APP_TOUCH_LEFT);
     tap(&r, APP_TOUCH_MIDDLE);
     CHECK(r.s.mode == SK_DRAW && r.s.cur == 2 && r.s.pg.n == 1 && r.s.note_on); /* the blank page opens again: no second one */
@@ -339,7 +275,7 @@ static void test_orientations_render(void)
         static rig_t r;
         rig_new(&r, o);
         make_pages(&r, 6);
-        tap(&r, APP_TOUCH_MIDDLE);
+        open_gallery(&r);
         rect_t out[SK_MAX_RECTS];
         CHECK(rig_frame(&r, out) == SK_FULL);
         int w, b = tile_black(&r, 1, &w);
@@ -351,51 +287,6 @@ static void test_orientations_render(void)
 }
 
 /* The action list: a framed preview like a gallery tile, and "Settings" opens the phone's settings form (the printer) */
-static void test_actions_frame_and_settings(void)
-{
-    static rig_t r;
-    for (int o = 0; o < 4; o++) {
-        rig_new(&r, o);
-        make_pages(&r, 2);
-        tap(&r, APP_TOUCH_MIDDLE);
-        tap(&r, APP_TOUCH_MIDDLE); /* the list of the page on screen */
-        CHECK(r.s.mode == SK_ACTIONS && r.s.list_n == 5);
-        gfx_t g;
-        gfx_init(&g, r.s.ui.px, r.s.ui.w, r.s.ui.h, r.s.ui.stride, o);
-        int px = r.s.L.ax1 - r.s.L.tw - 12, py = (r.s.L.ay0 + r.s.L.ay1) / 2 - r.s.L.th / 2;
-        CHECK(!gfx_get(&g, px - 9, py + r.s.L.th / 2) && !gfx_get(&g, px + r.s.L.tw + 8, py + r.s.L.th / 2)); /* the frame: left and right edge */
-        CHECK(!gfx_get(&g, px + r.s.L.tw / 2, py - 9) && !gfx_get(&g, px + r.s.L.tw / 2, py + r.s.L.th + 8)); /* top and bottom */
-        CHECK(gfx_get(&g, px + r.s.L.tw / 2, py + r.s.L.th / 2)); /* inside it is paper, the thumbnail goes there */
-        CHECK(px + r.s.L.tw + 12 <= r.s.L.ax1 + 12 && py >= r.s.L.ay0 && py + r.s.L.th <= r.s.L.ay1); /* on the screen, level with the list */
-        CHECK(py + r.s.L.th / 2 > r.s.lg.y0 && py + r.s.L.th / 2 < r.s.lg.y0 + 4 * LIST_PITCH);
-        rig_end(&r);
-    }
-    rig_new(&r, APP_ORIENT_BAR_BOTTOM);
-    make_pages(&r, 2);
-    tap(&r, APP_TOUCH_MIDDLE);
-    tap(&r, APP_TOUCH_MIDDLE);
-    for (int i = 0; i < 3; i++) tap(&r, APP_TOUCH_RIGHT); /* Open, Print, Send to phone, Settings */
-    CHECK(r.s.act_sel == 3);
-    tap(&r, APP_TOUCH_MIDDLE);
-    CHECK(r.s.mode == SK_SHARE && r.s.share_req == 2 && r.s.share_kind == 2); /* the settings page, not the files */
-    app_webshare_status_t st;
-    memset(&st, 0, sizeof(st));
-    st.running = 1;
-    st.mode = APP_WEBSHARE_HOME;
-    strcpy(st.address, "192.168.1.9");
-    strcpy(st.code, "123456");
-    sk_share_update(&r.s, 0, &st);
-    CHECK(r.s.share.settings && r.s.share.up);
-    tap(&r, APP_TOUCH_MIDDLE); /* any touch ends it */
-    CHECK(r.s.mode == SK_GALLERY && r.s.share_req == -1);
-    tap(&r, APP_TOUCH_MIDDLE);
-    for (int i = 0; i < 2; i++) tap(&r, APP_TOUCH_RIGHT);
-    tap(&r, APP_TOUCH_MIDDLE);
-    CHECK(r.s.mode == SK_SHARE && r.s.share_req == 1 && r.s.share_kind == 1); /* "Send to phone" is still the files */
-    sk_share_update(&r.s, 0, &st);
-    CHECK(!r.s.share.settings);
-    rig_end(&r);
-}
 
 /* The dithered thumbnail keeps the area average of the page: per 24 x 24 block of thumbnail pixels within 3 % */
 static void test_dither_keeps_the_average(void)
@@ -442,7 +333,7 @@ static void test_pointer_leaves_no_marks(void)
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
     make_pages(&r, 8);
     rig_pen(&r, 10, 10, 0, 0); /* the pen leaves the tablet */
-    tap(&r, APP_TOUCH_MIDDLE);
+    open_gallery(&r);
     panel_push(panel, &r, out, rig_frame(&r, out));
     int f = r.fulls;
     CHECK(!memcmp(panel, r.s.ui.px, sizeof(panel))); /* the screen is the clean one */
@@ -490,7 +381,7 @@ static void test_hover_moves_the_highlight(void)
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
     make_pages(&r, 8);
     rig_pen(&r, 10, 10, 0, 0); /* the pen leaves the tablet */
-    tap(&r, APP_TOUCH_MIDDLE);
+    open_gallery(&r);
     panel_push(panel, &r, out, rig_frame(&r, out));
     int x, y, old = r.s.sel;
     tile_center(&r, 4, &x, &y);
@@ -520,9 +411,10 @@ static void test_hover_moves_the_highlight(void)
     panel_push(panel, &r, out, n);
     CHECK(!memcmp(panel, r.fb, sizeof(panel)));
     /* a list row */
-    tap(&r, APP_TOUCH_MIDDLE);
+    btn(&r, 5); /* back to the drawing */
+    tap(&r, APP_TOUCH_MIDDLE); /* the page menu */
     panel_push(panel, &r, out, rig_frame(&r, out));
-    CHECK(r.s.mode == SK_ACTIONS);
+    CHECK(r.s.mode == SK_PAGEMENU);
     int f = r.fulls;
     rig_pen(&r, r.s.lg.x + 100, r.s.lg.y0 + 2 * LIST_PITCH - 25, APP_PEN_IN_RANGE, 0);
     r.now += 200;
@@ -543,7 +435,7 @@ static void test_pointer_in_every_position(void)
         rig_new(&r, o);
         make_pages(&r, 3);
         rig_pen(&r, 10, 10, 0, 0);
-        tap(&r, APP_TOUCH_MIDDLE);
+        open_gallery(&r);
         panel_push(panel, &r, out, rig_frame(&r, out));
         int f = r.fulls;
         int ux, uy, tx, ty;
@@ -569,6 +461,7 @@ static void ctl_center(const rig_t *r, int c, int *x, int *y)
 {
     int x0, y0, x1, y1;
     if (c == CTL_PREV || c == CTL_NEXT) ui_nav_box(&r->s.L, c, &x0, &y0, &x1, &y1);
+    else if (c == CTL_BACK || c == CTL_SETUP) ui_ctl_box(&r->s.L, c, &x0, &y0, &x1, &y1);
     else {
         int z = c == CTL_UP ? APP_TOUCH_LEFT : c == CTL_DOWN ? APP_TOUCH_RIGHT : APP_TOUCH_MIDDLE;
         const char *lab = c == CTL_UP ? "Up" : c == CTL_DOWN ? "Down" : r->s.mode == SK_GALLERY ? (r->s.sel == 0 ? "New page" : "Open") : "Select";
@@ -585,11 +478,6 @@ static void pen_tap_ctl(rig_t *r, int c)
     rig_pen_user(r, x + 2, y + 1, APP_PEN_TIP | APP_PEN_IN_RANGE, 20000);
     rig_pen_user(r, x + 2, y + 1, APP_PEN_IN_RANGE, 0);
 }
-static void btn(rig_t *r, int n) /* tablet button n (1..8) */
-{
-    sk_pen_key(&r->s, 1u << (n - 1), 1u << (n - 1), r->now += 50);
-    sk_pen_key(&r->s, 0, 1u << (n - 1), r->now);
-}
 static int sel_ok(const rig_t *r) { return r->s.sel >= 0 && r->s.sel < r->s.pg.n + 1; }
 
 static void test_pen_pills_and_paging_arrows(void)
@@ -601,7 +489,7 @@ static void test_pen_pills_and_paging_arrows(void)
         rig_new(&r, o);
         make_pages(&r, 20);
         rig_pen(&r, 10, 10, 0, 0);
-        tap(&r, APP_TOUCH_MIDDLE);
+        open_gallery(&r);
         panel_push(panel, &r, out, rig_frame(&r, out));
         memcpy(keep, r.s.page.px, sizeof(keep));
         int per = r.s.L.per, f = r.fulls;
@@ -623,13 +511,7 @@ static void test_pen_pills_and_paging_arrows(void)
         CHECK(r.s.sel / per == 1 && rig_frame(&r, out) != SK_FULL);
         pen_tap_ctl(&r, CTL_PREV);
         CHECK(r.s.sel == 1 && rig_frame(&r, out) == SK_FULL && r.fulls == f + 2);
-        pen_tap_ctl(&r, CTL_SEL);
-        CHECK(r.s.mode == SK_ACTIONS);
-        pen_tap_ctl(&r, CTL_DOWN);
-        CHECK(r.s.act_sel == 1);
-        pen_tap_ctl(&r, CTL_UP);
-        CHECK(r.s.act_sel == 0);
-        pen_tap_ctl(&r, CTL_SEL); /* Open: back to drawing */
+        pen_tap_ctl(&r, CTL_SEL); /* Open: the drawing */
         CHECK(r.s.mode == SK_DRAW);
         CHECK(!memcmp(keep, r.s.page.px, sizeof(keep)) || r.s.cur != r.s.pg.nums[r.s.pg.n - 1]); /* no ink from any tap */
         rig_end(&r);
@@ -644,7 +526,7 @@ static void test_hover_on_arrows_and_pills(void)
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
     make_pages(&r, 20);
     rig_pen(&r, 10, 10, 0, 0);
-    tap(&r, APP_TOUCH_MIDDLE);
+    open_gallery(&r);
     panel_push(panel, &r, out, rig_frame(&r, out));
     int f = r.fulls, x, y, sel = r.s.sel;
     ctl_center(&r, CTL_NEXT, &x, &y);
@@ -676,7 +558,7 @@ static void test_tablet_buttons_in_the_menus(void)
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
     make_pages(&r, 20);
     rig_pen(&r, 10, 10, 0, 0);
-    tap(&r, APP_TOUCH_MIDDLE);
+    open_gallery(&r);
     rig_frame(&r, out);
     uint8_t *keep = malloc(sizeof(r.s.page.px[0]) * (size_t)TS * TH);
     memcpy(keep, r.s.page.px, (size_t)TS * TH);
@@ -697,24 +579,15 @@ static void test_tablet_buttons_in_the_menus(void)
     CHECK(r.s.sel == r.s.pg.n && sel_ok(&r));
     btn(&r, 7);
     CHECK(r.s.sel / per == 0 && sel_ok(&r) && rig_frame(&r, out) == SK_FULL); /* 7: previous screen */
-    btn(&r, 4);
-    CHECK(r.s.mode == SK_ACTIONS); /* 4 opens the selected */
-    btn(&r, 2);
-    btn(&r, 8);
-    CHECK(r.s.act_sel == 2); /* in lists 1/2 and 7/8 move */
-    btn(&r, 1);
-    CHECK(r.s.act_sel == 1);
-    btn(&r, 5);
-    CHECK(r.s.mode == SK_GALLERY); /* 5: back */
     btn(&r, 5);
     CHECK(r.s.mode == SK_DRAW && rig_frame(&r, out) == SK_FULL); /* in the gallery 5 closes it */
     CHECK(!memcmp(keep, r.s.page.px, (size_t)TS * TH) && !r.s.stroke);
     free(keep);
-    tap(&r, APP_TOUCH_MIDDLE);
+    open_gallery(&r);
     int cur = r.s.cur;
     btn(&r, 6); /* 6: the New page tile; this page has ink, so a new page opens */
     CHECK(r.s.mode == SK_DRAW && r.s.cur != cur && sk_is_blank(&r.s.page));
-    tap(&r, APP_TOUCH_MIDDLE);
+    open_gallery(&r);
     int blank = r.s.cur;
     btn(&r, 6); /* the new page is empty: it opens again, no second blank page (owner 2026-11-01) */
     CHECK(r.s.mode == SK_DRAW && r.s.cur == blank && r.s.note_on);
@@ -732,12 +605,9 @@ int main(void)
     test_pointer_leaves_no_marks();
     test_hover_moves_the_highlight();
     test_pointer_in_every_position();
-    test_print_from_the_action_list();
-    test_print_errors();
     test_pen_in_the_menus();
     test_new_page_tile_and_empty_rule();
     test_orientations_render();
-    test_actions_frame_and_settings();
     test_pen_pills_and_paging_arrows();
     test_hover_on_arrows_and_pills();
     test_tablet_buttons_in_the_menus();

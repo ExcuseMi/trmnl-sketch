@@ -7,6 +7,7 @@
 int png_write(const char *path, const gfx_t *g);
 
 static int bad;
+#define TAP(z) sk_touch(&r.s, APP_TOUCH_##z, APP_GESTURE_TAP, r.now += 50)
 static void brush_shots(const char *dir);
 static void paging_shots(const char *dir);
 
@@ -75,10 +76,29 @@ static void gallery_shots(const char *dir)
             sk_tick(&r.s, r.now);
             if (i < 7) sk_pen_key(&r.s, 1u << 5, 1u << 5, r.now += 50), sk_pen_key(&r.s, 0, 1u << 5, r.now);
         }
-        sk_touch(&r.s, APP_TOUCH_MIDDLE, APP_GESTURE_TAP, r.now += 50);
-        sk_touch(&r.s, APP_TOUCH_LEFT, APP_GESTURE_TAP, r.now += 50);
-        sk_touch(&r.s, APP_TOUCH_RIGHT, APP_GESTURE_TAP, r.now += 50);
-        sk_touch(&r.s, APP_TOUCH_RIGHT, APP_GESTURE_TAP, r.now += 50);
+        static const uint8_t junk[64] = { 1, 2, 3 };
+        memfs_put(&r.fs, "sketch/sk0003.png", junk, sizeof(junk)); /* a page file that does not decode */
+        rig_pen(&r, 10, 10, 0, 0);
+        TAP(MIDDLE); /* the page menu of the page on screen */
+        gshot(&r, dir, o ? "m-pagemenu-portrait" : "m-pagemenu-landscape");
+        if (!o) {
+            TAP(MIDDLE); /* Print */
+            gshot(&r, dir, "f-print-confirm");
+            TAP(MIDDLE);
+            gshot(&r, dir, "g-printing");
+            r.pr.status = 200;
+            sk_run_print(&r.s);
+            gshot(&r, dir, "h-printed");
+            TAP(MIDDLE); /* OK */
+            r.pr_rc = PJ_NO_PRINTER;
+            TAP(MIDDLE);
+            gshot(&r, dir, "i-no-printer");
+            r.pr_rc = 0;
+            TAP(MIDDLE);
+        }
+        for (int k = 0; k < 4; k++) TAP(RIGHT);
+        TAP(MIDDLE); /* Gallery */
+        for (int k = 0; k < 5; k++) TAP(RIGHT); /* the damaged tile */
         gshot(&r, dir, o ? "c-gallery-portrait" : "b-gallery-landscape");
         { /* the pen hovers over a tile: its frame is thick and the arrow stands on it */
             int tx, ty;
@@ -87,21 +107,11 @@ static void gallery_shots(const char *dir)
             r.now += 200;
             gshot(&r, dir, o ? "cp-gallery-portrait-pointer" : "bp-gallery-landscape-pointer");
         }
-        sk_touch(&r.s, APP_TOUCH_MIDDLE, APP_GESTURE_TAP, r.now += 50);
-        sk_touch(&r.s, APP_TOUCH_RIGHT, APP_GESTURE_TAP, r.now += 50);
-        gshot(&r, dir, o ? "e-actions-portrait" : "d-actions-landscape");
-        rig_pen_user(&r, r.s.lg.x + 120, r.s.lg.y0 + 2 * LIST_PITCH - 30, APP_PEN_IN_RANGE, 0); /* a row under the pen */
-        r.now += 200;
-        gshot(&r, dir, o ? "e2-actions-portrait-hover" : "d2-actions-landscape-hover");
-        if (!o) {
-            sk_touch(&r.s, APP_TOUCH_MIDDLE, APP_GESTURE_TAP, r.now += 50);
-            gshot(&r, dir, "f-print-confirm");
-            sk_touch(&r.s, APP_TOUCH_MIDDLE, APP_GESTURE_TAP, r.now += 50);
-            gshot(&r, dir, "g-printing");
-            r.pr.status = 200;
-            sk_run_print(&r.s);
-            gshot(&r, dir, "h-printed");
-        }
+        rig_pen(&r, 10, 10, 0, 0);
+        TAP(LEFT);
+        TAP(RIGHT); /* back on the damaged tile: its list */
+        TAP(MIDDLE);
+        gshot(&r, dir, o ? "e-damaged-portrait" : "d-damaged-landscape");
         rig_end(&r);
     }
 }
@@ -121,6 +131,8 @@ static void paging_shots(const char *dir)
         }
         rig_pen(&r, 10, 10, 0, 0);
         sk_touch(&r.s, APP_TOUCH_MIDDLE, APP_GESTURE_TAP, r.now += 50);
+        for (int k = 0; k < 4; k++) sk_touch(&r.s, APP_TOUCH_RIGHT, APP_GESTURE_TAP, r.now += 50);
+        sk_touch(&r.s, APP_TOUCH_MIDDLE, APP_GESTURE_TAP, r.now += 50); /* Gallery */
         sk_pen_key(&r.s, 1u << 7, 1u << 7, r.now += 50); /* button 8: next screen of tiles */
         sk_pen_key(&r.s, 0, 1u << 7, r.now);
         int x0, y0, x1, y1;
@@ -234,9 +246,7 @@ int main(int argc, char **argv)
     r.now += 3000;
     sk_tick(&r.s, r.now);
     save(&r, dir, "6-after-undo");
-    sk_touch(&r.s, APP_TOUCH_LEFT, APP_GESTURE_TAP, r.now += 50);
-    sk_touch(&r.s, APP_TOUCH_MIDDLE, APP_GESTURE_TAP, r.now += 50);
-    sk_touch(&r.s, APP_TOUCH_RIGHT, APP_GESTURE_TAP, r.now += 50);
+    sk_touch(&r.s, APP_TOUCH_MIDDLE, APP_GESTURE_TAP, r.now += 50); /* the page menu, Send to phone */
     sk_touch(&r.s, APP_TOUCH_RIGHT, APP_GESTURE_TAP, r.now += 50);
     sk_touch(&r.s, APP_TOUCH_MIDDLE, APP_GESTURE_TAP, r.now += 50);
     app_webshare_status_t st = { .running = 1, .mode = APP_WEBSHARE_AP };

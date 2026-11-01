@@ -251,16 +251,16 @@ static void test_corrupt_start(void)
     rig_start(&r, APP_ORIENT_BAR_BOTTOM);
     uint8_t white[TS * TH];
     memset(white, 0xff, sizeof(white));
-    CHECK(r.s.cur == 1 && page_is(&r, white)); /* an empty page */
+    CHECK(r.s.cur == 2 && page_is(&r, white)); /* a damaged page never opens for drawing: an empty page, numbered past it */
     CHECK(memfs_find(&r.fs, "sketch/sk0001.png")->n == 31 && r.fs.removes == 0); /* the file is still there */
     rig_line(&r, 200, 300, 1000, 500, 50000, 0);
-    idle(&r, 3000); /* the first save moves the unreadable file aside, then writes the page */
-    memfile_t *bad = memfs_find(&r.fs, "sketch/sk0001-bad.png");
-    CHECK(bad && bad->n == 31 && !memcmp(bad->data, "\x89PNG garbage", 12));
+    idle(&r, 3000); /* the page is written as page 2; the damaged file is left alone */
+    memfile_t *bad = memfs_find(&r.fs, "sketch/sk0001.png");
+    CHECK(bad && bad->n == 31 && !memcmp(bad->data, "\x89PNG garbage", 12) && !memfs_find(&r.fs, "sketch/sk0001-bad.png"));
     pages_t p;
     pg_init(&p, &r.fs.fs);
     canvas_t chk = { calloc(1, TS * TH), TW, TH, TS };
-    CHECK(pg_load(&p, 1, &chk) == PG_OK && !memcmp(chk.px, r.s.page.px, TS * TH));
+    CHECK(pg_load(&p, 2, &chk) == PG_OK && !memcmp(chk.px, r.s.page.px, TS * TH));
     CHECK(r.fs.removes == 0);
     free(chk.px);
     /* a save that fails (full disk) keeps the page dirty and retries; the drawing stays on screen */
@@ -280,12 +280,11 @@ static void test_menu_and_share(void)
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
     rig_line(&r, 200, 300, 1000, 500, 50000, 0);
     touch(&r, APP_TOUCH_MIDDLE, APP_GESTURE_TAP);
-    CHECK(r.s.mode == SK_GALLERY);
+    CHECK(r.s.mode == SK_PAGEMENU);
     rig_pen(&r, 800, 800, APP_PEN_TIP | APP_PEN_IN_RANGE, 30000); /* the pen draws nothing in the menu */
     rig_pen(&r, 900, 900, 0, 0);
-    touch(&r, APP_TOUCH_MIDDLE, APP_GESTURE_TAP); /* the page on the flash: its action list */
-    CHECK(r.s.mode == SK_ACTIONS && r.s.act_sel == 0);
-    touch(&r, APP_TOUCH_RIGHT, APP_GESTURE_TAP);
+    for (int i = 0; i < 7; i++) touch(&r, APP_TOUCH_LEFT, APP_GESTURE_TAP); /* the pen may have hovered a row: to the first */
+    CHECK(r.s.mode == SK_PAGEMENU && r.s.act_sel == 0); /* the menu of the page on screen */
     touch(&r, APP_TOUCH_RIGHT, APP_GESTURE_TAP);
     touch(&r, APP_TOUCH_MIDDLE, APP_GESTURE_TAP); /* Send to phone */
     CHECK(r.s.mode == SK_SHARE && r.s.share_req == 1);
@@ -301,9 +300,9 @@ static void test_menu_and_share(void)
     sk_share_update(&r.s, 0, &st);
     CHECK(r.s.want_full); /* a change is drawn */
     touch(&r, APP_TOUCH_MIDDLE, APP_GESTURE_TAP);
-    CHECK(r.s.share_req == -1 && r.s.mode == SK_GALLERY);
-    touch(&r, APP_TOUCH_MIDDLE, APP_GESTURE_TAP);
-    touch(&r, APP_TOUCH_MIDDLE, APP_GESTURE_TAP); /* Open */
+    CHECK(r.s.share_req == -1 && r.s.mode == SK_PAGEMENU);
+    for (int i = 0; i < 4; i++) touch(&r, APP_TOUCH_RIGHT, APP_GESTURE_TAP);
+    touch(&r, APP_TOUCH_MIDDLE, APP_GESTURE_TAP); /* Back */
     CHECK(r.s.mode == SK_DRAW && same_page_and_fb(&r)); /* back to the page */
     CHECK(rig_frame(&r, out) == SK_FULL && same_page_and_fb(&r));
     share_view_t v;
@@ -377,15 +376,15 @@ static void test_no_stepping_no_bar_actions(void)
     touch(&r, APP_TOUCH_MIDDLE, APP_GESTURE_HOLD);
     CHECK(r.s.mode == SK_DRAW && r.s.cur == cur && page_is(&r, before));
     key(&r, 6);
-    CHECK(r.s.mode == SK_GALLERY); /* 7: the menu */
+    CHECK(r.s.mode == SK_PAGEMENU); /* 7: the menu */
     touch(&r, APP_TOUCH_MIDDLE, APP_GESTURE_HOLD);
     key(&r, 4); /* 5: back out of it */
     CHECK(r.s.mode == SK_DRAW && r.s.cur == cur);
     key(&r, 7);
-    CHECK(r.s.mode == SK_GALLERY); /* 8: the menu too */
+    CHECK(r.s.mode == SK_PAGEMENU); /* 8: the menu too */
     key(&r, 4);
     touch(&r, APP_TOUCH_MIDDLE, APP_GESTURE_TAP);
-    CHECK(r.s.mode == SK_GALLERY);
+    CHECK(r.s.mode == SK_PAGEMENU);
     rig_end(&r);
 }
 

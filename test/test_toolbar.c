@@ -63,7 +63,7 @@ static void test_toggle_and_restore(void)
         int outside = 0; /* the screen differs from the page inside the strip only */
         for (int y = 0; y < TH; y++)
             for (int x = 0; x < TW; x++)
-                if (cv_get(&r.s.page, x, y) != ((r.fb[y * TS + x / 8] >> (7 - x % 8)) & 1) && !in_box(tb, x, y)) outside++;
+                if (cv_get(&r.s.page, x, y) != ((r.fb[y * TS + x / 8] >> (7 - x % 8)) & 1) && !in_box(tb, x, y) && !in_box(&r.s.pl_box, x, y)) outside++; /* the pills are over the page too */
         CHECK(outside == 0);
         int bw = tb->x1 - tb->x0 + 1, bh = tb->y1 - tb->y0 + 1, lng = bw > bh ? bw : bh, sht = bw > bh ? bh : bw;
         CHECK(lng >= 1404 && sht < 160 && sht > 60); /* a thin strip along one edge */

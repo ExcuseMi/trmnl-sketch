@@ -77,10 +77,33 @@ void ui_menu_pills(gfx_t *g, const app_touchbar_t *bar, const char *select, int 
 #define NAV_GAP 24
 void ui_nav_box(const gal_layout_t *L, int which, int *x0, int *y0, int *x1, int *y1)
 {
-    int wn = pill_w("Next", PILL_DOWN), wp = pill_w("Previous", PILL_UP), nx = L->ax1 - wn, px = nx - NAV_GAP - NAV_SLOT - NAV_GAP - wp;
+    int wn = pill_w("Next", PILL_DOWN), wp = pill_w("Previous", PILL_UP), nx = L->ax1 - pill_w("Back", PILL_NONE) - NAV_GAP - wn, px = nx - NAV_GAP - NAV_SLOT - NAV_GAP - wp;
     *y0 = L->ay0 + 26, *y1 = *y0 + PILL_H - 1;
     if (which == CTL_NEXT) *x0 = nx, *x1 = nx + wn - 1;
     else *x0 = px, *x1 = px + wp - 1;
+}
+
+void ui_ctl_box(const gal_layout_t *L, int which, int *x0, int *y0, int *x1, int *y1)
+{
+    if (which == CTL_BACK) {
+        int w = pill_w("Back", PILL_NONE);
+        *x0 = L->ax1 - w, *x1 = L->ax1 - 1, *y0 = L->ay0 + 26, *y1 = *y0 + PILL_H - 1;
+    } else {
+        int w = pill_w("Set up printer", PILL_NONE);
+        *x0 = L->ax0 + 40, *x1 = *x0 + w - 1, *y0 = (L->ay0 + L->ay1) / 2 + 150, *y1 = *y0 + PILL_H - 1;
+    }
+}
+
+void ui_back_corner(gfx_t *g)
+{
+    pill_draw(g, g->SW - 60 - pill_w("Back", PILL_NONE), 40, "Back", PILL_NONE, 0);
+}
+
+void ui_button(gfx_t *g, const gal_layout_t *L, int which, int hot)
+{
+    int x0, y0, x1, y1;
+    ui_ctl_box(L, which, &x0, &y0, &x1, &y1);
+    pill_draw(g, x0, y0, which == CTL_BACK ? "Back" : "Set up printer", PILL_NONE, hot);
 }
 
 void ui_list(gfx_t *g, const gal_layout_t *L, const char *title, const char *const *items, int n, int sel, list_geom_t *geo)
@@ -103,7 +126,7 @@ void ui_list_row(const list_geom_t *geo, int i, int *x0, int *y0, int *x1, int *
     *x0 = geo->x - 30, *x1 = geo->x1, *y0 = geo->y0 + i * LIST_PITCH - 74, *y1 = geo->y0 + i * LIST_PITCH + 28;
 }
 
-void ui_gallery(gfx_t *g, const gal_layout_t *L, const int *nums, int count, int sel, int cur, int page, int pages, const char *note, int hot)
+void ui_gallery(gfx_t *g, const gal_layout_t *L, const int *nums, const uint8_t *dmg, int count, int sel, int cur, int page, int pages, const char *note, int hot)
 {
     const font_face_t *big = mface(1, 64), *cap = mface(0, 34), *capb = mface(1, 34);
     char t[40] = "Sketches";
@@ -138,6 +161,10 @@ void ui_gallery(gfx_t *g, const gal_layout_t *L, const int *nums, int count, int
             gfx_fill_rect(g, (float)cx - 6, (float)cy - 40, (float)cx + 6, (float)cy + 40, MBLK);
             mtext(g, capb, x + (L->tw - mtext_w(capb, "New page")) / 2, y + L->th / 2 + 70, "New page", MBLK);
             continue;
+        }
+        if (dmg && dmg[i]) {
+            const font_face_t *df = mface(1, 46);
+            mtext(g, df, x + (L->tw - mtext_w(df, "Damaged")) / 2, y + L->th / 2 + 14, "Damaged", MBLK);
         }
         char num[16];
         int n = 0, m = 0, v = nums[i];

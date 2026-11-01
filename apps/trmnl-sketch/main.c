@@ -7,8 +7,11 @@
 #include "sk_cfg.h"
 #include "sketch.h"
 #include "printjob.h"
+#include "printer.h"
+#include "icon.h"
 
 APP_INFO("Sketch", 32 * 1024);
+APP_ICON(SKETCH_ICON); /* a pencil drawing a curve, 64 x 64 (tools/icon.py) */
 
 static const app_api_t *api;
 static sketch_t sk;
@@ -67,10 +70,12 @@ static int f_post(void *u, const char *url, const void *body, size_t n, uint8_t 
 }
 
 static const app_setting_decl_t decl[] = {
-    { "printer", "Printer address (IP, or IP:port; the port is 631 if left out)", 0, 0, 64, APP_SETTING_TEXT },
     { "cleanup_s", "Clean the screen after this many idle seconds (0: never)", 0, 0, 600, APP_SETTING_NUMBER },
     { "pen_area", "Tablet area on the page (fill: every tablet edge is a screen edge; keep: no stretching)", "fill|keep", 0, 0, APP_SETTING_CHOICE },
 };
+
+/* The default printer: the Print app's printer.cfg is the only source of address and format */
+static int f_printer(void *u, pj_printer_t *out) { return (void)u, pj_default_printer(api, out); }
 
 static int have_pen(void) { return api->size >= APP_API_SLOT(50); }
 
@@ -105,8 +110,8 @@ int app_main(const app_api_t *a)
     int orient = ao_start(api); /* follows the X's position: APP_EVENT_ORIENTATION */
     app_touchbar_t bar;
     ao_layout(api, orient, fw, fh, &bar);
-    if (api->size >= APP_API_SLOT(47)) api->settings_declare(decl, sizeof(decl) / sizeof(decl[0])); /* the printer's address, own setting: settings are per app */
-    sk_env_t env = { &fs, 0, cfg_get, cfg_set, { PJ_PWG, f_post, 0 } };
+    if (api->size >= APP_API_SLOT(47)) api->settings_declare(decl, sizeof(decl) / sizeof(decl[0]));
+    sk_env_t env = { &fs, 0, cfg_get, cfg_set, { PJ_PWG, f_post, 0 }, f_printer };
     int rc = sk_init(&sk, &env, fb, fw, fh, stride, orient, &bar);
     if (rc) return rc;
     if (api->size >= APP_API_SLOT(41)) api->touch_hold(1u << APP_TOUCH_MIDDLE);
@@ -123,7 +128,7 @@ int app_main(const app_api_t *a)
         sk_tick(&sk, now);
         if (sk.share_req > 0 && !sharing) {
             app_webshare_files_t opt = { SK_DIR, ".png", 4u * 1024 * 1024 };
-            if (sk.share_req == 2) /* the settings form: the printer's address */
+            if (sk.share_req == 2) /* the settings form */
                 share_rc = api->size >= APP_API_SLOT(47) ? api->webshare_start_settings(APP_WEBSHARE_AUTO) : APP_ENOTSUP;
             else
                 share_rc = api->size >= APP_API_SLOT(37) ? api->webshare_start_files(APP_WEBSHARE_AUTO, &opt) : APP_ENOTSUP;
@@ -169,7 +174,11 @@ int app_main(const app_api_t *a)
             default: break;
             }
         }
-        if (exit_now) break;
+        if (exit_now || sk.exit_req) break;
+        if (sk.setup_req) { /* "Set up printer": Print starts after this app returns, and hands back here with an empty argument */
+            if (api->size >= APP_API_SLOT(55) && api->app_launch("trmnl-print", "setup:trmnl-sketch") == 0) break;
+            sk.setup_req = 0; /* no such app or an older firmware: stay */
+        }
     }
     if (sharing) api->webshare_stop();
     if (have_pen()) api->pen_enable(0);

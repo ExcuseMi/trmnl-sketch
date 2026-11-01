@@ -3,6 +3,7 @@
 #include <string.h>
 #include "font.h"
 #include "sk_cfg.h"
+#include "skmenu.h"
 
 enum { BLK = GFX_BLACK, WHT = GFX_WHITE };
 
@@ -36,8 +37,8 @@ void ui_toast(gfx_t *g, const char *s, int y, box_t *out)
 
 void ui_legend(gfx_t *g, box_t *out)
 {
-    static const char *const lines[] = { "Tablet buttons: 1 undo, 2 redo, 3 eraser, 4 toolbar,", "5 clear, 6 new page, 7 and 8 menu (gallery, print).",
-        "Pen button: eraser while held. Toolbar: brushes, shades, sizes.", "Pages: open the menu, then the gallery.", "Touch bar: hold to leave the app." };
+    static const char *const lines[] = { "Tablet buttons: 1 undo, 2 redo, 3 eraser, 4 toolbar,", "5 clear, 6 new page, 7 and 8 page menu.",
+        "Pen button: eraser while held. Toolbar: brushes, shades, sizes.", "Menu: print, send, new page, gallery, exit.", "Tools and Menu: tap with the pen." };
     const font_face_t *f = face(0, 34);
     int w = 0;
     for (int i = 0; i < 5; i++)
@@ -131,7 +132,7 @@ void share_view(share_view_t *v, int rc, const app_webshare_status_t *st)
         return;
     }
     if (!st->running) {
-        put(v->note, sizeof(v->note), "The page switched itself off. Touch the bar to leave.");
+        put(v->note, sizeof(v->note), "The page switched itself off. Tap Back to leave.");
         return;
     }
     if (st->mode == APP_WEBSHARE_AP) {
@@ -147,7 +148,7 @@ void share_view(share_view_t *v, int rc, const app_webshare_status_t *st)
     put(v->code, sizeof(v->code), st->code);
     v->up = st->locked == 0;
     put(v->note, sizeof(v->note),
-        st->locked == 1 ? "Too many wrong codes: wait a minute." : st->locked == 2 ? "Too many wrong codes: the page is off." : "Touch the bar to stop. Your sketches are the .png files.");
+        st->locked == 1 ? "Too many wrong codes: wait a minute." : st->locked == 2 ? "Too many wrong codes: the page is off." : "Tap Back to stop. Your sketches are the .png files.");
 }
 
 int share_view_same(const share_view_t *a, const share_view_t *b) { return !memcmp(a, b, sizeof(*a)); }
@@ -164,4 +165,5 @@ void ui_share(gfx_t *g, const app_touchbar_t *bar, const share_view_t *v)
     if (v->address[0]) text(g, big, 60, y, v->address, BLK), y += 150;
     if (v->code[0] && v->up) text(g, dig, 60, y, v->code, BLK), y += 100;
     text(g, f, 60, y, v->note, BLK);
+    ui_back_corner(g);
 }

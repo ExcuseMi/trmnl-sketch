@@ -32,18 +32,27 @@ static void fail(sketch_t *s, const char *msg)
     sk_cpy(s->pres.msg, sizeof(s->pres.msg), msg);
 }
 
+/* The default printer, from the Print app's file (the only source of address and format). 0 with s->prn set; else the
+   result screen's words are set (and need_setup when Print has to be opened to set one up) and -1 */
+int sk_print_check(sketch_t *s)
+{
+    s->need_setup = 0;
+    if (!s->env.net.post) return fail(s, "Printing is not available on this firmware."), -1;
+    int rc = s->env.printer ? s->env.printer(s->env.user, &s->prn) : PJ_NO_PRINTER;
+    if (rc == 0) return 0;
+    if (rc == PJ_NO_PRINTER) return fail(s, "No printer yet: set one up in Print"), s->need_setup = 1, -1;
+    if (rc == APP_ENOTSUP) return fail(s, "This firmware cannot read the Print app's printer."), -1;
+    return fail(s, "The printer file could not be read."), -1;
+}
+
 int sk_print_page(sketch_t *s, int num)
 {
     size_t n = 0;
-    char printer[80];
-    int len = s->env.cfg_get ? s->env.cfg_get(s->env.user, "printer", printer, (int)sizeof(printer) - 1) : -1;
-    if (len <= 0) len = (int)strlen(SK_PRINTER_DEFAULT), memcpy(printer, SK_PRINTER_DEFAULT, (size_t)len);
-    printer[len] = 0;
-    pj_printer_t pr;
-    if (pj_printer_parse(printer, &pr) < 0) return fail(s, "The printer address is not valid. Set it in Settings."), -1;
     uint8_t *file = read_file(s, num, &n);
     if (!file) return fail(s, "The page could not be read."), -1;
-    int rc = pj_print_png(&s->env.net, &pr, file, n, &s->pres);
+    pj_net_t net = s->env.net;
+    net.format = s->prn.format;
+    int rc = pj_print_png(&net, &s->prn, file, n, &s->pres);
     free(file);
     return rc;
 }

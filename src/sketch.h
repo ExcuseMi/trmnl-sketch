@@ -15,6 +15,7 @@
 #include "penmap.h"
 #include "rects.h"
 #include "skmenu.h"
+#include "skpills.h"
 #include "skui.h"
 #include "toolbar.h"
 
@@ -24,10 +25,11 @@ typedef struct {
     int (*cfg_get)(void *user, const char *key, char *buf, int cap); /* app settings; length or < 0 */
     int (*cfg_set)(void *user, const char *key, const char *val, int n);
     pj_net_t net;        /* the printer connection (post == NULL: this firmware cannot print) */
+    int (*printer)(void *user, pj_printer_t *out); /* the default printer (pj_default_printer): 0, PJ_NO_PRINTER, APP_ENOTSUP, APP_EIO */
 } sk_env_t;
 
-enum { SK_DRAW, SK_SHARE, SK_GALLERY, SK_ACTIONS, SK_CONFIRM, SK_BUSY, SK_RESULT }; /* from SK_GALLERY on: menu screens drawn from `ui` */
-#define SK_PRINTER_DEFAULT "192.0.2.40"
+enum { SK_DRAW, SK_SHARE, SK_GALLERY, SK_ACTIONS, SK_CONFIRM, SK_BUSY, SK_RESULT, SK_PAGEMENU }; /* from SK_GALLERY on: menu screens drawn from `ui` */
+#define SK_DMG_MAX 32
 #define SK_BLITS 40
 enum { SK_NONE = 0, SK_FULL = -1, SK_NOFLASH = -2 }; /* sk_flush: nothing due / a full refresh; SK_NOFLASH: only inside (sk_flash_step) */
 
@@ -87,6 +89,17 @@ typedef struct {
     char gnote[64];
     int print_req;
     pj_result_t pres;
+    pj_printer_t prn;    /* the default printer for the job on screen */
+    int need_setup;      /* the result screen offers "Set up printer" */
+    int setup_req, exit_req; /* the glue ends the app: after launching Print's setup / for "Exit Sketch" */
+    int ret_mode;        /* the screen a share or result screen returns to (SK_PAGEMENU, SK_ACTIONS) */
+    int exit_unsaved;    /* the confirm screen is "Exit without saving?" (the save failed), not the print one */
+    int tb_back;         /* the toolbar was up when the page menu opened */
+    uint16_t dmg[SK_DMG_MAX]; /* pages found damaged in the gallery (file does not decode) */
+    int dmg_n;
+    pills_t pl;          /* the Tools and Menu pills on the drawing page (overlay, like the toolbar) */
+    box_t pl_box;
+    int pl_hold;         /* a pen press that began on a pill (1 Tools, 2 Menu) is still down */
     struct { int num, x, y; } blit[SK_BLITS]; /* thumbnails to lay over `ui` */
     int blit_n;
     int hot, ptr_ctl;    /* the control (CTL_*) the pen hovers over / a press began on */
@@ -153,7 +166,11 @@ int sk_is_blank(const canvas_t *c);
 void sk_show_page(sketch_t *s);
 void sk_screen_render(sketch_t *s); /* draws the menu screen of the mode into `ui` and asks for a full refresh */
 void sk_menu_cursor(sketch_t *s); /* draws the pointer on the framebuffer at the hover place, when a menu shows one */
-void sk_to_gallery(sketch_t *s, uint32_t now);
+void sk_to_gallery(sketch_t *s, uint32_t now); /* from the page menu */
+void sk_to_pagemenu(sketch_t *s, uint32_t now); /* from the drawing: the menu of the current page */
+int sk_save_page(sketch_t *s, uint32_t now); /* writes the page on screen if changed; 0 when it could not */
+void sk_resume_draw(sketch_t *s); /* the toolbar and pills as they were, for the page coming back */
+int sk_print_check(sketch_t *s); /* the default printer into s->prn: 0, or -1 with the result words set */
 void sk_menu_touch(sketch_t *s, int zone, int gesture, uint32_t now);
 void sk_menu_key(sketch_t *s, unsigned down, uint32_t now); /* tablet buttons (bit 0 is button 1) in a menu screen */
 void sk_menu_pen(sketch_t *s, unsigned flags, int fx, int fy, int inside, uint32_t now);

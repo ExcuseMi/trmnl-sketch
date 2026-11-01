@@ -13,6 +13,7 @@
 #include "../../src/pages.c"
 #include "../../src/rects.c"
 #include "../../src/skui.c"
+#include "../../src/skpills.c"
 #include "../../src/skmenu.c"
 #include "../../src/gallery.c"
 #include "../../src/skprint.c"

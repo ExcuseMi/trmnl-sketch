@@ -83,9 +83,9 @@ static void test_every_path(void)
     key(&r, 5); /* a new page */
     run(&r, 300);
     CHECK(r.inverted >= i0 + 3);
-    sk_to_gallery(&r.s, r.now += 10); /* gallery, and back */
+    sk_to_pagemenu(&r.s, r.now += 10); /* the page menu */
     drain(&r);
-    CHECK(r.s.mode == SK_GALLERY);
+    CHECK(r.s.mode == SK_PAGEMENU);
     CHECK(r.bare_fulls == 0);
     rig_end(&r);
 }
@@ -188,15 +188,15 @@ static void test_idle_screens(void)
     rest(&r, APP_ORIENT_BAR_BOTTOM);
     ink(&r);
     run(&r, 400);
-    sk_to_gallery(&r.s, r.now += 10);
+    sk_to_pagemenu(&r.s, r.now += 10);
     run(&r, 1000);
-    CHECK(r.s.mode == SK_GALLERY);
+    CHECK(r.s.mode == SK_PAGEMENU);
     unsigned x, y;
     rig_pt(&r, 300, 300, &x, &y);
     sk_pen(&r.s, APP_PEN_IN_RANGE, x, y, 0, r.now += 10); /* the pointer: a partial refresh */
     run(&r, 300);
     CHECK(r.s.ghost);
-    CHECK(run(&r, 6000) == 1 && r.s.mode == SK_GALLERY);
+    CHECK(run(&r, 6000) == 1 && r.s.mode == SK_PAGEMENU);
     CHECK(run(&r, 20000) == 0);
     /* the tip held down on a menu screen: no flash however long (the stroke flag is not set there) */
     rig_pt(&r, 40, 40, &x, &y);
