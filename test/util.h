@@ -1,6 +1,7 @@
 /* Helpers shared by the host tests: a sketch on a memory file system, pen strokes, a panel copy. SPDX-License-Identifier: MIT */
 #ifndef UTIL_H
 #define UTIL_H
+#include "check.h"
 #include <stdlib.h>
 #include <string.h>
 #include <app_api.h>

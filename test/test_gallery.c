@@ -229,7 +229,8 @@ static void test_print_from_the_action_list(void)
     direct.status = 200;
     pj_net_t net = { PJ_PWG, fake_post, &direct };
     pj_result_t res;
-    CHECK(pj_print_png(&net, "10.1.2.3", file, (size_t)n, &res) == 0);
+    pj_printer_t pr3;
+    CHECK(pj_printer_parse("10.1.2.3", &pr3) == 0 && pj_print_png(&net, &pr3, file, (size_t)n, &res) == 0);
     CHECK(direct.posts == r.pr.posts && direct.len[0] == r.pr.len[0] && !memcmp(direct.body[0], r.pr.body[0], direct.len[0]));
     for (int i = 0; i < 4; i++) free(direct.body[i]);
     CHECK(rig_frame(&r, out) == SK_FULL);

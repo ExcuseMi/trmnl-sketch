@@ -39,9 +39,11 @@ int sk_print_page(sketch_t *s, int num)
     int len = s->env.cfg_get ? s->env.cfg_get(s->env.user, "printer", printer, (int)sizeof(printer) - 1) : -1;
     if (len <= 0) len = (int)strlen(SK_PRINTER_DEFAULT), memcpy(printer, SK_PRINTER_DEFAULT, (size_t)len);
     printer[len] = 0;
+    pj_printer_t pr;
+    if (pj_printer_parse(printer, &pr) < 0) return fail(s, "The printer address is not valid. Set it in Settings."), -1;
     uint8_t *file = read_file(s, num, &n);
     if (!file) return fail(s, "The page could not be read."), -1;
-    int rc = pj_print_png(&s->env.net, printer, file, n, &s->pres);
+    int rc = pj_print_png(&s->env.net, &pr, file, n, &s->pres);
     free(file);
     return rc;
 }

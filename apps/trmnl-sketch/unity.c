@@ -23,6 +23,7 @@
 #include "../../../trmnl-print/src/ipp.c"
 #include "../../../trmnl-print/src/imgfit.c"
 #include "../../../trmnl-print/src/textlay.c"
+#include "../../../trmnl-print/src/printer.c"
 #include "../../../trmnl-print/src/printjob.c"
 #include "../../src/skflash.c"
 #include "../../src/sketch.c"
