@@ -176,7 +176,7 @@ static int fill_in(hist_t *h, int x, int y, int shade)
     bf_t r;
     if (bf_plan(&r, h->page, x, y, shade, 3, 0) != BF_OK) return 0;
     uint32_t n = bf_runs(&r);
-    bstyle_t st = { BR_FILL, (uint8_t)shade, 1 };
+    bstyle_t st = { BR_FILL, (uint8_t)shade, 1, 0 };
     hpt_t *slots = hist_fill_begin(h, n, &st);
     if (!slots) return bf_free(&r), -1;
     bf_emit(&r, slots);

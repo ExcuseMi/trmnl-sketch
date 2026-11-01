@@ -31,9 +31,23 @@ int sk_fill_pen(sketch_t *s, int tip, int inside, int fx, int fy, uint32_t now)
 
 void sk_fill_at(sketch_t *s, int x, int y, uint32_t now)
 {
-    bf_t r;
+    bf_t r = { 0 };
     hist_end(&s->hist);
-    int rc = bf_plan(&r, &s->page, x, y, s->sty.shade, s->bk_gap, 0);
+    int rc = BF_NOTHING;
+    for (int img = 0, n = mr_images(s->sty.mirror); img < n; img++) { /* the tap and its mirror images, one region in all */
+        int ix, iy;
+        mr_map(s->sty.mirror, img, s->page.w, s->page.h, x, y, &ix, &iy);
+        if (ix < 0 || iy < 0 || ix >= s->page.w || iy >= s->page.h) continue;
+        if (r.mask && (r.mask[iy * r.stride + (ix >> 3)] >> (7 - (ix & 7)) & 1)) continue; /* already inside */
+        bf_t one;
+        int rc1 = bf_plan(&one, &s->page, ix, iy, s->sty.shade, s->bk_gap, 0);
+        if (rc1 == BF_OK) bf_merge(&r, &one), rc = BF_OK;
+        else if (rc1 != BF_NOTHING) {
+            bf_free(&r);
+            rc = rc1;
+            break;
+        }
+    }
     if (rc == BF_NOTHING) return sk_toast(s, "Already like that", now);
     if (rc == BF_MEM) return sk_toast(s, "Not enough memory to fill", now);
     if (rc == BF_COMPLEX) return sk_toast(s, "Too intricate to fill", now);
@@ -46,7 +60,7 @@ void sk_fill_at(sketch_t *s, int x, int y, uint32_t now)
     }
     s->bk_ask_until = now;
     uint32_t n = bf_runs(&r);
-    bstyle_t st = { BR_FILL, s->sty.shade, 1 };
+    bstyle_t st = { BR_FILL, s->sty.shade, 1, s->sty.mirror };
     hpt_t *slots = hist_fill_begin(&s->hist, n, &st);
     if (!slots) {
         bf_free(&r);

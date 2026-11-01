@@ -58,7 +58,7 @@ static void replay(hist_t *h)
 
 void hist_begin(hist_t *h, int kind)
 {
-    static const bstyle_t plain = { BR_FINELINER, SH_BLACK, 1 };
+    static const bstyle_t plain = { BR_FINELINER, SH_BLACK, 1, 0 };
     hist_begin_style(h, kind, &plain);
 }
 

@@ -24,6 +24,8 @@ typedef struct {
    stack_cap 0: BF_STACK (tests pass small ones) */
 int bf_plan(bf_t *r, const canvas_t *page, int x, int y, int shade, int gap, size_t stack_cap);
 void bf_free(bf_t *r);
+/* dst |= src (a mirror fills every image of the tap in one step); src is freed. dst may be empty (mask NULL) */
+void bf_merge(bf_t *dst, bf_t *src);
 uint32_t bf_runs(const bf_t *r);        /* slots bf_emit writes */
 void bf_emit(const bf_t *r, hpt_t *out); /* the runs of the region */
 /* Paints the runs on a page with `shade` (history replay) */

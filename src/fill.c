@@ -270,6 +270,18 @@ out:
     return rc;
 }
 
+void bf_merge(bf_t *dst, bf_t *src)
+{
+    if (!src->mask) return;
+    if (!dst->mask) *dst = *src, src->mask = 0;
+    else {
+        size_t bytes = (size_t)dst->stride * (size_t)dst->h;
+        for (size_t i = 0; i < bytes; i++) dst->mask[i] |= src->mask[i];
+        bf_free(src);
+        bf_box(dst);
+    }
+}
+
 /* ---- runs ---- */
 
 /* One pass for both: with out == NULL it only counts */

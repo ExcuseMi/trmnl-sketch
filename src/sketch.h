@@ -11,6 +11,7 @@
 #include "printjob.h"
 #include "gfx.h"
 #include "hist.h"
+#include "mirror.h"
 #include "pages.h"
 #include "penmap.h"
 #include "rects.h"
@@ -126,6 +127,8 @@ void sk_cfg_reload(sketch_t *s);
 void sk_set_brush(sketch_t *s, int brush, uint32_t now);
 void sk_set_shade(sketch_t *s, int shade, uint32_t now);
 void sk_set_size(sketch_t *s, int size, uint32_t now);
+/* The symmetry (skmirror.c): off, left-right, top-bottom, 4-way, kaleidoscope; the guide is on the screen only */
+void sk_set_mirror(sketch_t *s, int mode, uint32_t now);
 /* The size slider (sksize.c): the knob follows the pen at user x `ux`; only the slider's cells are pushed */
 void sk_slider_drag(sketch_t *s, int ux);
 /* sketch.c's own, shared with sksize.c: a setting's number, a toast with the strip repainted, the strip repainted in the framebuffer */

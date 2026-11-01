@@ -10,6 +10,7 @@
 
 int png_write(const char *path, const gfx_t *g);
 void fill_shots(const char *dir, int *bad);
+void mirror_shots(const char *dir, int *bad);
 
 static int bad;
 #define TAP(z) sk_touch(&r.s, APP_TOUCH_##z, APP_GESTURE_TAP, r.now += 50)
@@ -299,5 +300,6 @@ int main(int argc, char **argv)
     rig_end(&r);
     brush_shots(dir);
     fill_shots(dir, &bad);
+    mirror_shots(dir, &bad);
     return bad;
 }

@@ -29,6 +29,8 @@
 ../../src/skflash.c
 ../../src/fill.c
 ../../src/skfill.c
+../../src/mirror.c
+../../src/skmirror.c
 ../../src/sketch.c
 ../../src/font.c
 ../../src/gfx.c

@@ -11,7 +11,8 @@
 enum { BR_FINELINER, BR_BRUSHPEN, BR_PENCIL, BR_MARKER, BR_CALLIGRAPHY, BR_SPRAY, BR_ERASER, BR_FILL, BR_N };
 
 typedef struct {
-    uint8_t brush, shade, size; /* BR_*, SH_*, 0..2 */
+    uint8_t brush, shade, size; /* BR_*, SH_*, the pen size 1..48 */
+    uint8_t mirror;             /* MR_* (mirror.h): the stroke is repeated through that symmetry; 0 off */
 } bstyle_t;
 
 const char *brush_name(int brush);

@@ -6,8 +6,8 @@
 #include "brush.h"
 #include "gfx.h"
 
-/* TI_SIZE is the slider: it takes the width of three cells (tb_hit gives TI_SIZE for each of them) */
-enum { TI_BRUSH = 0, TI_SHADE = BR_N, TI_SIZE = BR_N + SH_N, TI_UNDO = BR_N + SH_N + 3, TI_REDO, TI_CLEAR, TI_N };
+/* TI_MIRROR cycles the symmetry (mirror.h); it is shown picked while one is on. TI_SIZE is the slider: it takes the width of three cells (tb_hit gives TI_SIZE for each of them) */
+enum { TI_BRUSH = 0, TI_SHADE = BR_N, TI_SIZE = BR_N + SH_N, TI_MIRROR = BR_N + SH_N + 3, TI_UNDO, TI_REDO, TI_CLEAR, TI_N };
 
 typedef struct {
     int x0, y0, x1, y1; /* the strip, user frame, inclusive */

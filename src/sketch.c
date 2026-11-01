@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "fmath.h"
+#include "mirror.h"
 #include "sk_cfg.h"
 
 #define TOAST_MS 2500
@@ -68,6 +69,7 @@ static void pl_place(sketch_t *s) /* the Tools and Menu pills for the screen in 
 static void fb_put(sketch_t *s, const box_t *b)
 {
     cv_copy_box(&s->fb, &s->page, b);
+    mr_guide(&s->fb, s->sty.mirror, b); /* the screen-only guide of the mirror (mirror.h) */
     if (s->tb_on && hit(b, &s->tb_box)) sk_tb_paint(s);
     if (hit(b, &s->pl_box)) pl_paint(s);
 }
@@ -77,6 +79,7 @@ void sk_show_page(sketch_t *s)
     box_t b;
     whole(&b, &s->page);
     cv_copy_box(&s->fb, &s->page, &b);
+    mr_guide(&s->fb, s->sty.mirror, &b);
     if (s->tb_on) sk_tb_paint(s);
     pl_paint(s);
 }
@@ -449,7 +452,7 @@ void sk_toolbar(sketch_t *s, uint32_t now)
     if (s->tb_on) { /* the page under the strip comes back as it was */
         s->tb_on = s->tb_hold = 0;
         s->tb_hot = -1;
-        cv_copy_box(&s->fb, &s->page, &s->tb_box);
+        fb_put(s, &s->tb_box); /* (the guide comes back with the page) */
         s->ovl_gone = 1; /* the whole page is flashed clean (it covers the strip): skflash.c */
         return;
     }
@@ -467,6 +470,7 @@ static void tb_press(sketch_t *s, int item, uint32_t now)
     if (item < 0) return;
     if (item < TI_SHADE) sk_set_brush(s, item - TI_BRUSH, now);
     else if (item < TI_SIZE) sk_set_shade(s, item - TI_SHADE, now);
+    else if (item == TI_MIRROR) sk_set_mirror(s, (s->sty.mirror + 1) % MR_N, now);
     else if (item == TI_SIZE) s->tb_drag = 1; /* the first x comes with the same event: slider_drag */
     else if (item == TI_UNDO) sk_undo(s, now);
     else if (item == TI_REDO) sk_redo(s, now);

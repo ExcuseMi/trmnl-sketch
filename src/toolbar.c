@@ -14,7 +14,7 @@
 #define TB_CH 104 /* glyph 64 + label */
 enum { TB_BLK = GFX_BLACK, TB_WHT = GFX_WHITE };
 
-static const char *const tb_label[TI_N] = { "Fine", "Brush", "Pencil", "Marker", "Calli", "Spray", "Eraser", "Fill", "Black", "Dark", "Light", "", "", "", "Undo", "Redo", "Clear" };
+static const char *const tb_label[TI_N] = { "Fine", "Brush", "Pencil", "Marker", "Calli", "Spray", "Eraser", "Fill", "Black", "Dark", "Light", "", "", "", "Mirror", "Undo", "Redo", "Clear" };
 
 void tb_layout(tb_layout_t *L, int orient, int sw, int sh)
 {
@@ -24,7 +24,7 @@ void tb_layout(tb_layout_t *L, int orient, int sw, int sh)
     L->ch = TB_CH;
     int total = cell * TI_N + 3 * TB_GAP, x = (sw - total) / 2, h = TB_CH + 2 * TB_PAD + TB_LINE;
     for (int i = 0; i < TI_N; i++) {
-        if (i == TI_SHADE || i == TI_SIZE || i == TI_UNDO) L->gap_x[i == TI_SHADE ? 0 : i == TI_SIZE ? 1 : 2] = x + TB_GAP / 2, x += TB_GAP;
+        if (i == TI_SHADE || i == TI_SIZE || i == TI_MIRROR) L->gap_x[i == TI_SHADE ? 0 : i == TI_SIZE ? 1 : 2] = x + TB_GAP / 2, x += TB_GAP;
         L->cx[i] = x;
         x += cell;
     }
@@ -42,7 +42,7 @@ int tb_hit(const tb_layout_t *L, int x, int y)
 {
     if (y < L->cy || y >= L->cy + L->ch) return -1;
     for (int i = 0; i < TI_N; i++)
-        if (x >= L->cx[i] && x < L->cx[i] + L->cell) return i > TI_SIZE && i < TI_UNDO ? TI_SIZE : i;
+        if (x >= L->cx[i] && x < L->cx[i] + L->cell) return i > TI_SIZE && i < TI_MIRROR ? TI_SIZE : i;
     return -1;
 }
 
@@ -119,7 +119,8 @@ void tb_draw(gfx_t *g, const tb_layout_t *L, const bstyle_t *cur, int hot)
         int x = L->cx[i], y = L->cy, sel = 0, gx = x + (L->cell - TBI_SIZE) / 2, gy = y + 4;
         if (i < TI_SHADE) sel = cur->brush == i;
         else if (i < TI_SIZE) sel = cur->shade == i - TI_SHADE;
-        else if (i < TI_UNDO) continue; /* the slider */
+        else if (i < TI_MIRROR) continue; /* the slider */
+        else if (i == TI_MIRROR) sel = cur->mirror != 0;
         int x1 = x + L->cell - 1, y1 = y + L->ch - 1;
         if (sel) gfx_rrect(g, (float)x, (float)y, (float)x1, (float)y1, 12, 0, TB_BLK, TB_BLK);
         if (hot == i) { /* the pen is over it: a frame (on a picked item an inset white one) */
@@ -129,6 +130,7 @@ void tb_draw(gfx_t *g, const tb_layout_t *L, const bstyle_t *cur, int hot)
         int c = sel ? TB_WHT : TB_BLK, bg = sel ? TB_BLK : TB_WHT;
         if (i < TI_SHADE) tbi_brush(g, i, gx, gy, c, bg);
         else if (i < TI_SIZE) tb_swatch(g, i - TI_SHADE, gx, gy, sel);
+        else if (i == TI_MIRROR) tbi_mirror(g, cur->mirror, gx, gy, c, bg);
         else if (i == TI_UNDO) tbi_undo(g, gx, gy, c, bg);
         else if (i == TI_REDO) tbi_redo(g, gx, gy, c, bg);
         else tbi_clear(g, gx, gy, c, bg);

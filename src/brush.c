@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: MIT */
 #include "brush.h"
 #include "fmath.h"
+#include "mirror.h"
 #include "penmap.h"
 #include "sk_cfg.h"
 
@@ -46,7 +47,16 @@ typedef struct {
     canvas_t *c;
     int colour, shade, size;
     box_t *dirty;
+    int mode, img; /* the mirror's symmetry and which image this pass draws (0: the pen's own, no map) */
 } bctx_t;
+
+/* Where the stamp's pixel (x, y) lands: the mirror image of it (every pixel is mapped, so a stamp's own shape and its
+   random grain come out mirrored exactly) */
+static void mp(const bctx_t *k, int x, int y, int *ox, int *oy)
+{
+    if (!k->img) *ox = x, *oy = y;
+    else mr_map(k->mode, k->img, k->c->w, k->c->h, x, y, ox, oy);
+}
 typedef void (*stamp_fn)(const bctx_t *k, int x, int y, int p);
 
 static uint32_t hash3(int x, int y, int k)
@@ -60,17 +70,36 @@ static uint32_t hash3(int x, int y, int k)
 static void add_box(const bctx_t *k, int x0, int y0, int x1, int y1)
 {
     if (!k->dirty) return;
-    box_add(k->dirty, x0, y0);
-    box_add(k->dirty, x1, y1);
+    int cx[4] = { x0, x1, x0, x1 }, cy[4] = { y0, y0, y1, y1 };
+    for (int i = 0; i < 4; i++) {
+        int X, Y;
+        mp(k, cx[i], cy[i], &X, &Y);
+        box_add(k->dirty, X, Y);
+    }
 }
 
-static void stamp_disc(const bctx_t *k, int x, int y, int p) { cv_disc_s(k->c, x, y, p < 1 ? 1 : p, k->colour, k->shade, k->dirty); }
+static void px(const bctx_t *k, int x, int y)
+{
+    int X, Y;
+    mp(k, x, y, &X, &Y);
+    cv_px_s(k->c, X, Y, k->colour, k->shade);
+}
+
+/* discs and squares keep their own axis-aligned shape: only their centre is mapped */
+static void stamp_disc(const bctx_t *k, int x, int y, int p)
+{
+    int X, Y;
+    mp(k, x, y, &X, &Y);
+    cv_disc_s(k->c, X, Y, p < 1 ? 1 : p, k->colour, k->shade, k->dirty);
+}
 
 static void stamp_square(const bctx_t *k, int x, int y, int p) /* marker, eraser: a square of side p */
 {
-    int w = p < 1 ? 1 : p, x0 = x - w / 2, y0 = y - w / 2;
+    int w = p < 1 ? 1 : p, X, Y;
+    mp(k, x, y, &X, &Y);
+    int x0 = X - w / 2, y0 = Y - w / 2;
     for (int r = 0; r < w; r++) cv_span_s(k->c, y0 + r, x0, x0 + w - 1, k->colour, k->shade);
-    add_box(k, x0, y0, x0 + w - 1, y0 + w - 1);
+    if (k->dirty) box_add(k->dirty, x0, y0), box_add(k->dirty, x0 + w - 1, y0 + w - 1);
 }
 
 static void stamp_pencil(const bctx_t *k, int x, int y, int p) /* grain: a page-fixed noise under a pressure threshold */
@@ -78,7 +107,7 @@ static void stamp_pencil(const bctx_t *k, int x, int y, int p) /* grain: a page-
     int d = LZ(k->size, 3, 5, 8, 40), r = d / 2, thr = 60 + p * 195 / 255;
     for (int dy = -r; dy <= r; dy++)
         for (int dx = -r; dx <= r; dx++)
-            if (dx * dx + dy * dy <= r * r + r && (int)(hash3(x + dx, y + dy, 0) & 255) < thr) cv_px_s(k->c, x + dx, y + dy, k->colour, k->shade);
+            if (dx * dx + dy * dy <= r * r + r && (int)(hash3(x + dx, y + dy, 0) & 255) < thr) px(k, x + dx, y + dy);
     add_box(k, x - r, y - r, x + r, y + r);
 }
 
@@ -86,8 +115,8 @@ static void stamp_nib(const bctx_t *k, int x, int y, int p) /* a flat nib slante
 {
     int e = p * 181 / 512;
     for (int t = -e; t <= e; t++) {
-        cv_px_s(k->c, x + t, y - t, k->colour, k->shade);
-        cv_px_s(k->c, x + t + 1, y - t, k->colour, k->shade);
+        px(k, x + t, y - t);
+        px(k, x + t + 1, y - t);
     }
     add_box(k, x - e, y - e, x + e + 1, y + e);
 }
@@ -98,7 +127,7 @@ static void stamp_spray(const bctx_t *k, int x, int y, int p) /* dots about the 
     for (int i = 0; i < n; i++) {
         uint32_t h = hash3(x, y, i + 1);
         int ox = (int)(h & 0xffff) % (2 * r + 1) - r, oy = (int)(h >> 16) % (2 * r + 1) - r;
-        if (ox * ox + oy * oy <= r * r) cv_px_s(k->c, x + ox, y + oy, k->colour, k->shade);
+        if (ox * ox + oy * oy <= r * r) px(k, x + ox, y + oy);
     }
     add_box(k, x - r, y - r, x + r, y + r);
 }
@@ -107,11 +136,19 @@ static void stamp_none(const bctx_t *k, int x, int y, int p) { (void)k, (void)x,
 
 static const stamp_fn stamps[BR_N] = { stamp_disc, stamp_disc, stamp_pencil, stamp_square, stamp_nib, stamp_spray, stamp_square, stamp_none };
 
+static void seg_img(const bstyle_t *st, int img, int colour, canvas_t *c, int x0, int y0, int p0, int x1, int y1, int p1, box_t *dirty);
+
 /* A stamp every pixel along the longer axis, the byte interpolated: no gaps whatever the speed */
 void brush_seg(const bstyle_t *st, int colour, canvas_t *c, int x0, int y0, int p0, int x1, int y1, int p1, box_t *dirty)
 {
+    int imgs = mr_images(st->mirror);
+    for (int img = 0; img < imgs; img++) seg_img(st, img, colour, c, x0, y0, p0, x1, y1, p1, dirty);
+}
+
+static void seg_img(const bstyle_t *st, int img, int colour, canvas_t *c, int x0, int y0, int p0, int x1, int y1, int p1, box_t *dirty)
+{
     int b = st->brush < BR_N ? st->brush : 0;
-    bctx_t k = { c, colour, st->shade < SH_N ? st->shade : 0, sz(st->size), dirty };
+    bctx_t k = { c, colour, st->shade < SH_N ? st->shade : 0, sz(st->size), dirty, st->mirror, img };
     stamp_fn fn = stamps[b];
     int dx = x1 - x0, dy = y1 - y0, adx = dx < 0 ? -dx : dx, ady = dy < 0 ? -dy : dy, n = adx > ady ? adx : ady;
     if (n == 0) return fn(&k, x0, y0, p1);

@@ -1,0 +1,18 @@
+/* Mirror drawing: every stroke is repeated through a symmetry about the page's centre (page = framebuffer frame, so
+   the axes follow the page in every position of the X). The images are integer maps (no floats: replay is exact), a
+   stroke's log holds only the pen's own points. Also the dashed guide drawn over the screen only. SPDX-License-Identifier: MIT */
+#ifndef MIRROR_H
+#define MIRROR_H
+#include "canvas.h"
+
+enum { MR_OFF, MR_LR, MR_TB, MR_4, MR_K8, MR_N }; /* off, left-right, top-bottom, 4-way, kaleidoscope (8 turns + mirror) */
+
+const char *mr_name(int mode);
+int mr_images(int mode); /* 1, 2, 2, 4, 16 */
+/* Image `img` (0 is the identity) of the page point (x, y) on a w x h page. Exact for the flips and the quarter turns;
+   the 45 degree turns round to the nearest pixel. The result may lie off the page (a turned page is cropped) */
+void mr_map(int mode, int img, int w, int h, int x, int y, int *ox, int *oy);
+/* The guide for `mode` flipped onto fb inside box `clip` (inverted 2 px dashes: seen over white and black alike). The
+   page canvas is never touched */
+void mr_guide(canvas_t *fb, int mode, const box_t *clip);
+#endif

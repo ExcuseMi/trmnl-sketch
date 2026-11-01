@@ -122,6 +122,13 @@ static void test_taps_never_ink(void)
         else CHECK(1);
         CHECK(r.s.note_on); /* a toast names the choice ... */
         idle(&r, 3000);
+        if (i == TI_MIRROR) /* the symmetry cycles through its modes and is off again after the last (test_mirror.c) */
+            for (int k = 1; k < MR_N; k++) {
+                tap(&r, i);
+                CHECK(r.s.sty.mirror == (k + 1) % MR_N);
+                idle(&r, 3000);
+            }
+        CHECK(i != TI_MIRROR || r.s.sty.mirror == MR_OFF);
     }
     /* ... below the strip, never over it */
     sk_set_brush(&r.s, BR_PENCIL, r.now += 50);
@@ -202,11 +209,11 @@ static void test_layout_all_positions(void)
         for (int i = 0; i < TI_N; i++) {
             CHECK(L.cx[i] >= 0 && L.cx[i] + L.cell <= sw && (i == 0 || L.cx[i] >= L.cx[i - 1] + L.cell)); /* inside, in order, no overlap */
             int cx = L.cx[i] + L.cell / 2, cy = L.cy + L.ch / 2, fx, fy, ux, uy;
-            CHECK(tb_in(&L, cx, cy) && tb_hit(&L, cx, cy) == (i > TI_SIZE && i < TI_UNDO ? TI_SIZE : i));
+            CHECK(tb_in(&L, cx, cy) && tb_hit(&L, cx, cy) == (i > TI_SIZE && i < TI_MIRROR ? TI_SIZE : i));
             /* through the panel and back: what a pen on the panel hits */
             app_orient_to_fb(o, TW, TH, cx, cy, &fx, &fy);
             gal_from_fb(o, TW, TH, fx, fy, &ux, &uy);
-            CHECK(ux == cx && uy == cy && tb_hit(&L, ux, uy) == (i > TI_SIZE && i < TI_UNDO ? TI_SIZE : i));
+            CHECK(ux == cx && uy == cy && tb_hit(&L, ux, uy) == (i > TI_SIZE && i < TI_MIRROR ? TI_SIZE : i));
         }
         CHECK(!tb_in(&L, sw / 2, L.top ? L.y1 + 1 : L.y0 - 1) && tb_hit(&L, sw / 2, L.top ? L.y1 + 1 : L.y0 - 1) == -1);
         CHECK(tb_hit(&L, 2, L.cy + 2) == -1); /* the margin is not an item */

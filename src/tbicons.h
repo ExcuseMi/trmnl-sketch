@@ -8,6 +8,8 @@
 
 #define TBI_SIZE 64
 void tbi_brush(gfx_t *g, int brush, int x, int y, int ink, int bg);
+/* The symmetry mode (MR_*) drawn: two halves about the axis, or a star of axes */
+void tbi_mirror(gfx_t *g, int mode, int x, int y, int ink, int bg);
 void tbi_undo(gfx_t *g, int x, int y, int ink, int bg);
 void tbi_redo(gfx_t *g, int x, int y, int ink, int bg);
 void tbi_clear(gfx_t *g, int x, int y, int ink, int bg);

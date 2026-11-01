@@ -2,6 +2,7 @@
 #include "tbicons.h"
 #include "brush.h"
 #include "fmath.h"
+#include "mirror.h"
 
 /* A tool lies on the 45 degree diagonal, tip at the lower left: a point is (u along the tool from the tip, v across) */
 typedef struct {
@@ -178,4 +179,40 @@ void tbi_clear(gfx_t *g, int x, int y, int ink, int bg)
     gfx_poly(g, body, 4, bg);
     gfx_poly_outline(g, body, 4, 4, ink);
     for (int i = 0; i < 3; i++) gfx_line(g, X + 25 + (float)i * 7, Y + 30, X + 25 + (float)i * 7, Y + 52, 3, ink);
+}
+
+/* Mirror: a small wing on each side of a dashed axis (off: one wing and no axis), the 4-way with both axes, the
+   kaleidoscope with a star of axes round a dot */
+void tbi_mirror(gfx_t *g, int mode, int ix, int iy, int ink, int bg)
+{
+    float X = (float)ix, Y = (float)iy;
+    (void)bg;
+    if (mode == MR_OFF || mode == MR_LR || mode == MR_4 || mode == MR_TB) {
+        int lr = mode != MR_TB && mode != MR_OFF, tb = mode == MR_TB || mode == MR_4;
+        float tri[2][6] = { { X + 6, Y + 14, X + 26, Y + 32, X + 6, Y + 50 }, { X + 58, Y + 14, X + 38, Y + 32, X + 58, Y + 50 } };
+        if (mode == MR_TB) { /* wings above and below the axis */
+            float up[6] = { X + 12, Y + 6, X + 32, Y + 26, X + 52, Y + 6 }, dn[6] = { X + 12, Y + 58, X + 32, Y + 38, X + 52, Y + 58 };
+            gfx_poly(g, up, 3, ink), gfx_poly(g, dn, 3, ink);
+        } else {
+            gfx_poly(g, tri[0], 3, ink);
+            if (mode != MR_OFF) gfx_poly(g, tri[1], 3, ink);
+        }
+        if (lr)
+            for (int k = 0; k < 6; k++) gfx_fill_rect(g, X + 31, Y + 2 + (float)k * 11, X + 32, Y + 8 + (float)k * 11, ink);
+        if (tb)
+            for (int k = 0; k < 6; k++) gfx_fill_rect(g, X + 2 + (float)k * 11, Y + 31, X + 8 + (float)k * 11, Y + 32, ink);
+        if (mode == MR_4) { /* four small wings round the crossing */
+            float q[4][6] = { { X + 8, Y + 8, X + 26, Y + 14, X + 14, Y + 26 }, { X + 56, Y + 8, X + 38, Y + 14, X + 50, Y + 26 }, { X + 8, Y + 56, X + 26, Y + 50, X + 14, Y + 38 }, { X + 56, Y + 56, X + 38, Y + 50, X + 50, Y + 38 } };
+            gfx_fill_rect(g, X + 4, Y + 4, X + 59, Y + 59, bg);
+            for (int k = 0; k < 4; k++) gfx_poly(g, q[k], 3, ink);
+            for (int k = 0; k < 6; k++) gfx_fill_rect(g, X + 31, Y + 2 + (float)k * 11, X + 32, Y + 8 + (float)k * 11, ink), gfx_fill_rect(g, X + 2 + (float)k * 11, Y + 31, X + 8 + (float)k * 11, Y + 32, ink);
+        }
+        return;
+    }
+    for (int k = 0; k < 4; k++) { /* a star: four axes at 45 degrees, a dot in the middle, petals at the ends */
+        float a = (float)k * FM_PI / 4, dx = fm_cos(a) * 29, dy = fm_sin(a) * 29;
+        gfx_line(g, X + 32 - dx, Y + 32 - dy, X + 32 + dx, Y + 32 + dy, 3, ink);
+    }
+    gfx_ellipse(g, X + 24, Y + 24, X + 40, Y + 40, 0, ink, ink);
+    gfx_ellipse(g, X + 28, Y + 28, X + 36, Y + 36, 0, bg, bg);
 }
