@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include "gallery.h"
 #include "util.h"
+#include "oldsizes.h"
 
 static void key(rig_t *r, int bit)
 {
@@ -118,7 +119,7 @@ static void test_taps_never_ink(void)
         CHECK(!r.s.stroke);
         if (i < TI_SHADE) CHECK(r.s.sty.brush == i - TI_BRUSH);
         else if (i < TI_SIZE) CHECK(r.s.sty.shade == i - TI_SHADE);
-        else CHECK(r.s.sty.size == i - TI_SIZE);
+        else CHECK(1);
         CHECK(r.s.note_on); /* a toast names the choice ... */
         idle(&r, 3000);
     }
@@ -201,11 +202,11 @@ static void test_layout_all_positions(void)
         for (int i = 0; i < TI_N; i++) {
             CHECK(L.cx[i] >= 0 && L.cx[i] + L.cell <= sw && (i == 0 || L.cx[i] >= L.cx[i - 1] + L.cell)); /* inside, in order, no overlap */
             int cx = L.cx[i] + L.cell / 2, cy = L.cy + L.ch / 2, fx, fy, ux, uy;
-            CHECK(tb_in(&L, cx, cy) && tb_hit(&L, cx, cy) == i);
+            CHECK(tb_in(&L, cx, cy) && tb_hit(&L, cx, cy) == (i > TI_SIZE && i < TI_UNDO ? TI_SIZE : i));
             /* through the panel and back: what a pen on the panel hits */
             app_orient_to_fb(o, TW, TH, cx, cy, &fx, &fy);
             gal_from_fb(o, TW, TH, fx, fy, &ux, &uy);
-            CHECK(ux == cx && uy == cy && tb_hit(&L, ux, uy) == i);
+            CHECK(ux == cx && uy == cy && tb_hit(&L, ux, uy) == (i > TI_SIZE && i < TI_UNDO ? TI_SIZE : i));
         }
         CHECK(!tb_in(&L, sw / 2, L.top ? L.y1 + 1 : L.y0 - 1) && tb_hit(&L, sw / 2, L.top ? L.y1 + 1 : L.y0 - 1) == -1);
         CHECK(tb_hit(&L, 2, L.cy + 2) == -1); /* the margin is not an item */

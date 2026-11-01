@@ -3,7 +3,10 @@
 #define PENMAP_H
 #include <stdint.h>
 
-/* Pen sizes 0 thin, 1 medium, 2 thick: the diameter in px at no and at full pressure */
+/* A value that grows with the pen size (1..48 px) through three anchors, at the sizes 5, 9 and 17 (the old thin, medium
+   and thick), straight on beyond them, kept within lo..hi */
+int pen_lerp(int size, int a, int b, int c, int lo, int hi);
+/* Pen size = the diameter in px at full pressure; pen_min_d at no pressure */
 int pen_min_d(int size);
 int pen_max_d(int size);
 /* Diameter for pressure 0..65535 (a concave curve: a light hand already reaches most of the width; tablets rarely

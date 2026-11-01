@@ -2,6 +2,7 @@
 #include "check.h"
 #include <stdio.h>
 #include "util.h"
+#include "oldsizes.h"
 #include "pngio.h"
 
 static int px_black(const rig_t *r, int x, int y) { return !cv_get(&r->s.page, x, y); }
@@ -66,7 +67,7 @@ static void test_pressure_and_size(void)
     rig_line(&r, 200, 900, 600, 900, 65000, 0);
     int thin = col_thickness(&r, 400, 880, 920);
     CHECK(thin < hard && thin >= 1);
-    CHECK(!strcmp(r.cfg_size, "0")); /* the size is kept */
+    CHECK(!strcmp(r.cfg_size, "5")); /* the size is kept (the thin pen, 5 px) */
     rig_end(&r);
 }
 

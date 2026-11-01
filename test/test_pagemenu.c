@@ -3,6 +3,7 @@
 #include "check.h"
 #include <stdio.h>
 #include "util.h"
+#include "oldsizes.h"
 
 static void tap(rig_t *r, int zone) { sk_touch(&r->s, zone, APP_GESTURE_TAP, r->now += 50); }
 static void btn(rig_t *r, int n)

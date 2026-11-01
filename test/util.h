@@ -35,7 +35,7 @@ typedef struct {
     uint8_t *fb;
     uint32_t now;
     int started;
-    char cfg_cur[8], cfg_size[8], cfg_brush[8], cfg_shade[8], cfg_pen_area[8], cfg_cleanup[8];
+    char cfg_cur[8], cfg_size[8], cfg_esize[8], cfg_brush[8], cfg_shade[8], cfg_pen_area[8], cfg_cleanup[8];
     int inverted;       /* inverted halves seen (rig_flush) */
     int bare_fulls;     /* full refreshes handed out without their inverted half first: the flash helper was bypassed */
     box_t pre;          /* the area of the last inverted half */
@@ -69,7 +69,7 @@ static int rig_printer(void *u, pj_printer_t *out)
 static int rig_get(void *u, const char *k, char *b, int cap)
 {
     rig_t *r = u;
-    const char *v = !strcmp(k, "cur") ? r->cfg_cur : !strcmp(k, "size") ? r->cfg_size : !strcmp(k, "brush") ? r->cfg_brush : !strcmp(k, "shade") ? r->cfg_shade : !strcmp(k, "pen_area") ? r->cfg_pen_area : !strcmp(k, "cleanup_s") ? r->cfg_cleanup : "";
+    const char *v = !strcmp(k, "cur") ? r->cfg_cur : !strcmp(k, "size") ? r->cfg_size : !strcmp(k, "esize") ? r->cfg_esize : !strcmp(k, "brush") ? r->cfg_brush : !strcmp(k, "shade") ? r->cfg_shade : !strcmp(k, "pen_area") ? r->cfg_pen_area : !strcmp(k, "cleanup_s") ? r->cfg_cleanup : "";
     int n = (int)strlen(v);
     if (n > cap) n = cap;
     memcpy(b, v, (size_t)n);
@@ -78,7 +78,7 @@ static int rig_get(void *u, const char *k, char *b, int cap)
 static int rig_set(void *u, const char *k, const char *v, int n)
 {
     rig_t *r = u;
-    char *d = !strcmp(k, "cur") ? r->cfg_cur : !strcmp(k, "brush") ? r->cfg_brush : !strcmp(k, "shade") ? r->cfg_shade : r->cfg_size;
+    char *d = !strcmp(k, "cur") ? r->cfg_cur : !strcmp(k, "brush") ? r->cfg_brush : !strcmp(k, "shade") ? r->cfg_shade : !strcmp(k, "esize") ? r->cfg_esize : r->cfg_size;
     memcpy(d, v, (size_t)n);
     d[n] = 0;
     return 0;

@@ -3,12 +3,16 @@
 #include <app_api.h>
 #include "fmath.h"
 
-static const int min_d[3] = { 1, 2, 4 }, max_d[3] = { 5, 9, 17 }, era_d[3] = { 13, 27, 49 };
-
-static int clampi(int v) { return v < 0 ? 0 : v > 2 ? 2 : v; }
-int pen_min_d(int size) { return min_d[clampi(size)]; }
-int pen_max_d(int size) { return max_d[clampi(size)]; }
-int pen_erase_d(int size) { return era_d[clampi(size)]; }
+int pen_lerp(int size, int a, int b, int c, int lo, int hi)
+{
+    if (size < 1) size = 1;
+    if (size > 48) size = 48;
+    int v = size <= 9 ? a + (size - 5) * (b - a) / 4 : b + (size - 9) * (c - b) / 8;
+    return v < lo ? lo : v > hi ? hi : v;
+}
+int pen_min_d(int size) { return pen_lerp(size, 1, 2, 4, 1, 12); }
+int pen_max_d(int size) { return pen_lerp(size, 5, 9, 17, 1, 48); }
+int pen_erase_d(int size) { return pen_lerp(size, 13, 27, 49, 5, 92); }
 
 int pen_diam(int size, unsigned pressure)
 {

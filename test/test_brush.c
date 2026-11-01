@@ -5,6 +5,7 @@
 #include "brush.h"
 #include "hist.h"
 #include "util.h"
+#include "oldsizes.h"
 
 #define W 400
 #define H 300
@@ -38,7 +39,7 @@ static int col_black(int x)
 }
 static void line(int brush, int shade, int size, int x0, int y0, int x1, int y1, unsigned pressure)
 {
-    bstyle_t st = { (uint8_t)brush, (uint8_t)shade, (uint8_t)size };
+    bstyle_t st = { (uint8_t)brush, (uint8_t)shade, (uint8_t)SZ(size) };
     int p = brush_param(brush, size, pressure);
     brush_seg(&st, brush_is_eraser(brush), &page, x0, y0, p, x1, y1, p, 0);
 }

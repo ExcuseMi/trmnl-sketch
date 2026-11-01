@@ -3,6 +3,7 @@
 #include "check.h"
 #include <stdio.h>
 #include "util.h"
+#include "oldsizes.h"
 
 static void key(rig_t *r, int bit)
 {

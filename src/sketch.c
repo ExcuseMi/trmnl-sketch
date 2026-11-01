@@ -168,16 +168,23 @@ static int eff_brush(const sketch_t *s)
     return s->sty.brush == BR_ERASER ? s->last_ink : BR_ERASER;
 }
 
+/* The size the brush `br` draws with: the eraser keeps its own, the ink brushes theirs */
+static int size_for(const sketch_t *s, int br)
+{
+    int on_era = s->sty.brush == BR_ERASER;
+    return brush_is_eraser(br) ? (on_era ? s->sty.size : s->era_size) : (on_era ? s->ink_size : s->sty.size);
+}
+
 static void cursor_show(sketch_t *s, int fx, int fy)
 {
-    int br = eff_brush(s), r = brush_cursor_r(br, s->sty.size);
+    int br = eff_brush(s), r = brush_cursor_r(br, size_for(s, br));
     box_t want = { fx - r - BR_CUR_OUT, fy - r - BR_CUR_OUT, fx + r + BR_CUR_OUT, fy + r + BR_CUR_OUT };
     if (s->cursor && s->cr == r && s->cb == br && (fx - s->cx) * (fx - s->cx) + (fy - s->cy) * (fy - s->cy) < 9) return;
     sk_cursor_hide(s);
     if (s->note_on && hit(&want, &s->note)) return; /* never over a note: restoring the page would eat it */
     if ((s->tb_on && hit(&want, &s->tb_box)) || hit(&want, &s->pl_box)) return; /* nor over the toolbar or the pills */
     box_t b;
-    ui_cursor(&s->fb, fx, fy, br, s->sty.size, &b);
+    ui_cursor(&s->fb, fx, fy, br, size_for(s, br), &b);
     mark(s, &b);
     s->cursor = 1, s->cx = fx, s->cy = fy, s->cr = r, s->cb = br;
 }
@@ -404,7 +411,10 @@ void sk_set_brush(sketch_t *s, int brush, uint32_t now)
 {
     if (brush < 0 || brush >= BR_N) return;
     if (brush != BR_ERASER) s->last_ink = brush, cfg_num(s, "brush", brush);
+    if (s->sty.brush == BR_ERASER) s->era_size = s->sty.size;
+    else s->ink_size = s->sty.size;
     s->sty.brush = (uint8_t)brush;
+    s->sty.size = brush == BR_ERASER ? s->era_size : s->ink_size;
     picked(s, brush_name(brush), now);
 }
 
@@ -416,13 +426,40 @@ void sk_set_shade(sketch_t *s, int shade, uint32_t now)
     picked(s, shade_name(shade), now);
 }
 
+static void size_store(sketch_t *s, int size)
+{
+    s->sty.size = (uint8_t)size;
+    if (s->sty.brush == BR_ERASER) s->era_size = (uint8_t)size, cfg_num(s, "esize", size);
+    else s->ink_size = (uint8_t)size, cfg_num(s, "size", size);
+}
+
 void sk_set_size(sketch_t *s, int size, uint32_t now)
 {
-    static const char *const name[SK_SIZES] = { "Size: thin", "Size: medium", "Size: thick" };
-    if (size < 0 || size >= SK_SIZES) return;
+    if (size < SK_SIZE_MIN || size > SK_SIZE_MAX) return;
+    size_store(s, size);
+    char t[12] = "Size: ";
+    int n = 6;
+    if (size >= 10) t[n++] = (char)('0' + size / 10);
+    t[n++] = (char)('0' + size % 10), t[n] = 0;
+    picked(s, t, now);
+}
+
+/* The knob follows the pen along the track: the strip is repainted in the framebuffer, only the slider's box is pushed */
+static void slider_drag(sketch_t *s, int ux)
+{
+    int size = tb_slider_size(&s->tb, ux);
+    if (size == s->sty.size && s->tb_hot == TI_SIZE) return;
     s->sty.size = (uint8_t)size;
-    cfg_num(s, "size", size);
-    picked(s, name[size], now);
+    s->tb_hot = TI_SIZE;
+    tb_paint(s);
+    int x0, y0, x1, y1;
+    box_t b;
+    gfx_t g;
+    mkg(s, &g);
+    tb_slider_box(&s->tb, &x0, &y0, &x1, &y1);
+    ui_fb_box(&g, x0, y0, x1, y1, &b);
+    box_clip(&b, s->fb.w, s->fb.h);
+    mark(s, &b);
 }
 
 static void tb_flash(sketch_t *s) { sk_flash(s, &s->tb_box); }
@@ -466,7 +503,7 @@ static void tb_press(sketch_t *s, int item, uint32_t now)
     if (item < 0) return;
     if (item < TI_SHADE) sk_set_brush(s, item - TI_BRUSH, now);
     else if (item < TI_SIZE) sk_set_shade(s, item - TI_SHADE, now);
-    else if (item < TI_SIZE + SK_SIZES) sk_set_size(s, item - TI_SIZE, now);
+    else if (item == TI_SIZE) s->tb_drag = 1; /* the first x comes with the same event: slider_drag */
     else if (item == TI_UNDO) sk_undo(s, now);
     else if (item == TI_REDO) sk_redo(s, now);
     else sk_clear(s, now);
@@ -511,6 +548,10 @@ void sk_pen(sketch_t *s, unsigned flags, unsigned x, unsigned y, unsigned pressu
     gal_from_fb(s->orient, s->fb.w, s->fb.h, fx, fy, &ux, &uy);
     if (s->tb_on && inside) on_bar = tb_in(&s->tb, ux, uy);
     int on_pl = inside ? pl_hit(&s->pl, ux, uy) : PL_NONE;
+    if (!tip && s->tb_drag) { /* the knob is let go: the size is kept */
+        s->tb_drag = 0;
+        sk_set_size(s, s->sty.size, now); /* stored, and the toast names it */
+    }
     if (!tip) s->tb_hold = 0;
     if (!tip && s->pl_hold) { /* a pill is tapped when the pen lifts over the pill it came down on */
         int w = s->pl_hold;
@@ -529,8 +570,10 @@ void sk_pen(sketch_t *s, unsigned flags, unsigned x, unsigned y, unsigned pressu
             sk_cursor_hide(s);
             if (!was) tb_press(s, tb_hit(&s->tb, ux, uy), now);
         }
+        if (s->tb_drag) slider_drag(s, ux);
         return;
     }
+    if (tip && s->tb_drag) return slider_drag(s, ux); /* dragged off the strip: the knob stays at the track's end */
     if (tip && s->tb_hold) return; /* dragged off the strip: no ink until the pen lifts */
     if (tip && inside) {
         if (!s->stroke) {
@@ -539,6 +582,7 @@ void sk_pen(sketch_t *s, unsigned flags, unsigned x, unsigned y, unsigned pressu
             sk_note_hide(s);
             s->stk = s->sty;
             s->stk.brush = (uint8_t)br;
+            s->stk.size = (uint8_t)size_for(s, br);
             s->stroke_erase = brush_is_eraser(br);
             hist_begin_style(&s->hist, s->stroke_erase ? HK_ERASE : HK_INK, &s->stk);
             s->stroke = 1;
@@ -722,7 +766,11 @@ int sk_init(sketch_t *s, const sk_env_t *env, uint8_t *fb, int w, int h, int str
     pg_scan(&s->pg);
     pg_purge_blank(&s->pg, &s->page, 0); /* blank pages left by older builds or by a clear: gone (files that do not decode stay) */
     cv_fill(&s->page, 1);
-    s->sty.size = (uint8_t)(cfg_int(s, "size", 1) % SK_SIZES);
+    int sz0 = cfg_int(s, "size", SK_SIZE_DEF), sz1 = cfg_int(s, "esize", SK_SIZE_DEF);
+    static const int old[3] = { 5, 9, 17 }; /* the earlier thin, medium, thick (0..2) */
+    s->ink_size = (uint8_t)(sz0 < 3 ? old[sz0] : sz0 > SK_SIZE_MAX ? SK_SIZE_MAX : sz0);
+    s->era_size = (uint8_t)(sz1 < SK_SIZE_MIN ? SK_SIZE_DEF : sz1 > SK_SIZE_MAX ? SK_SIZE_MAX : sz1);
+    s->sty.size = s->ink_size;
     s->sty.shade = (uint8_t)(cfg_int(s, "shade", 0) % SH_N);
     s->sty.brush = (uint8_t)(cfg_int(s, "brush", 0) % BR_N);
     if (s->sty.brush == BR_ERASER) s->sty.brush = BR_FINELINER;

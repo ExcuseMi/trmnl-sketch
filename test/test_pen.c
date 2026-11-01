@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include "penmap.h"
 #include "util.h"
+#include "oldsizes.h"
 
 static void test_width(void)
 {
