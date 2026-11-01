@@ -383,6 +383,15 @@ static void test_pointer_over_the_strip(void)
     r.now += 200;
     push(panel, &r, out, rig_frame(&r, out));
     CHECK(!r.s.tb_ptr && !memcmp(clean, r.fb, sizeof(clean)) && !memcmp(panel, clean, sizeof(clean)));
+    /* the arrow at the strip's lower edge hangs over the page: leaving restores that part too */
+    rig_pen(&r, xa, r.s.tb.y1 - 6, APP_PEN_IN_RANGE, 0);
+    r.now += 200;
+    push(panel, &r, out, rig_frame(&r, out));
+    CHECK(r.s.tb_ptr && r.s.tb_ptr_box.y1 > r.s.tb.y1 && memcmp(clean, r.fb, sizeof(clean)));
+    rig_pen(&r, 10, 1000, 0, 0);
+    r.now += 200;
+    push(panel, &r, out, rig_frame(&r, out));
+    CHECK(!r.s.tb_ptr && !memcmp(clean, r.fb, sizeof(clean)) && !memcmp(panel, clean, sizeof(clean)));
     CHECK(same_page_and_fb(&r) || r.s.tb_on); /* the strip is on top of the page, nothing inked */
     rig_end(&r);
 }

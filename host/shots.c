@@ -8,6 +8,7 @@ int png_write(const char *path, const gfx_t *g);
 
 static int bad;
 static void brush_shots(const char *dir);
+static void paging_shots(const char *dir);
 
 static void save(rig_t *r, const char *dir, const char *name)
 {
@@ -105,6 +106,32 @@ static void gallery_shots(const char *dir)
     }
 }
 
+/* twenty drawings: the gallery's second screen (paging arrows, page indicator, button hint), landscape and portrait */
+static void paging_shots(const char *dir)
+{
+    static rig_t r;
+    for (int o = 0; o < 2; o++) {
+        rig_new(&r, o);
+        for (int i = 0; i < 20; i++) {
+            if (i & 1) wave(&r, 150, 1700, 250 + (i * 90) % 800, 40 + i * 6, 0);
+            else ring(&r, 400 + (i * 170) % 900, 500 + (i * 110) % 500, 100 + i * 5, 0);
+            r.now += 3000;
+            sk_tick(&r.s, r.now);
+            if (i < 19) sk_pen_key(&r.s, 1u << 5, 1u << 5, r.now += 50), sk_pen_key(&r.s, 0, 1u << 5, r.now);
+        }
+        rig_pen(&r, 10, 10, 0, 0);
+        sk_touch(&r.s, APP_TOUCH_MIDDLE, APP_GESTURE_TAP, r.now += 50);
+        sk_pen_key(&r.s, 1u << 7, 1u << 7, r.now += 50); /* button 8: next screen of tiles */
+        sk_pen_key(&r.s, 0, 1u << 7, r.now);
+        int x0, y0, x1, y1;
+        ui_nav_box(&r.s.L, CTL_PREV, &x0, &y0, &x1, &y1);
+        rig_pen_user(&r, (x0 + x1) / 2, (y0 + y1) / 2, APP_PEN_IN_RANGE, 0); /* the pen over "Previous" */
+        r.now += 200;
+        gshot(&r, dir, o ? "p2-gallery-screen2-portrait" : "p1-gallery-screen2-landscape");
+        rig_end(&r);
+    }
+}
+
 /* One stroke per brush, the toolbar's order from the top; the names are panels drawn on the screen only */
 static void brush_page(rig_t *r, const char *dir, const char *name, int shade)
 {
@@ -149,6 +176,11 @@ static void brush_shots(const char *dir)
             r.now += 3000;
             sk_tick(&r.s, r.now);
             save(&r, dir, "t1-toolbar-landscape");
+            rig_pen_user(&r, r.s.tb.cx[TI_SHADE + 1] + r.s.tb.cell / 2, r.s.tb.cy + r.s.tb.cell / 2, APP_PEN_IN_RANGE, 0); /* the pointer over an icon */
+            r.now += 200;
+            rect_t o[SK_MAX_RECTS];
+            rig_frame(&r, o);
+            save(&r, dir, "t3-toolbar-pointer");
         }
         rig_end(&r);
     }
@@ -213,6 +245,7 @@ int main(int argc, char **argv)
     save(&r, dir, "8-wifi-page");
     rig_end(&r);
     gallery_shots(dir);
+    paging_shots(dir);
 
     /* portrait: the touch bar on the left, the legend and a page of strokes turned with it */
     rig_new(&r, APP_ORIENT_BAR_LEFT);
