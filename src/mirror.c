@@ -49,6 +49,8 @@ void mr_guide(canvas_t *fb, int mode, const box_t *clip)
     box_t c = *clip;
     box_clip(&c, fb->w, fb->h);
     if (box_empty(&c)) return;
+    c.x0 &= ~7, c.x1 |= 7; /* the page is copied to the glass in whole bytes: the guide goes over those too */
+    if (c.x1 > fb->w - 1) c.x1 = fb->w - 1;
     int w = fb->w, h = fb->h, cx = (w - 1) / 2, cy = (h - 1) / 2;
     int vert = mode != MR_TB, horz = mode != MR_LR;
     if (vert) /* x = centre: two columns (the axis lies between them when the width is even) */

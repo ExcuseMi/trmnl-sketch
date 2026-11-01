@@ -12,7 +12,7 @@ int mr_images(int mode); /* 1, 2, 2, 4, 16 */
 /* Image `img` (0 is the identity) of the page point (x, y) on a w x h page. Exact for the flips and the quarter turns;
    the 45 degree turns round to the nearest pixel. The result may lie off the page (a turned page is cropped) */
 void mr_map(int mode, int img, int w, int h, int x, int y, int *ox, int *oy);
-/* The guide for `mode` flipped onto fb inside box `clip` (inverted 2 px dashes: seen over white and black alike). The
+/* The guide for `mode` flipped onto fb inside box `clip` widened to whole bytes (cv_copy_box copies those; inverted 2 px dashes: seen over white and black alike). The
    page canvas is never touched */
 void mr_guide(canvas_t *fb, int mode, const box_t *clip);
 #endif

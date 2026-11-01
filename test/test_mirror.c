@@ -245,7 +245,8 @@ static void test_rects_cover(void)
             for (int j = 0; j < n && n != SK_FULL; j++)
                 for (int y = o[j].y; y < o[j].y + o[j].h; y++) memcpy(seen + y * TS + o[j].x / 8, r.fb + y * TS + o[j].x / 8, (size_t)o[j].w / 8);
         }
-        CHECK(!memcmp(seen, r.fb, sizeof(seen))); /* what was pushed is the whole glass: every copy of the stroke was in a rectangle */
+        sk_show_page(&r.s); /* the glass drawn afresh from the page: what the pushes built must be that, every copy of the stroke included */
+        CHECK(!memcmp(seen, r.fb, sizeof(seen)));
         CHECK(memcmp(before, r.fb, sizeof(before)));
         rig_end(&r);
     }
