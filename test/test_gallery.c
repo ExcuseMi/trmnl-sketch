@@ -121,8 +121,10 @@ static void test_thumbnails_cache_and_edit(void)
     tap(&r, APP_TOUCH_MIDDLE);
     const uint8_t *t2 = gal_find(&r.s.cache, r.s.cur);
     CHECK(t2 && thumb_sum(t2) < before);
-    /* inside one gallery visit a saved page's entry is dropped */
-    gal_invalidate(&r.s.cache, r.s.cur);
+    /* a save drops that page's entry (the page changed under a cache that is still up) */
+    CHECK(gal_find(&r.s.cache, r.s.cur) != 0);
+    r.s.dirty = 1;
+    sk_save_now(&r.s);
     CHECK(gal_find(&r.s.cache, r.s.cur) == 0);
     rig_end(&r);
 }
@@ -277,6 +279,12 @@ static void test_pen_in_the_menus(void)
     rig_pen(&r, x2, y2, APP_PEN_TIP | APP_PEN_IN_RANGE, 20000);
     rig_pen(&r, x2, y2, APP_PEN_IN_RANGE, 0);
     CHECK(r.s.mode == SK_GALLERY && r.s.sel == 1);
+    /* out and back to the same tile is a drag too */
+    rig_pen(&r, x, y, APP_PEN_TIP | APP_PEN_IN_RANGE, 20000);
+    rig_pen(&r, x + 150, y, APP_PEN_TIP | APP_PEN_IN_RANGE, 20000);
+    rig_pen(&r, x + 2, y, APP_PEN_TIP | APP_PEN_IN_RANGE, 20000);
+    rig_pen(&r, x + 2, y, APP_PEN_IN_RANGE, 0);
+    CHECK(r.s.mode == SK_GALLERY);
     /* a press that lifts on another tile opens nothing */
     rig_pen(&r, x, y, APP_PEN_TIP | APP_PEN_IN_RANGE, 20000);
     rig_pen(&r, x2, y2, APP_PEN_IN_RANGE, 0);
