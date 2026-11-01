@@ -46,4 +46,9 @@ int pg_save(pages_t *p, int num, const canvas_t *c);
 int pg_save_as(pages_t *p, int num, const char *suffix, const canvas_t *c);
 /* Moves a page file that could not be read out of the way ("-bad.png"), so a save does not replace it. 0 or < 0 */
 int pg_keep_bad(pages_t *p, int num);
+/* Deletes the page file and its list entry. The file's remove result: 0 or < 0 */
+int pg_remove(pages_t *p, int num);
+/* Deletes every page file that decodes as entirely white (a blank page is never kept on disk); a file that does not decode
+   stays. `keep`: a page number to spare (0: none). `scratch` is overwritten. Returns how many went */
+int pg_purge_blank(pages_t *p, canvas_t *scratch, int keep);
 #endif

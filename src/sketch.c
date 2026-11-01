@@ -265,6 +265,12 @@ int sk_leave_page(sketch_t *s, uint32_t now) /* saves the page on screen first; 
 {
     hist_end(&s->hist);
     s->stroke = 0;
+    if (sk_is_blank(&s->page)) { /* a blank page is not kept: at most one exists, the one on screen (owner 2026-11-01) */
+        if (s->bad_pending) return 1; /* an unreadable file is not blank: it stays */
+        pg_remove(&s->pg, s->cur);
+        s->dirty = 0;
+        return 1;
+    }
     if (s->dirty && do_save(s, now)) return 0;
     return 1;
 }
@@ -326,7 +332,6 @@ void sk_make_page(sketch_t *s, uint32_t now)
     sk_show_page(s);
     s->want_full = 1;
     cfg_num(s, "cur", num);
-    if (pg_save(&s->pg, num, &s->page)) s->dirty = 1, s->save_at = now + RETRY_MS; /* listed once it is written */
     char b[24];
     sk_toast(s, page_text(s, b), now);
 }
@@ -696,6 +701,8 @@ int sk_init(sketch_t *s, const sk_env_t *env, uint8_t *fb, int w, int h, int str
     hist_init(&s->hist, &s->page, base, pts, SK_HIST_POINTS, st, SK_HIST_STROKES);
     pg_init(&s->pg, env->fs);
     pg_scan(&s->pg);
+    pg_purge_blank(&s->pg, &s->page, 0); /* blank pages left by older builds or by a clear: gone (files that do not decode stay) */
+    cv_fill(&s->page, 1);
     s->sty.size = (uint8_t)(cfg_int(s, "size", 1) % SK_SIZES);
     s->sty.shade = (uint8_t)(cfg_int(s, "shade", 0) % SH_N);
     s->sty.brush = (uint8_t)(cfg_int(s, "brush", 0) % BR_N);
@@ -708,11 +715,7 @@ int sk_init(sketch_t *s, const sk_env_t *env, uint8_t *fb, int w, int h, int str
     int want = cfg_int(s, "cur", 0);
     int num = pg_index(&s->pg, want) >= 0 ? want : s->pg.n ? s->pg.nums[s->pg.n - 1] : 1;
     s->cur = num;
-    if (s->pg.n == 0) {
-        pg_save(&s->pg, num, &s->page); /* page 1 exists from the start */
-    } else {
-        sk_open_page(s, num, 0);
-    }
+    if (s->pg.n) sk_open_page(s, num, 0); /* none: page 1 is the blank one, written with its first ink */
     sk_show_page(s);
     s->want_full = 1;
     gfx_t g;

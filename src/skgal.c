@@ -270,12 +270,9 @@ static void gal_activate(sketch_t *s, uint32_t now)
 {
     int num = gnum(s, s->sel);
     if (num == 0) {
-        if (sk_is_blank(&s->page)) { /* no run of empty pages (owner 2026-11-01) */
-            box_t n;
-            sk_cpy(s->gnote, sizeof(s->gnote), "This page is still empty");
-            if (s->want_full) return sk_screen_render(s);
-            note_box(s, &n);
-            return redraw_boxes(s, &n, 0, 0);
+        if (sk_is_blank(&s->page)) { /* the one blank page that may exist: it opens, no second one is made (owner 2026-11-01) */
+            to_draw(s);
+            return sk_toast(s, "This page is still empty", now);
         }
         to_draw(s);
         return sk_make_page(s, now);

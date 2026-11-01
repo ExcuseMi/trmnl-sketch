@@ -142,3 +142,33 @@ int pg_keep_bad(pages_t *p, int num)
     pg_path(b, sizeof(b), num, "-bad.png");
     return p->fs->rename(p->fs->ctx, a, b);
 }
+
+int pg_remove(pages_t *p, int num)
+{
+    char path[48];
+    pg_path(path, sizeof(path), num, ".png");
+    int i = pg_index(p, num);
+    if (i >= 0) {
+        for (int k = i; k + 1 < p->n; k++) p->nums[k] = p->nums[k + 1];
+        p->n--;
+    }
+    return p->fs->remove(p->fs->ctx, path);
+}
+
+int pg_purge_blank(pages_t *p, canvas_t *scratch, int keep)
+{
+    int gone = 0;
+    for (int i = p->n - 1; i >= 0; i--) {
+        int num = p->nums[i];
+        if (num == keep || pg_load(p, num, scratch) != PG_OK) continue; /* a file that does not decode stays, whatever it is */
+        int white = 1, rb = (scratch->w + 7) / 8;
+        for (int y = 0; white && y < scratch->h; y++)
+            for (int x = 0; x < rb; x++)
+                if (scratch->px[y * scratch->stride + x] != 0xff) {
+                    white = 0;
+                    break;
+                }
+        if (white && pg_remove(p, num) >= 0) gone++;
+    }
+    return gone;
+}

@@ -195,21 +195,17 @@ static void test_pages_and_autosave(void)
 {
     rig_t r;
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
-    CHECK(memfs_find(&r.fs, "sketch/sk0001.png")); /* page 1 exists from the start */
+    CHECK(!memfs_find(&r.fs, "sketch/sk0001.png")); /* page 1 is blank: not on disk until it has ink (one blank page at most) */
     rig_line(&r, 200, 300, 1000, 500, 50000, 0);
     uint8_t p1[TS * TH];
     memcpy(p1, r.s.page.px, sizeof(p1));
-    memfile_t *f1 = memfs_find(&r.fs, "sketch/sk0001.png");
-    size_t blank_size = f1->n;
     idle(&r, 500);
-    f1 = memfs_find(&r.fs, "sketch/sk0001.png");
-    CHECK(f1->n == blank_size && r.s.dirty); /* not yet: the pen has just left */
+    CHECK(!memfs_find(&r.fs, "sketch/sk0001.png") && r.s.dirty); /* not yet: the pen has just left */
     idle(&r, SK_AUTOSAVE_MS);
-    f1 = memfs_find(&r.fs, "sketch/sk0001.png");
-    CHECK(f1->n != blank_size && !r.s.dirty); /* saved after the pause */
+    CHECK(memfs_find(&r.fs, "sketch/sk0001.png") && !r.s.dirty); /* saved after the pause */
     CHECK(!memfs_find(&r.fs, "sketch/sk0001.tmp"));
     key(&r, 5); /* new page */
-    CHECK(r.s.cur == 2 && memfs_find(&r.fs, "sketch/sk0002.png"));
+    CHECK(r.s.cur == 2 && !memfs_find(&r.fs, "sketch/sk0002.png")); /* the blank page is not written */
     key(&r, 5); /* again on the empty page: refused, no run of empty pages (owner 2026-11-01) */
     key(&r, 5);
     CHECK(r.s.cur == 2 && !memfs_find(&r.fs, "sketch/sk0003.png"));

@@ -325,11 +325,11 @@ static void test_new_page_tile_and_empty_rule(void)
     tap(&r, APP_TOUCH_MIDDLE);
     tap(&r, APP_TOUCH_LEFT); /* the new-page tile */
     tap(&r, APP_TOUCH_MIDDLE);
-    CHECK(r.s.mode == SK_DRAW && r.s.pg.n == 2); /* a page with ink: a new one is made */
+    CHECK(r.s.mode == SK_DRAW && r.s.cur == 2 && r.s.pg.n == 1); /* a page with ink: a new one is made (blank: not on disk) */
     tap(&r, APP_TOUCH_MIDDLE);
     tap(&r, APP_TOUCH_LEFT);
     tap(&r, APP_TOUCH_MIDDLE);
-    CHECK(r.s.mode == SK_GALLERY && strstr(r.s.gnote, "still empty") && r.s.pg.n == 2); /* no run of empty pages */
+    CHECK(r.s.mode == SK_DRAW && r.s.cur == 2 && r.s.pg.n == 1 && r.s.note_on); /* the blank page opens again: no second one */
     rig_end(&r);
 }
 
@@ -715,8 +715,9 @@ static void test_tablet_buttons_in_the_menus(void)
     btn(&r, 6); /* 6: the New page tile; this page has ink, so a new page opens */
     CHECK(r.s.mode == SK_DRAW && r.s.cur != cur && sk_is_blank(&r.s.page));
     tap(&r, APP_TOUCH_MIDDLE);
-    btn(&r, 6); /* the new page is empty: the rule "no run of empty pages" answers with a note */
-    CHECK(r.s.mode == SK_GALLERY && r.s.sel == 0 && r.s.gnote[0]);
+    int blank = r.s.cur;
+    btn(&r, 6); /* the new page is empty: it opens again, no second blank page (owner 2026-11-01) */
+    CHECK(r.s.mode == SK_DRAW && r.s.cur == blank && r.s.note_on);
     rig_end(&r);
 }
 
