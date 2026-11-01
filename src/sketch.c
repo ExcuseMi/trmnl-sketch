@@ -35,9 +35,9 @@ static int cfg_int(sketch_t *s, const char *key, int def)
 /* ---- the page on the screen ---- */
 
 static void whole(box_t *b, const canvas_t *c) { *b = (box_t){ 0, 0, c->w - 1, c->h - 1 }; }
-static void show_page(sketch_t *s) { box_t b; whole(&b, &s->page), cv_copy_box(&s->fb, &s->page, &b); }
+void sk_show_page(sketch_t *s) { box_t b; whole(&b, &s->page), cv_copy_box(&s->fb, &s->page, &b); }
 
-static void cursor_hide(sketch_t *s)
+void sk_cursor_hide(sketch_t *s)
 {
     if (!s->cursor) return;
     box_t b = { s->cx - s->cr, s->cy - s->cr, s->cx + s->cr, s->cy + s->cr };
@@ -54,7 +54,7 @@ static void cursor_show(sketch_t *s, int fx, int fy)
     int r = erasing(s) ? pen_erase_d(s->size) / 2 + 1 : SK_CURSOR_R;
     box_t want = { fx - r, fy - r, fx + r, fy + r };
     if (s->cursor && s->cr == r && (fx - s->cx) * (fx - s->cx) + (fy - s->cy) * (fy - s->cy) < 9) return;
-    cursor_hide(s);
+    sk_cursor_hide(s);
     if (s->note_on && hit(&want, &s->note)) return; /* never over a note: restoring the page would eat it */
     box_t b;
     ui_cursor(&s->fb, fx, fy, r, &b);
@@ -62,7 +62,7 @@ static void cursor_show(sketch_t *s, int fx, int fy)
     s->cursor = 1, s->cx = fx, s->cy = fy, s->cr = r;
 }
 
-static void note_hide(sketch_t *s)
+void sk_note_hide(sketch_t *s)
 {
     if (!s->note_on) return;
     cv_copy_box(&s->fb, &s->page, &s->note);
@@ -79,11 +79,11 @@ static void note_set(sketch_t *s, const box_t *b, uint32_t until)
     mark(s, &s->note);
 }
 
-static void toast(sketch_t *s, const char *text, uint32_t now)
+void sk_toast(sketch_t *s, const char *text, uint32_t now)
 {
     if (s->mode != SK_DRAW) return;
-    cursor_hide(s);
-    note_hide(s);
+    sk_cursor_hide(s);
+    sk_note_hide(s);
     gfx_t g;
     box_t b;
     mkg(s, &g);
@@ -94,8 +94,8 @@ static void toast(sketch_t *s, const char *text, uint32_t now)
 /* a change of the page in box b reaches the screen */
 static void page_changed(sketch_t *s, const box_t *b, uint32_t now)
 {
-    cursor_hide(s);
-    if (s->note_on && hit(b, &s->note)) note_hide(s);
+    sk_cursor_hide(s);
+    if (s->note_on && hit(b, &s->note)) sk_note_hide(s);
     cv_copy_box(&s->fb, &s->page, b);
     mark(s, b);
     s->dirty = 1;
@@ -124,7 +124,7 @@ void sk_save_now(sketch_t *s)
 
 /* ---- pages ---- */
 
-static int is_blank(const canvas_t *c)
+int sk_is_blank(const canvas_t *c)
 {
     int rb = (c->w + 7) / 8;
     for (int y = 0; y < c->h; y++)
@@ -133,7 +133,7 @@ static int is_blank(const canvas_t *c)
     return 1;
 }
 
-static void open_page(sketch_t *s, int num, uint32_t now)
+void sk_open_page(sketch_t *s, int num, uint32_t now)
 {
     s->cur = num;
     s->bad_pending = 0;
@@ -142,7 +142,7 @@ static void open_page(sketch_t *s, int num, uint32_t now)
     if (rc == PG_BAD) s->bad_pending = 1;
     hist_reset(&s->hist);
     s->cursor = s->note_on = s->legend = s->stroke = 0;
-    show_page(s);
+    sk_show_page(s);
     s->want_full = 1;
     s->dirty = 0;
     cfg_num(s, "cur", num);
@@ -168,9 +168,9 @@ static const char *page_text(sketch_t *s, char *buf)
     return buf;
 }
 
-static void new_page(sketch_t *s, uint32_t now);
+void sk_make_page(sketch_t *s, uint32_t now);
 
-static int leave_page(sketch_t *s, uint32_t now) /* saves the page on screen first; 0 when it could not */
+int sk_leave_page(sketch_t *s, uint32_t now) /* saves the page on screen first; 0 when it could not */
 {
     hist_end(&s->hist);
     s->stroke = 0;
@@ -180,13 +180,13 @@ static int leave_page(sketch_t *s, uint32_t now) /* saves the page on screen fir
 
 void sk_goto_page(sketch_t *s, int index, uint32_t now)
 {
-    if (!leave_page(s, now)) return toast(s, "Could not save this page", now);
+    if (!sk_leave_page(s, now)) return sk_toast(s, "Could not save this page", now);
     pg_scan(&s->pg);
-    if (s->pg.n == 0) return new_page(s, now);
-    if (index < 0 || index >= s->pg.n) return toast(s, index < 0 ? "First page" : "Last page", now);
-    open_page(s, s->pg.nums[index], now);
+    if (s->pg.n == 0) return sk_make_page(s, now);
+    if (index < 0 || index >= s->pg.n) return sk_toast(s, index < 0 ? "First page" : "Last page", now);
+    sk_open_page(s, s->pg.nums[index], now);
     char b[24];
-    toast(s, page_text(s, b), now);
+    sk_toast(s, page_text(s, b), now);
 }
 
 static int cur_pos(const sketch_t *s, int *present) /* where the page on screen is in the list */
@@ -201,43 +201,43 @@ static int cur_pos(const sketch_t *s, int *present) /* where the page on screen 
 
 static void step_page(sketch_t *s, int dir, uint32_t now)
 {
-    if (!leave_page(s, now)) return toast(s, "Could not save this page", now);
+    if (!sk_leave_page(s, now)) return sk_toast(s, "Could not save this page", now);
     pg_scan(&s->pg);
     int present, pos = cur_pos(s, &present);
     int target = dir > 0 ? (present ? pos + 1 : pos) : pos - 1;
     if (s->pg.n == 0 || target < 0 || target >= s->pg.n) {
-        if (s->pg.n == 0) return new_page(s, now);
-        return toast(s, target < 0 ? "First page" : "Last page", now);
+        if (s->pg.n == 0) return sk_make_page(s, now);
+        return sk_toast(s, target < 0 ? "First page" : "Last page", now);
     }
-    open_page(s, s->pg.nums[target], now);
+    sk_open_page(s, s->pg.nums[target], now);
     char b[24];
-    toast(s, page_text(s, b), now);
+    sk_toast(s, page_text(s, b), now);
 }
 
 /* A new page only from a page with ink: no run of empty pages (owner 2026-11-01) */
 void sk_new_page(sketch_t *s, uint32_t now)
 {
-    if (is_blank(&s->page)) return toast(s, "This page is still empty", now);
-    new_page(s, now);
+    if (sk_is_blank(&s->page)) return sk_toast(s, "This page is still empty", now);
+    sk_make_page(s, now);
 }
 
-static void new_page(sketch_t *s, uint32_t now)
+void sk_make_page(sketch_t *s, uint32_t now)
 {
-    if (!leave_page(s, now)) return toast(s, "Could not save this page", now);
+    if (!sk_leave_page(s, now)) return sk_toast(s, "Could not save this page", now);
     pg_scan(&s->pg);
     int num = pg_next_num(&s->pg);
-    if (!num) return toast(s, "No more pages", now);
+    if (!num) return sk_toast(s, "No more pages", now);
     s->cur = num;
     cv_fill(&s->page, 1);
     s->bad_pending = 0;
     hist_reset(&s->hist);
     s->cursor = s->note_on = s->legend = 0;
-    show_page(s);
+    sk_show_page(s);
     s->want_full = 1;
     cfg_num(s, "cur", num);
     if (pg_save(&s->pg, num, &s->page)) s->dirty = 1, s->save_at = now + RETRY_MS; /* listed once it is written */
     char b[24];
-    toast(s, page_text(s, b), now);
+    sk_toast(s, page_text(s, b), now);
 }
 
 /* ---- actions ---- */
@@ -247,7 +247,7 @@ void sk_undo(sketch_t *s, uint32_t now)
     box_t b;
     s->stroke = 0;
     if (hist_undo(&s->hist, &b)) page_changed(s, &b, now);
-    else toast(s, "Nothing to undo", now);
+    else sk_toast(s, "Nothing to undo", now);
 }
 
 void sk_redo(sketch_t *s, uint32_t now)
@@ -255,25 +255,25 @@ void sk_redo(sketch_t *s, uint32_t now)
     box_t b;
     s->stroke = 0;
     if (hist_redo(&s->hist, &b)) page_changed(s, &b, now);
-    else toast(s, "Nothing to redo", now);
+    else sk_toast(s, "Nothing to redo", now);
 }
 
 void sk_clear(sketch_t *s, uint32_t now)
 {
     hist_end(&s->hist);
     s->stroke = 0;
-    if (is_blank(&s->page)) return toast(s, "The page is empty", now);
+    if (sk_is_blank(&s->page)) return sk_toast(s, "The page is empty", now);
     if (s->dirty) do_save(s, now);
     pg_save_as(&s->pg, s->cur, "-cleared.png", &s->page); /* what was on the page stays on the flash */
     box_t b;
     hist_clear(&s->hist, &b);
-    cursor_hide(s);
-    note_hide(s);
-    show_page(s);
+    sk_cursor_hide(s);
+    sk_note_hide(s);
+    sk_show_page(s);
     s->want_full = 1;
     s->dirty = 1;
     s->save_at = now + SK_AUTOSAVE_MS;
-    toast(s, "Cleared. Undo brings it back", now);
+    sk_toast(s, "Cleared. Undo brings it back", now);
 }
 
 static void next_size(sketch_t *s, uint32_t now)
@@ -281,325 +281,13 @@ static void next_size(sketch_t *s, uint32_t now)
     static const char *const name[SK_SIZES] = { "Pen: thin", "Pen: medium", "Pen: thick" };
     s->size = (s->size + 1) % SK_SIZES;
     cfg_num(s, "size", s->size);
-    toast(s, name[s->size], now);
+    sk_toast(s, name[s->size], now);
 }
 
 static void toggle_eraser(sketch_t *s, uint32_t now)
 {
     s->eraser = !s->eraser;
-    toast(s, s->eraser ? "Eraser on" : "Eraser off", now);
-}
-
-/* ---- the gallery and the menus (gray screens) ---- */
-
-/* copies s into d (cap bytes) cut to fit; no strcpy/strncpy: the X's loader does not export them */
-void sk_cpy(char *d, size_t cap, const char *s)
-{
-    size_t n = 0;
-    while (s[n] && n + 1 < cap) d[n] = s[n], n++;
-    d[n] = 0;
-}
-
-static int gcount(const sketch_t *s) { return s->pg.n + 1; }
-static int gnum(const sketch_t *s, int idx) { return idx <= 0 || idx > s->pg.n ? 0 : s->pg.nums[s->pg.n - idx]; }
-static int gidx_of(const sketch_t *s, int num)
-{
-    int i = pg_index(&s->pg, num);
-    return i < 0 ? 0 : s->pg.n - i;
-}
-static int user_w(const sketch_t *s) { return s->orient == APP_ORIENT_BAR_LEFT || s->orient == APP_ORIENT_BAR_RIGHT ? s->fb.h : s->fb.w; }
-static int user_h(const sketch_t *s) { return s->orient == APP_ORIENT_BAR_LEFT || s->orient == APP_ORIENT_BAR_RIGHT ? s->fb.w : s->fb.h; }
-
-int sk_screen_gray(const sketch_t *s) { return s->mode >= SK_GALLERY; }
-
-void sk_set_screens(sketch_t *s, uint8_t *fb1, uint8_t *gray)
-{
-    if (fb1) s->fb.px = fb1, s->fb_stale = 1;
-    if (gray) s->gfb = gray;
-}
-
-static void printer_addr(sketch_t *s, char *out, int cap)
-{
-    int n = s->env.cfg_get ? s->env.cfg_get(s->env.user, "printer", out, cap - 1) : -1;
-    if (n <= 0) n = (int)strlen(SK_PRINTER_DEFAULT), memcpy(out, SK_PRINTER_DEFAULT, (size_t)n);
-    out[n] = 0;
-}
-
-/* The thumbnail of a page: cached, else made from the page on screen or from its file (read through `ui` as scratch) */
-static const uint8_t *thumb_for(sketch_t *s, int num)
-{
-    const uint8_t *t = gal_find(&s->cache, num);
-    if (t) return t;
-    if (num == s->cur) return gal_make(&s->cache, num, &s->page);
-    if (pg_load(&s->pg, num, &s->ui) == PG_MISSING) return 0;
-    return gal_make(&s->cache, num, &s->ui);
-}
-
-static void blit_add(sketch_t *s, int num, int x, int y)
-{
-    if (s->blit_n < SK_BLITS && thumb_for(s, num)) s->blit[s->blit_n].num = num, s->blit[s->blit_n].x = x, s->blit[s->blit_n].y = y, s->blit_n++;
-}
-
-static void ui_g(sketch_t *s, gfx_t *g) { gfx_init(g, s->ui.px, s->ui.w, s->ui.h, s->ui.stride, s->orient); }
-
-static void split_msg(const char *m, char a[64], char b[64])
-{
-    size_t n = strlen(m), cut = n > 46 ? 46 : n;
-    if (n > 46)
-        while (cut > 20 && m[cut] != ' ') cut--;
-    memset(a, 0, 64), memset(b, 0, 64);
-    memcpy(a, m, cut > 63 ? 63 : cut);
-    if (cut < n) sk_cpy(b, 64, m + cut + (m[cut] == ' '));
-}
-
-/* Draws the screen of the current gray mode into `ui` and lists the thumbnails to lay over it */
-static void screen_render(sketch_t *s)
-{
-    if (!s->ui.px) return;
-    gfx_t g;
-    s->blit_n = 0;
-    gal_layout(&s->L, s->orient, user_w(s), user_h(s));
-    int first = (s->sel / s->L.per) * s->L.per, n = gcount(s) - first, nums[64];
-    if (n > s->L.per) n = s->L.per;
-    if (n > 64) n = 64;
-    if (s->mode == SK_GALLERY)
-        for (int i = 0; i < n; i++) {
-            int x, y;
-            gal_tile_xy(&s->L, i, &x, &y);
-            nums[i] = gnum(s, first + i);
-            if (nums[i]) blit_add(s, nums[i], x, y);
-        }
-    int px = s->L.ax1 - s->L.tw, py = (s->L.ay0 + s->L.ay1) / 2 - s->L.th / 2;
-    if (s->mode == SK_ACTIONS || s->mode == SK_CONFIRM) blit_add(s, s->act_num, px, py);
-    cv_fill(&s->ui, 1);
-    ui_g(s, &g);
-    char t[24], l1[64], l2[64];
-    switch (s->mode) {
-    case SK_GALLERY: {
-        int sel_slot = s->sel - first;
-        ui_gallery(&g, &s->L, nums, n, sel_slot, s->cur, s->sel / s->L.per, (gcount(s) + s->L.per - 1) / s->L.per, s->gnote);
-        ui_menu_pills(&g, &s->bar, s->sel == 0 ? "New page" : "Open");
-        break;
-    }
-    case SK_ACTIONS: {
-        static const char *const items[] = { "Open", "Print", "Send to phone", "Back" };
-        int k = 0, v = s->act_num;
-        char d[8];
-        int m = 0;
-        memcpy(t, "Sketch ", 7), k = 7;
-        do d[m++] = (char)('0' + v % 10), v /= 10; while (v);
-        while (m) t[k++] = d[--m];
-        t[k] = 0;
-        ui_list(&g, &s->L, t, items, 4, s->act_sel, &s->list_x, &s->list_y0);
-        s->list_n = 4;
-        ui_menu_pills(&g, &s->bar, "Select");
-        break;
-    }
-    case SK_CONFIRM: {
-        static const char *const items[] = { "Print", "Back" };
-        ui_list(&g, &s->L, "Print this drawing?", items, 2, s->act_sel, &s->list_x, &s->list_y0);
-        s->list_n = 2;
-        char a[48] = "Printer: ";
-        printer_addr(s, a + 9, 36);
-        ui_footer(&g, &s->L, a);
-        ui_menu_pills(&g, &s->bar, "Select");
-        break;
-    }
-    case SK_BUSY: ui_message(&g, &s->L, "Printing...", "Sending the page to the printer.", "This takes a few seconds.", 0); break;
-    default:
-        split_msg(s->pres.msg, l1, l2);
-        ui_message(&g, &s->L, s->pres.pages && s->pres.jobs ? "Printed" : "Not printed", l1, l2, 0);
-        ui_pill(&g, &s->bar, APP_TOUCH_MIDDLE, "OK", PILL_NONE);
-        break;
-    }
-    s->want_full = 1;
-}
-
-static void compose_gray(sketch_t *s)
-{
-    if (!s->gfb || !s->ui.px) return;
-    gal_gray_from_mono(s->gfb, &s->ui);
-    for (int i = 0; i < s->blit_n; i++) {
-        const uint8_t *t = gal_find(&s->cache, s->blit[i].num);
-        if (t) gal_gray_blit(s->gfb, s->fb.w, s->fb.h, s->orient, t, s->blit[i].x, s->blit[i].y);
-    }
-}
-
-static void to_gallery(sketch_t *s, uint32_t now)
-{
-    if (s->mode == SK_DRAW && !leave_page(s, now)) return toast(s, "Could not save this page", now);
-    if (!s->ui.px) {
-        s->ui.px = malloc((size_t)s->fb.stride * (size_t)s->fb.h);
-        s->ui.w = s->fb.w, s->ui.h = s->fb.h, s->ui.stride = s->fb.stride;
-        if (!s->ui.px) return toast(s, "Not enough memory for the gallery", now);
-    }
-    pg_scan(&s->pg);
-    cursor_hide(s);
-    note_hide(s);
-    s->cursor = 0;
-    s->mode = SK_GALLERY;
-    s->sel = gidx_of(s, s->cur);
-    s->gnote[0] = 0;
-    s->ptr_down = 0;
-    screen_render(s);
-}
-
-static void to_draw(sketch_t *s)
-{
-    free(s->ui.px);
-    s->ui.px = 0;
-    gal_cache_free(&s->cache);
-    s->mode = SK_DRAW;
-    show_page(s);
-    s->want_full = 1;
-}
-
-static void gal_activate(sketch_t *s, uint32_t now)
-{
-    int num = gnum(s, s->sel);
-    if (num == 0) {
-        if (is_blank(&s->page)) { /* no run of empty pages (owner 2026-11-01) */
-            sk_cpy(s->gnote, sizeof(s->gnote), "This page is still empty");
-            return screen_render(s);
-        }
-        to_draw(s);
-        return new_page(s, now);
-    }
-    s->act_num = num;
-    s->act_sel = 0;
-    s->mode = SK_ACTIONS;
-    screen_render(s);
-}
-
-static void list_select(sketch_t *s, uint32_t now)
-{
-    if (s->mode == SK_ACTIONS) {
-        switch (s->act_sel) {
-        case 0:
-            to_draw(s);
-            if (s->act_num != s->cur) open_page(s, s->act_num, now);
-            break;
-        case 1:
-            if (!s->env.net.post) {
-                s->pres = (pj_result_t){ "Printing is not available on this firmware.", 0, 0 };
-                s->mode = SK_RESULT;
-            } else {
-                s->mode = SK_CONFIRM;
-                s->act_sel = 0;
-            }
-            screen_render(s);
-            break;
-        case 2:
-            s->mode = SK_SHARE;
-            s->share_req = 1;
-            s->share_rc = 0;
-            memset(&s->share_shown, 0xff, sizeof(s->share_shown));
-            break;
-        default:
-            s->mode = SK_GALLERY;
-            screen_render(s);
-        }
-    } else if (s->mode == SK_CONFIRM) {
-        if (s->act_sel == 0) {
-            s->mode = SK_BUSY;
-            s->print_req = 1;
-        } else {
-            s->mode = SK_ACTIONS;
-            s->act_sel = 1;
-        }
-        screen_render(s);
-    }
-}
-
-static void menu_move(sketch_t *s, int dir)
-{
-    if (s->mode == SK_GALLERY) {
-        int v = s->sel + dir;
-        if (v < 0 || v >= gcount(s)) return;
-        s->sel = v;
-        s->gnote[0] = 0;
-    } else if (s->mode == SK_ACTIONS || s->mode == SK_CONFIRM) {
-        int v = s->act_sel + dir;
-        if (v < 0 || v >= s->list_n) return;
-        s->act_sel = v;
-    } else {
-        return;
-    }
-    screen_render(s);
-}
-
-static void menu_touch(sketch_t *s, int zone, int gesture, uint32_t now)
-{
-    if (s->mode == SK_BUSY) return;
-    if (s->mode == SK_RESULT) {
-        if (gesture == APP_GESTURE_TAP) s->mode = SK_GALLERY, screen_render(s);
-        return;
-    }
-    if (s->mode == SK_GALLERY && (gesture == APP_GESTURE_SWIPE_LEFT || gesture == APP_GESTURE_SWIPE_RIGHT)) {
-        int v = s->sel + (gesture == APP_GESTURE_SWIPE_LEFT ? 1 : -1) * s->L.per;
-        s->sel = v < 0 ? 0 : v >= gcount(s) ? gcount(s) - 1 : v;
-        s->gnote[0] = 0;
-        return screen_render(s);
-    }
-    if (gesture != APP_GESTURE_TAP) return;
-    if (zone == APP_TOUCH_LEFT) menu_move(s, -1);
-    else if (zone == APP_TOUCH_RIGHT) menu_move(s, 1);
-    else if (zone == APP_TOUCH_MIDDLE) {
-        if (s->mode == SK_GALLERY) gal_activate(s, now);
-        else list_select(s, now);
-    }
-}
-
-/* What the pen or mouse points at in the screen of the current mode: a gallery index, a list row, or -1 */
-static int item_at(const sketch_t *s, int ux, int uy)
-{
-    if (s->mode == SK_GALLERY) {
-        int slot = gal_hit(&s->L, ux, uy), idx = (s->sel / s->L.per) * s->L.per + slot;
-        return slot >= 0 && idx < gcount(s) ? idx : -1;
-    }
-    if (s->mode == SK_ACTIONS || s->mode == SK_CONFIRM) {
-        for (int i = 0; i < s->list_n; i++) {
-            int b = s->list_y0 + i * 110;
-            if (ux >= s->list_x - 100 && ux < s->L.ax1 && uy >= b - 80 && uy < b + 30) return i;
-        }
-        return -1;
-    }
-    return s->mode == SK_RESULT || s->mode == SK_SHARE ? 0 : -1;
-}
-
-/* A press and release on the same item with little movement opens it; a drag across items does nothing. Never ink. */
-static void menu_pen(sketch_t *s, unsigned flags, int fx, int fy, int inside, uint32_t now)
-{
-    int tip = (flags & APP_PEN_TIP) != 0, ux, uy;
-    gal_from_fb(s->orient, s->fb.w, s->fb.h, fx, fy, &ux, &uy);
-    if (tip && inside) {
-        if (!s->ptr_down) s->ptr_down = 1, s->ptr_moved = 0, s->ptr_item = item_at(s, ux, uy), s->ptr_x = ux, s->ptr_y = uy;
-        else if ((ux - s->ptr_x) * (ux - s->ptr_x) + (uy - s->ptr_y) * (uy - s->ptr_y) > 40 * 40) s->ptr_moved = 1;
-        return;
-    }
-    if (!s->ptr_down) return;
-    s->ptr_down = 0;
-    if (s->ptr_moved || s->ptr_item < 0 || item_at(s, ux, uy) != s->ptr_item) return;
-    if (s->mode == SK_GALLERY) s->sel = s->ptr_item, gal_activate(s, now);
-    else if (s->mode == SK_SHARE) sk_touch(s, APP_TOUCH_MIDDLE, APP_GESTURE_TAP, now);
-    else if (s->mode == SK_RESULT) menu_touch(s, APP_TOUCH_MIDDLE, APP_GESTURE_TAP, now);
-    else if (s->mode != SK_BUSY) s->act_sel = s->ptr_item, list_select(s, now);
-}
-
-void sk_run_print(sketch_t *s)
-{
-    s->print_req = 0;
-    gal_cache_free(&s->cache); /* memory for the job */
-    free(s->ui.px);
-    s->ui.px = 0;
-    sk_print_page(s, s->act_num);
-    s->ui.px = malloc((size_t)s->fb.stride * (size_t)s->fb.h);
-    if (!s->ui.px) { /* no memory for the result screen: back to the page, with the reason as a note */
-        to_draw(s);
-        return toast(s, s->pres.pages ? "Printed" : "Not printed", s->last_push);
-    }
-    s->mode = SK_RESULT;
-    screen_render(s);
+    sk_toast(s, s->eraser ? "Eraser on" : "Eraser off", now);
 }
 
 /* ---- input ---- */
@@ -608,12 +296,12 @@ void sk_pen(sketch_t *s, unsigned flags, unsigned x, unsigned y, unsigned pressu
 {
     s->barrel = (flags & (APP_PEN_BARREL | APP_PEN_BARREL2)) != 0;
     int fx, fy, inside = pm_map(&s->map, x, y, &fx, &fy);
-    if (s->mode != SK_DRAW) return menu_pen(s, flags, fx, fy, inside, now);
+    if (s->mode != SK_DRAW) return sk_menu_pen(s, flags, fx, fy, inside, now);
     int tip = (flags & APP_PEN_TIP) != 0, range = (flags & (APP_PEN_IN_RANGE | APP_PEN_TIP)) != 0;
     if (tip && inside) {
         if (!s->stroke) {
-            cursor_hide(s);
-            note_hide(s);
+            sk_cursor_hide(s);
+            sk_note_hide(s);
             s->stroke_erase = erasing(s);
             hist_begin(&s->hist, s->stroke_erase ? HK_ERASE : HK_INK);
             s->stroke = 1;
@@ -641,7 +329,7 @@ void sk_pen(sketch_t *s, unsigned flags, unsigned x, unsigned y, unsigned pressu
     s->hover_valid = range && !tip && inside;
     s->hover_x = fx, s->hover_y = fy;
     if (s->hover_valid) cursor_show(s, fx, fy);
-    else cursor_hide(s);
+    else sk_cursor_hide(s);
 }
 
 void sk_pen_key(sketch_t *s, unsigned keys, unsigned changed, uint32_t now)
@@ -668,16 +356,16 @@ void sk_touch(sketch_t *s, int zone, int gesture, uint32_t now)
     if (s->mode == SK_SHARE) { /* any touch ends the phone page */
         s->share_req = -1;
         s->mode = SK_GALLERY;
-        screen_render(s);
+        sk_screen_render(s);
         return;
     }
-    if (s->mode >= SK_GALLERY) return menu_touch(s, zone, gesture, now);
+    if (s->mode >= SK_GALLERY) return sk_menu_touch(s, zone, gesture, now);
     if (gesture == APP_GESTURE_SWIPE_LEFT) step_page(s, 1, now);
     else if (gesture == APP_GESTURE_SWIPE_RIGHT) step_page(s, -1, now);
     else if (gesture == APP_GESTURE_HOLD && zone == APP_TOUCH_MIDDLE) sk_clear(s, now);
     else if (gesture == APP_GESTURE_TAP && zone == APP_TOUCH_LEFT) sk_undo(s, now);
     else if (gesture == APP_GESTURE_TAP && zone == APP_TOUCH_RIGHT) sk_redo(s, now);
-    else if (gesture == APP_GESTURE_TAP && zone == APP_TOUCH_MIDDLE) to_gallery(s, now);
+    else if (gesture == APP_GESTURE_TAP && zone == APP_TOUCH_MIDDLE) sk_to_gallery(s, now);
 }
 
 void sk_share_update(sketch_t *s, int start_rc, const app_webshare_status_t *st)
@@ -698,10 +386,10 @@ void sk_share_update(sketch_t *s, int start_rc, const app_webshare_status_t *st)
 void sk_tick(sketch_t *s, uint32_t now)
 {
     if (s->note_on && !s->legend && (int32_t)(now - s->note_until) >= 0) {
-        note_hide(s);
+        sk_note_hide(s);
         if (s->hover_valid) cursor_show(s, s->hover_x, s->hover_y);
     }
-    if (s->legend && (int32_t)(now - s->note_until) >= 0) note_hide(s);
+    if (s->legend && (int32_t)(now - s->note_until) >= 0) sk_note_hide(s);
     if (s->dirty && !s->stroke && (int32_t)(now - s->save_at) >= 0) do_save(s, now);
 }
 
@@ -709,10 +397,10 @@ int sk_flush(sketch_t *s, uint32_t now, rect_t *out)
 {
     if (s->want_full) {
         s->want_full = 0;
-        if (s->mode >= SK_GALLERY) compose_gray(s);
+        if (s->mode >= SK_GALLERY) sk_compose_gray(s);
         else if (s->fb_stale) {
             s->fb_stale = 0;
-            if (s->mode == SK_DRAW) show_page(s);
+            if (s->mode == SK_DRAW) sk_show_page(s);
             else if (s->share.steps[0][0] || s->share.note[0]) {
                 gfx_t g;
                 mkg(s, &g);
@@ -767,11 +455,11 @@ void sk_set_orient(sketch_t *s, int orient, const app_touchbar_t *bar)
     pm_init(&s->map, orient, s->fb.w, s->fb.h, s->um_w, s->um_h);
     s->hover_valid = 0;
     if (s->mode == SK_DRAW) {
-        cursor_hide(s);
-        note_hide(s);
-        show_page(s); /* nothing but the page is left on the screen */
+        sk_cursor_hide(s);
+        sk_note_hide(s);
+        sk_show_page(s); /* nothing but the page is left on the screen */
     } else if (s->mode >= SK_GALLERY) {
-        screen_render(s);
+        sk_screen_render(s);
     } else {
         memset(&s->share_shown, 0xff, sizeof(s->share_shown));
     }
@@ -803,9 +491,9 @@ int sk_init(sketch_t *s, const sk_env_t *env, uint8_t *fb, int w, int h, int str
     if (s->pg.n == 0) {
         pg_save(&s->pg, num, &s->page); /* page 1 exists from the start */
     } else {
-        open_page(s, num, 0);
+        sk_open_page(s, num, 0);
     }
-    show_page(s);
+    sk_show_page(s);
     s->want_full = 1;
     gfx_t g;
     box_t b;

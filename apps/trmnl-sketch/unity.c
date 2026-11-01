@@ -13,6 +13,7 @@
 #include "../../src/skmenu.c"
 #include "../../src/gallery.c"
 #include "../../src/skprint.c"
+#include "../../src/skgal.c"
 /* the Print app's job code, one source (no copy): PWG raster, IPP, error words */
 #include "../../../trmnl-print/src/pcl.c"
 #include "../../../trmnl-print/src/pwg.c"

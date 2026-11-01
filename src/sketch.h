@@ -109,4 +109,18 @@ void sk_redo(sketch_t *s, uint32_t now);
 void sk_clear(sketch_t *s, uint32_t now);
 void sk_goto_page(sketch_t *s, int index, uint32_t now); /* index into the page list */
 void sk_new_page(sketch_t *s, uint32_t now);
+/* Internal, between sketch.c (drawing, pages, saving) and skgal.c (gallery and menus) */
+void sk_cursor_hide(sketch_t *s);
+void sk_note_hide(sketch_t *s);
+void sk_toast(sketch_t *s, const char *text, uint32_t now);
+int sk_leave_page(sketch_t *s, uint32_t now);
+void sk_make_page(sketch_t *s, uint32_t now);
+void sk_open_page(sketch_t *s, int num, uint32_t now);
+int sk_is_blank(const canvas_t *c);
+void sk_show_page(sketch_t *s);
+void sk_screen_render(sketch_t *s);
+void sk_compose_gray(sketch_t *s);
+void sk_to_gallery(sketch_t *s, uint32_t now);
+void sk_menu_touch(sketch_t *s, int zone, int gesture, uint32_t now);
+void sk_menu_pen(sketch_t *s, unsigned flags, int fx, int fy, int inside, uint32_t now);
 #endif
