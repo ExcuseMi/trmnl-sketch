@@ -54,7 +54,7 @@ static void test_table(void)
         b = brush_next(b);
     }
     CHECK(b == 0);
-    CHECK(BR_N == 7 && brush_is_eraser(BR_ERASER) && !brush_is_eraser(BR_PENCIL));
+    CHECK(BR_N == 8 && brush_is_eraser(BR_ERASER) && !brush_is_eraser(BR_PENCIL) && brush_is_fill(BR_FILL) && !brush_is_fill(BR_ERASER) && !strcmp(brush_name(BR_FILL), "Fill"));
     CHECK(!strcmp(brush_name(BR_FINELINER), "Fineliner") && !strcmp(brush_name(BR_ERASER), "Eraser"));
 }
 
@@ -191,7 +191,7 @@ static void test_cursors(void)
         int prev_r = 0, prev_n = 0;
         for (int size = 0; size < 3; size++) {
             int r = brush_cursor_r(br, size), rs = brush_shape_r(br, size), n = shape(br, size, 0);
-            CHECK(r >= 16 && r >= rs + 1 && r < 40 && n > 8 && n > prev_n && r >= prev_r); /* the size shows in the shape; 32 px across at least */
+            CHECK(r >= 16 && r >= rs + 1 && r < 48 && n > 8 && (br == BR_FILL || (n > prev_n && r >= prev_r))); /* (the bucket has one size) the size shows in the shape; 32 px across at least */
             prev_r = r, prev_n = n;
             /* the drawn cursor holds the whole outline, thicker, and a cross to 16 px when the brush is small */
             for (int dy = -rs; dy <= rs; dy++)

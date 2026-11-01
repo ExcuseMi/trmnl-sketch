@@ -29,6 +29,8 @@
 #include "../../src/skcfg.c"
 #include "../../src/sksize.c"
 #include "../../src/skflash.c"
+#include "../../src/fill.c"
+#include "../../src/skfill.c"
 #include "../../src/sketch.c"
 #include "../../src/font.c"
 #include "../../src/gfx.c"

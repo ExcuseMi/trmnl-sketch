@@ -14,7 +14,7 @@
 #define TB_CH 104 /* glyph 64 + label */
 enum { TB_BLK = GFX_BLACK, TB_WHT = GFX_WHITE };
 
-static const char *const tb_label[TI_N] = { "Fine", "Brush", "Pencil", "Marker", "Calli", "Spray", "Eraser", "Black", "Dark", "Light", "", "", "", "Undo", "Redo", "Clear" };
+static const char *const tb_label[TI_N] = { "Fine", "Brush", "Pencil", "Marker", "Calli", "Spray", "Eraser", "Fill", "Black", "Dark", "Light", "", "", "", "Undo", "Redo", "Clear" };
 
 void tb_layout(tb_layout_t *L, int orient, int sw, int sh)
 {

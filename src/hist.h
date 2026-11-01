@@ -8,7 +8,7 @@
 #include "brush.h"
 #include "canvas.h"
 
-enum { HK_INK, HK_ERASE, HK_CLEAR };
+enum { HK_INK, HK_ERASE, HK_CLEAR, HK_FILL }; /* HK_FILL: the points are runs of a bucket fill (fill.h) */
 
 typedef struct {
     int16_t x, y;
@@ -46,6 +46,10 @@ int hist_undo(hist_t *h, box_t *changed);
 int hist_redo(hist_t *h, box_t *changed);
 /* Whitens the page as a stroke of its own (undoable) */
 void hist_clear(hist_t *h, box_t *changed);
+/* A bucket fill as a stroke of its own: room for n runs (older strokes are baked into the base if the log is short;
+   NULL when n alone does not fit), the caller writes them (bf_emit); hist_fill_end paints them with the style's shade */
+hpt_t *hist_fill_begin(hist_t *h, uint32_t n, const bstyle_t *style);
+void hist_fill_end(hist_t *h, uint32_t n, const box_t *bb);
 int hist_can_undo(const hist_t *h);
 int hist_can_redo(const hist_t *h);
 #endif

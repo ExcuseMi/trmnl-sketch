@@ -69,6 +69,9 @@ typedef struct {
     int turn;            /* setting tablet_turn (auto): the tablet is used turned in portrait (penmap.h) */
     int fill;            /* setting pen_area: the tablet's whole area on the whole page (else the aspect is kept) */
     unsigned pressure;   /* smoothed */
+    int bk_gap;          /* setting fill_gap: gaps up to this many px close for the bucket (0..6) */
+    int bk_down, bk_moved, bk_x, bk_y; /* a bucket tap: the tip is down (where), and moved too far to be a tap */
+    uint32_t bk_ask_until; /* "Fill the whole page?" was asked: a tap before this confirms */
     int cursor, cx, cy, cr, cb; /* the hover cursor is drawn at fb (cx, cy) with half size cr, for brush cb */
     box_t note;          /* the corner note (legend or toast) on screen, when note_on */
     int note_on, legend;
@@ -145,6 +148,10 @@ void sk_save_now(sketch_t *s);
 void sk_run_print(sketch_t *s);
 /* Sends page `num`'s saved file to the printer; 0 or < 0 with s->pres.msg set (skprint.c) */
 int sk_print_page(sketch_t *s, int num);
+/* The bucket (skfill.c): the pen with the Fill tool, true when it took the event; a tap at (x, y) fills */
+int sk_fill_pen(sketch_t *s, int tip, int inside, int fx, int fy, uint32_t now);
+void sk_fill_at(sketch_t *s, int x, int y, uint32_t now);
+void sk_page_changed(sketch_t *s, const box_t *b, uint32_t now); /* a change of the page in box b reaches the screen */
 void sk_cpy(char *d, size_t cap, const char *s); /* bounded copy */
 /* What to push: SK_FULL (the whole screen, clean), else the number of rectangles in out (SK_MAX_RECTS at most) */
 int sk_flush(sketch_t *s, uint32_t now, rect_t *out);

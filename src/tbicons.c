@@ -113,6 +113,27 @@ static void tbi_eraser(const tbi_tool_t *t)
     tbi_shape(t, worn, 4, t->ink, 0);
 }
 
+/* A paint bucket: tapered pail with paint in it, a handle, a drop falling beside it */
+static void tbi_bucket(gfx_t *g, int ix, int iy, int ink, int bg)
+{
+    float X = (float)ix, Y = (float)iy;
+    float body[8] = { X + 10, Y + 22, X + 46, Y + 22, X + 40, Y + 58, X + 16, Y + 58 };
+    gfx_poly(g, body, 4, bg);
+    float paint[8] = { X + 12, Y + 32, X + 44, Y + 32, X + 41.5f, Y + 58, X + 14.5f, Y + 58 };
+    gfx_poly(g, paint, 4, ink);
+    gfx_poly_outline(g, body, 4, 4, ink);
+    gfx_fill_rect(g, X + 7, Y + 20, X + 49, Y + 25, ink); /* the rim */
+    float px = 0, py = 0;
+    for (int i = 0; i <= 10; i++) { /* the handle, an arc over the rim */
+        float th = (180.0f - 180.0f * (float)i / 10) * FM_PI / 180, qx = X + 28 + 19 * fm_cos(th), qy = Y + 22 - 15 * fm_sin(th);
+        if (i) gfx_line(g, px, py, qx, qy, 3, ink);
+        px = qx, py = qy;
+    }
+    float drop[6] = { X + 56, Y + 30, X + 51, Y + 40, X + 61, Y + 40 };
+    gfx_poly(g, drop, 3, ink);
+    gfx_ellipse(g, X + 50, Y + 36, X + 62, Y + 48, 0, ink, ink);
+}
+
 void tbi_brush(gfx_t *g, int brush, int x, int y, int ink, int bg)
 {
     tbi_tool_t t = { g, (float)x + 8, (float)y + 56, ink, bg };
@@ -123,6 +144,7 @@ void tbi_brush(gfx_t *g, int brush, int x, int y, int ink, int bg)
     case BR_MARKER: tbi_marker(&t); break;
     case BR_CALLIGRAPHY: tbi_nib(&t); break;
     case BR_SPRAY: tbi_spray(&t, x, y); break;
+    case BR_FILL: tbi_bucket(g, x, y, ink, bg); break;
     default: tbi_eraser(&t); break;
     }
 }

@@ -8,7 +8,7 @@
 #include "canvas.h"
 
 /* The order is the toolbar's order and the cycle order */
-enum { BR_FINELINER, BR_BRUSHPEN, BR_PENCIL, BR_MARKER, BR_CALLIGRAPHY, BR_SPRAY, BR_ERASER, BR_N };
+enum { BR_FINELINER, BR_BRUSHPEN, BR_PENCIL, BR_MARKER, BR_CALLIGRAPHY, BR_SPRAY, BR_ERASER, BR_FILL, BR_N };
 
 typedef struct {
     uint8_t brush, shade, size; /* BR_*, SH_*, 0..2 */
@@ -17,6 +17,7 @@ typedef struct {
 const char *brush_name(int brush);
 const char *shade_name(int shade);
 int brush_next(int brush);       /* the next in the cycle (wraps) */
+int brush_is_fill(int brush);    /* the bucket: a tap fills (fill.h), no stroke */
 int brush_is_eraser(int brush);  /* draws white, ignores the shade */
 int brush_tail(int brush);       /* the end of a stroke tapers out (brush pen) */
 /* The byte a point carries for a pressure 0..65535 */

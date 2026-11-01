@@ -9,6 +9,7 @@
 #define sk_set_size(s, n, t) (sk_set_size)((s), SZ(n), (t))
 
 int png_write(const char *path, const gfx_t *g);
+void fill_shots(const char *dir, int *bad);
 
 static int bad;
 #define TAP(z) sk_touch(&r.s, APP_TOUCH_##z, APP_GESTURE_TAP, r.now += 50)
@@ -297,5 +298,6 @@ int main(int argc, char **argv)
     rig_pen_user(&r, tb_slider_x(&r.s.tb, 24), r.s.tb.sl_y, APP_PEN_IN_RANGE, 0);
     rig_end(&r);
     brush_shots(dir);
+    fill_shots(dir, &bad);
     return bad;
 }

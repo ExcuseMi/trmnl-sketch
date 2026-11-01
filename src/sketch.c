@@ -220,7 +220,7 @@ void sk_toast(sketch_t *s, const char *text, uint32_t now)
 }
 
 /* a change of the page in box b reaches the screen */
-static void page_changed(sketch_t *s, const box_t *b, uint32_t now)
+void sk_page_changed(sketch_t *s, const box_t *b, uint32_t now)
 {
     sk_cursor_hide(s);
     if (s->note_on && hit(b, &s->note)) sk_note_hide(s);
@@ -361,7 +361,7 @@ void sk_undo(sketch_t *s, uint32_t now)
 {
     box_t b;
     s->stroke = 0;
-    if (hist_undo(&s->hist, &b)) page_changed(s, &b, now);
+    if (hist_undo(&s->hist, &b)) sk_page_changed(s, &b, now);
     else sk_toast(s, "Nothing to undo", now);
 }
 
@@ -369,7 +369,7 @@ void sk_redo(sketch_t *s, uint32_t now)
 {
     box_t b;
     s->stroke = 0;
-    if (hist_redo(&s->hist, &b)) page_changed(s, &b, now);
+    if (hist_redo(&s->hist, &b)) sk_page_changed(s, &b, now);
     else sk_toast(s, "Nothing to redo", now);
 }
 
@@ -527,7 +527,8 @@ void sk_pen(sketch_t *s, unsigned flags, unsigned x, unsigned y, unsigned pressu
         return;
     }
     if (tip && on_bar) { /* a press on the strip picks, never inks; a stroke dragged onto it just ends */
-        int was = s->stroke;
+        int was = s->stroke || s->bk_down;
+        s->bk_down = 0;
         if (was) stroke_tail(s, now), hist_end(&s->hist), s->stroke = 0;
         if (!s->tb_hold) {
             s->tb_hold = 1;
@@ -539,6 +540,7 @@ void sk_pen(sketch_t *s, unsigned flags, unsigned x, unsigned y, unsigned pressu
     }
     if (tip && s->tb_drag) return sk_slider_drag(s, ux); /* dragged off the strip: the knob stays at the track's end */
     if (tip && s->tb_hold) return; /* dragged off the strip: no ink until the pen lifts */
+    if (sk_fill_pen(s, tip, inside, fx, fy, now)) return;
     if (tip && inside) {
         if (!s->stroke) {
             int br = eff_brush(s);
@@ -686,6 +688,8 @@ void sk_cfg_reload(sketch_t *s)
     int n = s->env.cfg_get ? s->env.cfg_get(s->env.user, "pen_area", b, 7) : -1;
     s->fill = !(n == 4 && !memcmp(b, "keep", 4)); /* fill unless it says keep */
     s->turn = !(s->env.cfg_get && (n = s->env.cfg_get(s->env.user, "tablet_turn", b, 7)) == 3 && !memcmp(b, "off", 3)); /* auto unless off */
+    s->bk_gap = cfg_int(s, "fill_gap", 3);
+    if (s->bk_gap > 6) s->bk_gap = 6;
     s->cleanup_s = cfg_int(s, "cleanup_s", 5);
     if (s->cleanup_s > 600) s->cleanup_s = 600;
     pm_init(&s->map, s->orient, s->fb.w, s->fb.h, s->um_w, s->um_h, s->fill, s->turn);

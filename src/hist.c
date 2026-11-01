@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: MIT */
 #include "hist.h"
 #include <string.h>
+#include "fill.h"
 
 void hist_init(hist_t *h, canvas_t *page, uint8_t *base_px, hpt_t *pts, uint32_t pt_cap, hstroke_t *st, int st_cap)
 {
@@ -25,6 +26,7 @@ void hist_reset(hist_t *h)
 static void apply(canvas_t *c, const hstroke_t *s, const hpt_t *p)
 {
     if (s->kind == HK_CLEAR) return cv_fill(c, 1);
+    if (s->kind == HK_FILL) return bf_apply(c, p, s->n, s->style.shade);
     int colour = s->kind == HK_ERASE;
     for (uint32_t i = 0; i < s->n; i++) {
         const hpt_t *a = i ? &p[i - 1] : &p[i];
@@ -149,5 +151,24 @@ void hist_clear(hist_t *h, box_t *changed)
     cv_fill(h->page, 1);
     h->st[h->st_cur - 1].bb = (box_t){ 0, 0, h->page->w - 1, h->page->h - 1 };
     *changed = h->st[h->st_cur - 1].bb;
+    hist_end(h);
+}
+
+hpt_t *hist_fill_begin(hist_t *h, uint32_t n, const bstyle_t *style)
+{
+    if (n == 0 || n > h->pt_cap) return 0;
+    hist_begin_style(h, HK_FILL, style);
+    while (h->pt_cap - h->pt_n < n && h->st_cur > 1) bake(h, 1);
+    return h->pts + h->pt_n;
+}
+
+void hist_fill_end(hist_t *h, uint32_t n, const box_t *bb)
+{
+    if (!h->open) return;
+    hstroke_t *s = &h->st[h->st_cur - 1];
+    s->n = n;
+    s->bb = *bb;
+    h->pt_n += n;
+    apply(h->page, s, h->pts + s->first);
     hist_end(h);
 }

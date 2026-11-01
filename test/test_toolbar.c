@@ -261,8 +261,8 @@ static void test_brush_cursor_on_screen(void)
 /* every brush: a stroke, undo, redo and a restart of the app give the same pixels */
 static void test_brushes_through_the_app(void)
 {
-    for (int b = 0; b < BR_N; b++)
-        for (int sh = 0; sh < SH_N; sh++) {
+    for (int b = 0; b < BR_N; b++) /* (the bucket draws no stroke: test_fill.c) */
+        for (int sh = 0; sh < SH_N && b != BR_FILL; sh++) {
             rig_t r;
             rig_new(&r, APP_ORIENT_BAR_BOTTOM);
             rig_line(&r, 200, 400, 1400, 420, 65000, 0);

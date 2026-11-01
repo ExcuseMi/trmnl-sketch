@@ -25,6 +25,7 @@ void box_clip(box_t *b, int w, int h);
 enum { SH_BLACK, SH_DARK, SH_LIGHT, SH_N };
 int cv_shade_black(int shade, int x, int y); /* 1: the pattern is black at this page pixel */
 void cv_span_s(canvas_t *c, int y, int x0, int x1, int colour, int shade); /* clipped */
+void cv_span_pat(canvas_t *c, int y, int x0, int x1, int shade); /* the shade's pattern exactly, white dots too */
 void cv_px_s(canvas_t *c, int x, int y, int colour, int shade);            /* clipped */
 void cv_disc_s(canvas_t *c, int cx, int cy, int d, int colour, int shade, box_t *dirty);
 

@@ -4,13 +4,14 @@
 #include "penmap.h"
 #include "sk_cfg.h"
 
-static const char *const names[BR_N] = { "Fineliner", "Brush pen", "Pencil", "Marker", "Calligraphy", "Spray", "Eraser" };
+static const char *const names[BR_N] = { "Fineliner", "Brush pen", "Pencil", "Marker", "Calligraphy", "Spray", "Eraser", "Fill" };
 static const char *const shades[SH_N] = { "Black", "Dark gray", "Light gray" };
 
 const char *brush_name(int b) { return names[b < 0 || b >= BR_N ? 0 : b]; }
 const char *shade_name(int sh) { return shades[sh < 0 || sh >= SH_N ? 0 : sh]; }
 int brush_next(int b) { return (b + 1) % BR_N; }
 int brush_is_eraser(int b) { return b == BR_ERASER; }
+int brush_is_fill(int b) { return b == BR_FILL; }
 int brush_tail(int b) { return b == BR_BRUSHPEN; }
 
 static int sz(int size) { return size < SK_SIZE_MIN ? SK_SIZE_MIN : size > SK_SIZE_MAX ? SK_SIZE_MAX : size; }
@@ -102,7 +103,9 @@ static void stamp_spray(const bctx_t *k, int x, int y, int p) /* dots about the 
     add_box(k, x - r, y - r, x + r, y + r);
 }
 
-static const stamp_fn stamps[BR_N] = { stamp_disc, stamp_disc, stamp_pencil, stamp_square, stamp_nib, stamp_spray, stamp_square };
+static void stamp_none(const bctx_t *k, int x, int y, int p) { (void)k, (void)x, (void)y, (void)p; } /* the bucket draws no stroke */
+
+static const stamp_fn stamps[BR_N] = { stamp_disc, stamp_disc, stamp_pencil, stamp_square, stamp_nib, stamp_spray, stamp_square, stamp_none };
 
 /* A stamp every pixel along the longer axis, the byte interpolated: no gaps whatever the speed */
 void brush_seg(const bstyle_t *st, int colour, canvas_t *c, int x0, int y0, int p0, int x1, int y1, int p1, box_t *dirty)
@@ -133,6 +136,7 @@ int brush_shape_r(int b, int size)
     case BR_CALLIGRAPHY: return LZ(size, 12, 20, 32, 124) * 181 / 512 + 3;
     case BR_SPRAY: return LZ(size, 10, 18, 30, 46);
     case BR_ERASER: return pen_erase_d(size) / 2 + 1;
+    case BR_FILL: return 40;
     default: return LZ(size, 6, 8, 12, 46);
     }
 }
@@ -147,6 +151,18 @@ static int in_pencil(int l, int dx, int dy) /* a cone, its tip at the hot spot, 
 {
     float a = (float)(dx - dy) * 0.70711f, bb = fm_abs((float)(dx + dy) * 0.70711f);
     return a >= 0 && a <= (float)l && bb <= a * 0.30f + 0.6f;
+}
+
+/* A bucket upright to the upper right of the hot spot (the pour point: a drop at the lower left), its handle an arch over the rim */
+static int in_bucket(int dx, int dy)
+{
+    int bx = dx - 20, by = dy + 30; /* the body's rim centre */
+    if (by >= 0 && by <= 22 && bx >= -(15 - by * 5 / 22) && bx <= 15 - by * 5 / 22) return 1; /* body, wider at the top */
+    if (by < 0) { /* the handle: the band between two half ellipses */
+        int o = bx * bx * 100 + by * by * 256, i = bx * bx * 64 + by * by * 196;
+        return o <= 25600 && i >= 12544;
+    }
+    return dx * dx + (dy + 1) * (dy + 1) <= 9; /* the drop */
 }
 
 int brush_shape_px(int b, int size, int dx, int dy)
@@ -181,6 +197,7 @@ int brush_shape_px(int b, int size, int dx, int dy)
         int h = pen_erase_d(size) / 2;
         return m == h;
     }
+    case BR_FILL: return in_bucket(dx, dy) && !(in_bucket(dx - 1, dy) && in_bucket(dx + 1, dy) && in_bucket(dx, dy - 1) && in_bucket(dx, dy + 1));
     default: {
         int r = LZ(size, 6, 8, 12, 46), d2 = dx * dx + dy * dy;
         return (d2 <= r * r && d2 >= (r - 1) * (r - 1)) || (dx == 0 && dy == 0);

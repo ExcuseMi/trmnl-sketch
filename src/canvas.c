@@ -67,6 +67,22 @@ static void span_m(canvas_t *c, int y, int x0, int x1, int colour, uint8_t mask)
     }
 }
 
+/* Sets x0..x1 of row y to the shade's pattern exactly (black and white dots; the bucket fill) */
+void cv_span_pat(canvas_t *c, int y, int x0, int x1, int shade)
+{
+    if (y < 0 || y >= c->h) return;
+    if (x0 < 0) x0 = 0;
+    if (x1 > c->w - 1) x1 = c->w - 1;
+    if (x0 > x1) return;
+    uint8_t *row = c->px + y * c->stride, pw = (uint8_t)~shade_mask(shade, y);
+    for (int b = x0 >> 3; b <= x1 >> 3; b++) {
+        uint8_t m = 0xff;
+        if (b == x0 >> 3) m &= (uint8_t)(0xff >> (x0 & 7));
+        if (b == x1 >> 3) m &= (uint8_t)(0xff << (7 - (x1 & 7)));
+        row[b] = (uint8_t)((row[b] & ~m) | (pw & m));
+    }
+}
+
 void cv_span_s(canvas_t *c, int y, int x0, int x1, int colour, int shade)
 {
     if (y < 0 || y >= c->h) return;
