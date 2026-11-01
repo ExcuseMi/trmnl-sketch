@@ -5,6 +5,7 @@
 #include <string.h>
 #include "app_orient.h"
 #include "sk_cfg.h"
+#include "skcfg.h"
 #include "sketch.h"
 #include "printjob.h"
 #include "printer.h"
@@ -48,7 +49,7 @@ static int f_list(void *c, const char *dir, int (*cb)(const char *, void *), voi
 }
 static const sk_fs_t fs = { 0, f_open, f_read, f_write, f_close, f_rename, f_remove, f_mkdir, f_list };
 
-static int cfg_get(void *u, const char *k, char *b, int cap) { return (void)u, api->setting_get(k, b, (size_t)cap); }
+static int cfg_get(void *u, const char *k, char *b, int cap) { return (void)u, skcfg_get(api, k, b, cap); }
 static int cfg_set(void *u, const char *k, const char *v, int n) { return (void)u, api->setting_set(k, v, (size_t)n); }
 
 /* One IPP POST per print job (the same adaptor as the Print app's main.c) */
@@ -69,12 +70,7 @@ static int f_post(void *u, const char *url, const void *body, size_t n, uint8_t 
     return rs.status;
 }
 
-static const app_setting_decl_t decl[] = {
-    { "cleanup_s", "Clean the screen after this many idle seconds (0: never)", 0, 0, 600, APP_SETTING_NUMBER },
-    { "pen_area", "Tablet area on the page (fill: every tablet edge is a screen edge; keep: no stretching)", "fill|keep", 0, 0, APP_SETTING_CHOICE },
-};
-
-/* The default printer: the Print app's printer.cfg is the only source of address and format */
+/* The default printer: the X's device setting (API 2.11) or the Print app's printer.cfg, one function */
 static int f_printer(void *u, pj_printer_t *out) { return (void)u, pj_default_printer(api, out); }
 
 static int have_pen(void) { return api->size >= APP_API_SLOT(50); }
@@ -110,7 +106,7 @@ int app_main(const app_api_t *a)
     int orient = ao_start(api); /* follows the X's position: APP_EVENT_ORIENTATION */
     app_touchbar_t bar;
     ao_layout(api, orient, fw, fh, &bar);
-    if (api->size >= APP_API_SLOT(47)) api->settings_declare(decl, sizeof(decl) / sizeof(decl[0]));
+    skcfg_declare(api);
     sk_env_t env = { &fs, 0, cfg_get, cfg_set, { PJ_PWG, f_post, 0 }, f_printer };
     int rc = sk_init(&sk, &env, fb, fw, fh, stride, orient, &bar);
     if (rc) return rc;
