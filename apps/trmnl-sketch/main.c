@@ -7,6 +7,7 @@
 #include "sk_cfg.h"
 #include "skcfg.h"
 #include "sketch.h"
+#include "skpush.h"
 #include "printjob.h"
 #include "printer.h"
 #include "icon.h"
@@ -84,17 +85,13 @@ static void read_tablet(void)
     sk_set_tablet(&sk, pi.width_um, pi.height_um, pi.vid != 0);
 }
 
+/* One sk_flush result to the panel: all partial rectangles as one call over their rows (src/skpush.h: a call costs the
+   same however few rows), a flash half or the whole screen clean */
 static void push(int n, const rect_t *out)
 {
-    if (n == SK_FULL) {
-        api->screen_refresh(0, APP_REFRESH_FULL); /* a page or a menu screen opens or closes, clear: clean */
-        return;
-    }
-    for (int i = 0; i < n; i++) {
-        app_rect_t r = { out[i].x, out[i].y, out[i].w, out[i].h };
-        /* ink and cursors: the fastest the API has, 1-bit mode; the toolbar's strip: clean, only that rectangle */
-        api->screen_refresh(&r, out[i].flash ? APP_REFRESH_FULL : APP_REFRESH_PARTIAL);
-    }
+    sk_call_t c[SK_MAX_RECTS];
+    int k = n ? skp_calls(n, out, SKP_MODE, c) : 0;
+    for (int i = 0; i < k; i++) api->screen_refresh(c[i].whole ? 0 : &c[i].r, c[i].how);
 }
 
 int app_main(const app_api_t *a)

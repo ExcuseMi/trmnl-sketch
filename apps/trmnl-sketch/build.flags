@@ -11,6 +11,7 @@
 ../../src/pngio.c
 ../../src/pages.c
 ../../src/rects.c
+../../src/skpush.c
 ../../src/skui.c
 ../../src/skpills.c
 ../../src/skmenu.c

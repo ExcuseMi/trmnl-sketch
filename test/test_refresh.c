@@ -3,6 +3,7 @@
 #include "check.h"
 #include <stdio.h>
 #include "util.h"
+#include "skpush.h"
 
 static int covered(const rect_t *r, int n, int x, int y)
 {
@@ -143,11 +144,47 @@ static void test_batch_time(void)
     rig_end(&r);
 }
 
+/* The glue's calls (skpush.c): the partial rectangles of a push as one call over every row they hold, flash halves
+   as they are, the whole screen as one; per-rect mode one call each */
+static void test_push_calls(void)
+{
+    srand(9);
+    for (int t = 0; t < 2000; t++) {
+        rect_t r[SK_MAX_RECTS];
+        int n = 1 + rand() % SK_MAX_RECTS, flashes = 0;
+        for (int i = 0; i < n; i++) {
+            int x = (rand() % (TW / 8)) * 8, y = rand() % TH, w = 8 * (1 + rand() % ((TW - x) / 8)), h = 1 + rand() % (TH - y);
+            r[i] = (rect_t){ (int16_t)x, (int16_t)y, (int16_t)w, (int16_t)h, (int16_t)(t % 7 == 0 && i == 0) };
+            flashes += r[i].flash;
+        }
+        sk_call_t c[SK_MAX_RECTS];
+        int k = skp_calls(n, r, SKP_ONE_CALL, c), parts = 0;
+        CHECK(k == flashes + (n > flashes));
+        for (int j = 0; j < k; j++) {
+            CHECK(!c[j].whole && c[j].r.x >= 0 && c[j].r.y >= 0 && c[j].r.x + c[j].r.w <= TW && c[j].r.y + c[j].r.h <= TH);
+            parts += c[j].how == APP_REFRESH_PARTIAL;
+        }
+        CHECK(parts == (n > flashes));
+        for (int i = 0; i < n; i++) { /* every rectangle's area is in a call of its kind */
+            int in = 0;
+            for (int j = 0; j < k; j++)
+                in |= (c[j].how == APP_REFRESH_FULL) == (r[i].flash != 0) && c[j].r.x <= r[i].x && c[j].r.y <= r[i].y && c[j].r.x + c[j].r.w >= r[i].x + r[i].w && c[j].r.y + c[j].r.h >= r[i].y + r[i].h;
+            CHECK(in);
+        }
+        CHECK(skp_calls(n, r, SKP_PER_RECT, c) == n);
+    }
+    sk_call_t c[SK_MAX_RECTS];
+    CHECK(skp_calls(SK_FULL, 0, SKP_MODE, c) == 1 && c[0].whole && c[0].how == APP_REFRESH_FULL);
+    CHECK(skp_calls(0, 0, SKP_MODE, c) == 0);
+    CHECK(SKP_MODE == SKP_ONE_CALL); /* the app pushes one call a push (host/speed.c: a call costs about 200 ms however small) */
+}
+
 int main(void)
 {
     test_rset();
     printf("fast-stroke simulation (a 200 Hz tablet, 1872 x 1404 panel):\n");
     test_stroke_rates();
     test_batch_time();
+    test_push_calls();
     return CHECK_DONE("test_refresh");
 }

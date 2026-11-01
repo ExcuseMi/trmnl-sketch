@@ -29,7 +29,7 @@ Sketch for the TRMNL X with a USB pen tablet (XP-Pen Deco 01 V2; firmware API 2.
 | the app icon (64 x 64, a pencil drawing a curve) | `tools/icon.py` writes `apps/trmnl-sketch/icon.h` |
 | undo/redo/clear over a bounded stroke log and a base image | `src/hist.c` |
 | page files: temp + rename, bad file moved to `-bad.png`, list | `src/pages.c`, `src/pngio.c` (1-bit PNG, no library) |
-| rectangles pushed to the panel (merged, at most 6, byte aligned, every 40 ms) | `src/rects.c`, `src/sketch.c` (`sk_flush`) |
+| rectangles pushed to the panel (merged, at most 6, byte aligned, every 40 ms); one panel call per push over their rows (a call costs about 200 ms however small; `make speed` simulates it) | `src/rects.c`, `src/sketch.c` (`sk_flush`), `src/skpush.c`, `host/speed.c` |
 | controller (all decisions), screens | `src/sketch.c`, `src/skui.c` |
 | app glue | `apps/trmnl-sketch/main.c` |
 
@@ -39,4 +39,4 @@ Clean-up: every flash is `sk_flash` (`src/skflash.c`): the area inverted with a 
 
 Limits: the page lives in the panel's frame, so turning the X turns the sketch with it; the tablet keeps its upright frame in every position (with `pen_area` keep the page is covered: a landscape tablet on a portrait page uses its middle part). Not in: colours, layers, shapes, text, zoom.
 
-`make test` (host, ASan/UBSan), `make shots`, `make elf` (firmware fork's build with its import check). The sources are listed in `apps/trmnl-sketch/build.flags`.
+`make test` (host, ASan/UBSan, with `make speed`), `make speed-table` (the variants), `make shots`, `make elf` (firmware fork's build with its import check). The sources are listed in `apps/trmnl-sketch/build.flags`.
