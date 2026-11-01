@@ -193,6 +193,23 @@ static void test_points_full(void)
     CHECK(a > r);
 }
 
+/* The log fills while a stroke is open: the older strokes go into the base, the open one stays whole and undoable */
+static void test_points_full_keeps_open(void)
+{
+    static hpt_t pts[60];
+    static hstroke_t st[8];
+    hist_t h;
+    setup(&h, pts, 60, st, 8);
+    stroke(&h, HK_INK, 11, 20, 0);
+    stroke(&h, HK_INK, 12, 20, 0);
+    memcpy(snap[2], page_px, BYTES);
+    stroke(&h, HK_INK, 13, 30, 0); /* 20 + 20 + 30 points: the log is full inside this stroke */
+    CHECK(memcmp(page_px, snap[2], BYTES) != 0);
+    box_t b;
+    CHECK(hist_undo(&h, &b));
+    CHECK(!memcmp(page_px, snap[2], BYTES)); /* the whole open stroke undoes at once */
+}
+
 static void test_empty_stroke(void)
 {
     static hpt_t pts[100];
@@ -218,6 +235,7 @@ int main(void)
     test_eraser();
     test_bounded();
     test_points_full();
+    test_points_full_keeps_open();
     test_empty_stroke();
     return CHECK_DONE("test_hist");
 }

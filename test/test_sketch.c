@@ -202,7 +202,8 @@ static void test_pages_and_autosave(void)
     memfile_t *f1 = memfs_find(&r.fs, "sketch/sk0001.png");
     size_t blank_size = f1->n;
     idle(&r, 500);
-    CHECK(f1->n == blank_size); /* not yet: the pen has just left */
+    f1 = memfs_find(&r.fs, "sketch/sk0001.png");
+    CHECK(f1->n == blank_size && r.s.dirty); /* not yet: the pen has just left */
     idle(&r, SK_AUTOSAVE_MS);
     f1 = memfs_find(&r.fs, "sketch/sk0001.png");
     CHECK(f1->n != blank_size && !r.s.dirty); /* saved after the pause */
