@@ -35,7 +35,7 @@ int main(void)
     CHECK(skcfg_get(&a, "pen_area", b, sizeof(b)) == 4 && !strcmp(b, "keep"));
     CHECK(skcfg_get(&a, "size", b, sizeof(b)) > 0 && !strcmp(b, "own-size") && own_calls == 1);   /* Sketch's own state */
     skcfg_declare(&a);
-    CHECK(declares == 0);                              /* no settings form left on 2.11 */
+    CHECK(declares == 1 && declared_n == 1);           /* the form on 2.11: tablet_turn only (pen_area and cleanup_s are the X's) */
     a.device_setting_get = 0;                          /* the slot is there but empty: own settings, no crash */
     CHECK(skcfg_get(&a, "cleanup_s", b, sizeof(b)) > 0 && !strcmp(b, "own-cleanup_s"));
     a.device_setting_get = dev_get;
@@ -43,6 +43,6 @@ int main(void)
     int dc = dev_calls;
     CHECK(skcfg_get(&a, "cleanup_s", b, sizeof(b)) > 0 && !strcmp(b, "own-cleanup_s") && dev_calls == dc);
     skcfg_declare(&a);
-    CHECK(declares == 1 && declared_n == 2);           /* the own form: cleanup_s and pen_area */
+    CHECK(declares == 2 && declared_n == 3);           /* the own form: tablet_turn, cleanup_s and pen_area */
     return CHECK_DONE("test_skcfg");
 }

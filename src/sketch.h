@@ -66,6 +66,7 @@ typedef struct {
     int stroke_erase;    /* the open stroke erases */
     int hover_valid, hover_x, hover_y; /* the pen hovers over the page there */
     uint32_t um_w, um_h; /* the tablet's area, micrometres (0: unknown) */
+    int turn;            /* setting tablet_turn (auto): the tablet is used turned in portrait (penmap.h) */
     int fill;            /* setting pen_area: the tablet's whole area on the whole page (else the aspect is kept) */
     unsigned pressure;   /* smoothed */
     int cursor, cx, cy, cr, cb; /* the hover cursor is drawn at fb (cx, cy) with half size cr, for brush cb */

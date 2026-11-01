@@ -677,7 +677,7 @@ uint32_t sk_next_due(const sketch_t *s, uint32_t now)
 void sk_set_tablet(sketch_t *s, uint32_t width_um, uint32_t height_um, int connected)
 {
     s->um_w = width_um, s->um_h = height_um, s->tablet = connected;
-    pm_init(&s->map, s->orient, s->fb.w, s->fb.h, width_um, height_um, s->fill);
+    pm_init(&s->map, s->orient, s->fb.w, s->fb.h, width_um, height_um, s->fill, s->turn);
 }
 
 void sk_cfg_reload(sketch_t *s)
@@ -685,9 +685,10 @@ void sk_cfg_reload(sketch_t *s)
     char b[8];
     int n = s->env.cfg_get ? s->env.cfg_get(s->env.user, "pen_area", b, 7) : -1;
     s->fill = !(n == 4 && !memcmp(b, "keep", 4)); /* fill unless it says keep */
+    s->turn = !(s->env.cfg_get && (n = s->env.cfg_get(s->env.user, "tablet_turn", b, 7)) == 3 && !memcmp(b, "off", 3)); /* auto unless off */
     s->cleanup_s = cfg_int(s, "cleanup_s", 5);
     if (s->cleanup_s > 600) s->cleanup_s = 600;
-    pm_init(&s->map, s->orient, s->fb.w, s->fb.h, s->um_w, s->um_h, s->fill);
+    pm_init(&s->map, s->orient, s->fb.w, s->fb.h, s->um_w, s->um_h, s->fill, s->turn);
 }
 
 void sk_set_orient(sketch_t *s, int orient, const app_touchbar_t *bar)
@@ -695,7 +696,7 @@ void sk_set_orient(sketch_t *s, int orient, const app_touchbar_t *bar)
     s->orient = orient;
     s->bar = *bar;
     pl_place(s);
-    pm_init(&s->map, orient, s->fb.w, s->fb.h, s->um_w, s->um_h, s->fill);
+    pm_init(&s->map, orient, s->fb.w, s->fb.h, s->um_w, s->um_h, s->fill, s->turn);
     s->hover_valid = 0;
     if (s->mode == SK_DRAW) {
         sk_cursor_hide(s);

@@ -32,7 +32,7 @@ static void test_map(void)
 {
     for (int o = 0; o < 4; o++) {
         penmap_t m;
-        pm_init(&m, o, 1872, 1404, 254000, 158750, 0);
+        pm_init(&m, o, 1872, 1404, 254000, 158750, 0, 0);
         int fx, fy;
         /* the middle of the tablet is the middle of the page */
         CHECK(pm_map(&m, 32768, 32768, &fx, &fy) == 1);
@@ -83,7 +83,7 @@ static void test_direction(void)
 {
     for (int o = 0; o < 4; o++) {
         penmap_t m;
-        pm_init(&m, o, 1872, 1404, 254000, 158750, 0);
+        pm_init(&m, o, 1872, 1404, 254000, 158750, 0, 0);
         int f[2], g[2], u0[2], u1[2], u2[2];
         pm_map(&m, 30000, 30000, &f[0], &f[1]);
         pm_map(&m, 40000, 30000, &g[0], &g[1]); /* right on the tablet */
@@ -99,11 +99,40 @@ static void test_direction(void)
 static void test_unknown_size(void)
 {
     penmap_t m;
-    pm_init(&m, 0, 1872, 1404, 0, 0, 0); /* pen_info does not know: 16:10 */
+    pm_init(&m, 0, 1872, 1404, 0, 0, 0, 0); /* pen_info does not know: 16:10 */
     CHECK(fabsf(m.wt / m.ht - 1.6f) < 0.001f);
     penmap_t sq;
-    pm_init(&sq, 0, 1872, 1404, 100000, 100000, 0); /* a square tablet: width fits, the top and bottom are cut */
+    pm_init(&sq, 0, 1872, 1404, 100000, 100000, 0, 0); /* a square tablet: width fits, the top and bottom are cut */
     CHECK(fabsf(sq.wt - 1872.0f) < 0.5f && sq.ht == sq.wt);
+}
+
+/* Portrait: the tablet is used turned a quarter (turn on), else as it lies. Each tablet corner is a page corner; up on the
+   turned tablet is up on the page. Bar left: the X turned clockwise, the tablet clockwise; bar right: counter-clockwise. */
+static void test_turn(void)
+{
+    const unsigned c[4][2] = { { 0, 0 }, { 65535, 0 }, { 0, 65535 }, { 65535, 65535 } };
+    /* page corners (0 = low, 1 = high on the user's x, y) per tablet corner */
+    const int cw[4][2] = { { 1, 0 }, { 1, 1 }, { 0, 0 }, { 0, 1 } }, ccw[4][2] = { { 0, 1 }, { 0, 0 }, { 1, 1 }, { 1, 0 } };
+    const int off[4][2] = { { 0, 0 }, { 1, 0 }, { 0, 1 }, { 1, 1 } };
+    for (int o = 0; o < 4; o++)
+        for (int turn = 0; turn < 2; turn++) {
+            penmap_t m;
+            pm_init(&m, o, 1872, 1404, 254000, 158750, 1, turn);
+            int portrait = o == APP_ORIENT_BAR_LEFT || o == APP_ORIENT_BAR_RIGHT;
+            const int(*want)[2] = turn && portrait ? (o == APP_ORIENT_BAR_LEFT ? cw : ccw) : off;
+            CHECK(m.turn == (turn && portrait ? (o == APP_ORIENT_BAR_LEFT ? 1 : 2) : 0));
+            for (int k = 0; k < 4; k++) {
+                int fx, fy, ax, ay;
+                CHECK(pm_map(&m, c[k][0], c[k][1], &fx, &fy) == 1);
+                app_orient_to_fb(o, 1872, 1404, want[k][0] ? m.sw - 1 : 0, want[k][1] ? m.sh - 1 : 0, &ax, &ay);
+                CHECK(fx == ax && fy == ay);
+            }
+        }
+    penmap_t k; /* keep: nothing stretched, the turned tablet's aspect is height : width */
+    pm_init(&k, APP_ORIENT_BAR_LEFT, 1872, 1404, 254000, 158750, 0, 1);
+    CHECK(fabsf(k.wt / k.ht - 158750.0f / 254000.0f) < 0.001f);
+    pm_init(&k, APP_ORIENT_BAR_LEFT, 1872, 1404, 254000, 158750, 0, 0);
+    CHECK(fabsf(k.wt / k.ht - 254000.0f / 158750.0f) < 0.001f);
 }
 
 /* fill (the default): every tablet corner is a page corner in all four positions, and the whole tablet is on the page */
@@ -111,7 +140,7 @@ static void test_fill(void)
 {
     for (int o = 0; o < 4; o++) {
         penmap_t m;
-        pm_init(&m, o, 1872, 1404, 254000, 158750, 1);
+        pm_init(&m, o, 1872, 1404, 254000, 158750, 1, 0);
         CHECK(m.wt == (float)(m.sw - 1) && m.ht == (float)(m.sh - 1) && m.ox == 0 && m.oy == 0);
         const unsigned c[4][2] = { { 0, 0 }, { 65535, 0 }, { 0, 65535 }, { 65535, 65535 } };
         for (int k = 0; k < 4; k++) {
@@ -128,7 +157,7 @@ static void test_fill(void)
     }
     /* keep still cuts the long side: its corners are not the page's */
     penmap_t k;
-    pm_init(&k, 0, 1872, 1404, 254000, 158750, 0);
+    pm_init(&k, 0, 1872, 1404, 254000, 158750, 0, 0);
     int fx, fy;
     CHECK(pm_map(&k, 0, 0, &fx, &fy) == 0);
 }
@@ -153,6 +182,7 @@ static void test_setting(void)
 
 int main(void)
 {
+    test_turn();
     test_fill();
     test_setting();
     test_width();

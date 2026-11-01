@@ -162,7 +162,10 @@ static inline void rig_pen_user(rig_t *r, int ux, int uy, unsigned flags, unsign
     const penmap_t *m = &r->s.map;
     float u = (float)ux + m->ox, v = (float)uy + m->oy;
     r->now += 5;
-    sk_pen(&r->s, flags, (unsigned)(u / m->wt * 65535.0f + 0.5f), (unsigned)(v / m->ht * 65535.0f + 0.5f), pressure, r->now);
+    unsigned x = (unsigned)(u / m->wt * 65535.0f + 0.5f), y = (unsigned)(v / m->ht * 65535.0f + 0.5f), t = x;
+    if (m->turn == 1) x = y, y = 65535 - t; /* the tablet turned clockwise: undo it (penmap.c) */
+    else if (m->turn == 2) x = 65535 - y, y = t;
+    sk_pen(&r->s, flags, x, y, pressure, r->now);
 }
 
 static inline void rig_pen(rig_t *r, int fx, int fy, unsigned flags, unsigned pressure)

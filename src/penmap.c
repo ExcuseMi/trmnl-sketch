@@ -24,7 +24,7 @@ int pen_diam(int size, unsigned pressure)
     return lo + (int)(((unsigned long long)(hi - lo) * curve + 32767) / 65535);
 }
 
-void pm_init(penmap_t *m, int orient, int fb_w, int fb_h, uint32_t width_um, uint32_t height_um, int fill)
+void pm_init(penmap_t *m, int orient, int fb_w, int fb_h, uint32_t width_um, uint32_t height_um, int fill, int turn)
 {
     m->orient = orient;
     m->fb_w = fb_w;
@@ -33,6 +33,8 @@ void pm_init(penmap_t *m, int orient, int fb_w, int fb_h, uint32_t width_um, uin
     m->sw = turned ? fb_h : fb_w;
     m->sh = turned ? fb_w : fb_h;
     if (!width_um || !height_um) width_um = 16, height_um = 10;
+    m->turn = turn && (orient == APP_ORIENT_BAR_LEFT || orient == APP_ORIENT_BAR_RIGHT) ? (orient == APP_ORIENT_BAR_LEFT ? 1 : 2) : 0;
+    if (m->turn) { uint32_t t = width_um; width_um = height_um, height_um = t; } /* the turned tablet's width is its height */
     float a = (float)width_um / (float)height_um; /* tablet aspect */
     if (fill) { /* every tablet edge is a screen edge (the aspect is not kept) */
         m->wt = (float)(m->sw - 1); /* the last tablet unit is the last pixel */
@@ -52,6 +54,8 @@ void pm_init(penmap_t *m, int orient, int fb_w, int fb_h, uint32_t width_um, uin
 
 int pm_map(const penmap_t *m, unsigned x, unsigned y, int *fx, int *fy)
 {
+    if (m->turn == 1) { unsigned t = x; x = 65535 - y, y = t; }       /* clockwise: the tablet's right is down, its down is left */
+    else if (m->turn == 2) { unsigned t = x; x = y, y = 65535 - t; }  /* counter-clockwise */
     float u = (float)x / 65535.0f * m->wt - m->ox;
     float v = (float)y / 65535.0f * m->ht - m->oy;
     int inside = u >= -0.5f && v >= -0.5f && u < (float)m->sw - 0.5f && v < (float)m->sh - 0.5f;
