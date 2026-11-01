@@ -68,6 +68,7 @@ static int f_post(void *u, const char *url, const void *body, size_t n, uint8_t 
 
 static const app_setting_decl_t decl[] = {
     { "printer", "Printer address (IP, or IP:port; the port is 631 if left out)", 0, 0, 64, APP_SETTING_TEXT },
+    { "pen_area", "Tablet area on the page (fill: every tablet edge is a screen edge; keep: no stretching)", "fill|keep", 0, 0, APP_SETTING_CHOICE },
 };
 
 static int have_pen(void) { return api->size >= APP_API_SLOT(50); }
@@ -103,7 +104,7 @@ int app_main(const app_api_t *a)
     int orient = ao_start(api); /* follows the X's position: APP_EVENT_ORIENTATION */
     app_touchbar_t bar;
     ao_layout(api, orient, fw, fh, &bar);
-    if (api->size >= APP_API_SLOT(47)) api->settings_declare(decl, 1); /* the printer's address, own setting: settings are per app */
+    if (api->size >= APP_API_SLOT(47)) api->settings_declare(decl, sizeof(decl) / sizeof(decl[0])); /* the printer's address, own setting: settings are per app */
     sk_env_t env = { &fs, 0, cfg_get, cfg_set, { PJ_PWG, f_post, 0 } };
     int rc = sk_init(&sk, &env, fb, fw, fh, stride, orient, &bar);
     if (rc) return rc;

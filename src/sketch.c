@@ -562,6 +562,7 @@ void sk_touch(sketch_t *s, int zone, int gesture, uint32_t now)
 {
     if (s->mode == SK_SHARE) { /* any touch ends the phone page */
         s->share_req = -1;
+        if (s->share_kind == 2) sk_cfg_reload(s); /* the settings form was open */
         s->mode = SK_GALLERY;
         sk_screen_render(s);
         return;
@@ -658,14 +659,22 @@ uint32_t sk_next_due(const sketch_t *s, uint32_t now)
 void sk_set_tablet(sketch_t *s, uint32_t width_um, uint32_t height_um, int connected)
 {
     s->um_w = width_um, s->um_h = height_um, s->tablet = connected;
-    pm_init(&s->map, s->orient, s->fb.w, s->fb.h, width_um, height_um);
+    pm_init(&s->map, s->orient, s->fb.w, s->fb.h, width_um, height_um, s->fill);
+}
+
+void sk_cfg_reload(sketch_t *s)
+{
+    char b[8];
+    int n = s->env.cfg_get ? s->env.cfg_get(s->env.user, "pen_area", b, 7) : -1;
+    s->fill = !(n == 4 && !memcmp(b, "keep", 4)); /* fill unless it says keep */
+    pm_init(&s->map, s->orient, s->fb.w, s->fb.h, s->um_w, s->um_h, s->fill);
 }
 
 void sk_set_orient(sketch_t *s, int orient, const app_touchbar_t *bar)
 {
     s->orient = orient;
     s->bar = *bar;
-    pm_init(&s->map, orient, s->fb.w, s->fb.h, s->um_w, s->um_h);
+    pm_init(&s->map, orient, s->fb.w, s->fb.h, s->um_w, s->um_h, s->fill);
     s->hover_valid = 0;
     if (s->mode == SK_DRAW) {
         sk_cursor_hide(s);
@@ -704,7 +713,7 @@ int sk_init(sketch_t *s, const sk_env_t *env, uint8_t *fb, int w, int h, int str
     box_clear(&s->flash);
     s->orient = orient;
     s->bar = *bar;
-    pm_init(&s->map, orient, w, h, 0, 0);
+    sk_cfg_reload(s);
     int want = cfg_int(s, "cur", 0);
     int num = pg_index(&s->pg, want) >= 0 ? want : s->pg.n ? s->pg.nums[s->pg.n - 1] : 1;
     s->cur = num;

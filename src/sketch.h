@@ -55,6 +55,7 @@ typedef struct {
     int stroke_erase;    /* the open stroke erases */
     int hover_valid, hover_x, hover_y; /* the pen hovers over the page there */
     uint32_t um_w, um_h; /* the tablet's area, micrometres (0: unknown) */
+    int fill;            /* setting pen_area: the tablet's whole area on the whole page (else the aspect is kept) */
     unsigned pressure;   /* smoothed */
     int cursor, cx, cy, cr, cb; /* the hover cursor is drawn at fb (cx, cy) with half size cr, for brush cb */
     box_t note;          /* the corner note (legend or toast) on screen, when note_on */
@@ -92,6 +93,8 @@ int sk_init(sketch_t *s, const sk_env_t *env, uint8_t *fb, int w, int h, int str
 void sk_free(sketch_t *s);
 void sk_set_tablet(sketch_t *s, uint32_t width_um, uint32_t height_um, int connected);
 void sk_set_orient(sketch_t *s, int orient, const app_touchbar_t *bar);
+/* Reads the settings the phone page can change (pen_area) again; the app calls it when that page closes */
+void sk_cfg_reload(sketch_t *s);
 
 /* Brush, shade and size (the toolbar and the settings call these; each toasts its name) */
 void sk_set_brush(sketch_t *s, int brush, uint32_t now);

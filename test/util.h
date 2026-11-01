@@ -33,7 +33,7 @@ typedef struct {
     uint8_t *fb;
     uint32_t now;
     int started;
-    char cfg_cur[8], cfg_size[8], cfg_brush[8], cfg_shade[8];
+    char cfg_cur[8], cfg_size[8], cfg_brush[8], cfg_shade[8], cfg_pen_area[8];
 } rig_t;
 
 static int fake_post(void *u, const char *url, const void *body, size_t n, uint8_t *resp, size_t cap, size_t *rn)
@@ -57,7 +57,7 @@ static int fake_post(void *u, const char *url, const void *body, size_t n, uint8
 static int rig_get(void *u, const char *k, char *b, int cap)
 {
     rig_t *r = u;
-    const char *v = !strcmp(k, "cur") ? r->cfg_cur : !strcmp(k, "size") ? r->cfg_size : !strcmp(k, "brush") ? r->cfg_brush : !strcmp(k, "shade") ? r->cfg_shade : !strcmp(k, "printer") ? r->cfg_printer : "";
+    const char *v = !strcmp(k, "cur") ? r->cfg_cur : !strcmp(k, "size") ? r->cfg_size : !strcmp(k, "brush") ? r->cfg_brush : !strcmp(k, "shade") ? r->cfg_shade : !strcmp(k, "printer") ? r->cfg_printer : !strcmp(k, "pen_area") ? r->cfg_pen_area : "";
     int n = (int)strlen(v);
     if (n > cap) n = cap;
     memcpy(b, v, (size_t)n);
@@ -114,7 +114,7 @@ static inline void rig_pt(const rig_t *r, int fx, int fy, unsigned *x, unsigned 
 {
     /* inverse of pm_map for the landscape position by search on the tablet axis: exact enough for tests */
     const penmap_t *m = &r->s.map;
-    float u = (float)fx + (m->wt - (float)m->sw) / 2, v = (float)fy + (m->ht - (float)m->sh) / 2;
+    float u = (float)fx + m->ox, v = (float)fy + m->oy;
     *x = (unsigned)(u / m->wt * 65535.0f + 0.5f);
     *y = (unsigned)(v / m->ht * 65535.0f + 0.5f);
 }
@@ -123,7 +123,7 @@ static inline void rig_pt(const rig_t *r, int fx, int fy, unsigned *x, unsigned 
 static inline void rig_pen_user(rig_t *r, int ux, int uy, unsigned flags, unsigned pressure)
 {
     const penmap_t *m = &r->s.map;
-    float u = (float)ux + (m->wt - (float)m->sw) / 2, v = (float)uy + (m->ht - (float)m->sh) / 2;
+    float u = (float)ux + m->ox, v = (float)uy + m->oy;
     r->now += 5;
     sk_pen(&r->s, flags, (unsigned)(u / m->wt * 65535.0f + 0.5f), (unsigned)(v / m->ht * 65535.0f + 0.5f), pressure, r->now);
 }

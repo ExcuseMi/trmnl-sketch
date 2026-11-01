@@ -4,6 +4,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include "penmap.h"
+#include "util.h"
 
 static void test_width(void)
 {
@@ -30,7 +31,7 @@ static void test_map(void)
 {
     for (int o = 0; o < 4; o++) {
         penmap_t m;
-        pm_init(&m, o, 1872, 1404, 254000, 158750);
+        pm_init(&m, o, 1872, 1404, 254000, 158750, 0);
         int fx, fy;
         /* the middle of the tablet is the middle of the page */
         CHECK(pm_map(&m, 32768, 32768, &fx, &fy) == 1);
@@ -81,7 +82,7 @@ static void test_direction(void)
 {
     for (int o = 0; o < 4; o++) {
         penmap_t m;
-        pm_init(&m, o, 1872, 1404, 254000, 158750);
+        pm_init(&m, o, 1872, 1404, 254000, 158750, 0);
         int f[2], g[2], u0[2], u1[2], u2[2];
         pm_map(&m, 30000, 30000, &f[0], &f[1]);
         pm_map(&m, 40000, 30000, &g[0], &g[1]); /* right on the tablet */
@@ -97,15 +98,62 @@ static void test_direction(void)
 static void test_unknown_size(void)
 {
     penmap_t m;
-    pm_init(&m, 0, 1872, 1404, 0, 0); /* pen_info does not know: 16:10 */
+    pm_init(&m, 0, 1872, 1404, 0, 0, 0); /* pen_info does not know: 16:10 */
     CHECK(fabsf(m.wt / m.ht - 1.6f) < 0.001f);
     penmap_t sq;
-    pm_init(&sq, 0, 1872, 1404, 100000, 100000); /* a square tablet: width fits, the top and bottom are cut */
+    pm_init(&sq, 0, 1872, 1404, 100000, 100000, 0); /* a square tablet: width fits, the top and bottom are cut */
     CHECK(fabsf(sq.wt - 1872.0f) < 0.5f && sq.ht == sq.wt);
+}
+
+/* fill (the default): every tablet corner is a page corner in all four positions, and the whole tablet is on the page */
+static void test_fill(void)
+{
+    for (int o = 0; o < 4; o++) {
+        penmap_t m;
+        pm_init(&m, o, 1872, 1404, 254000, 158750, 1);
+        CHECK(m.wt == (float)(m.sw - 1) && m.ht == (float)(m.sh - 1) && m.ox == 0 && m.oy == 0);
+        const unsigned c[4][2] = { { 0, 0 }, { 65535, 0 }, { 0, 65535 }, { 65535, 65535 } };
+        for (int k = 0; k < 4; k++) {
+            int fx, fy, ax, ay;
+            CHECK(pm_map(&m, c[k][0], c[k][1], &fx, &fy) == 1);
+            app_orient_to_fb(o, 1872, 1404, c[k][0] ? m.sw - 1 : 0, c[k][1] ? m.sh - 1 : 0, &ax, &ay);
+            CHECK(fx == ax && fy == ay);
+        }
+        for (unsigned x = 0; x <= 65535; x += 4096)
+            for (unsigned y = 0; y <= 65535; y += 4096) {
+                int fx, fy;
+                CHECK(pm_map(&m, x, y, &fx, &fy) == 1); /* nothing is cut off */
+            }
+    }
+    /* keep still cuts the long side: its corners are not the page's */
+    penmap_t k;
+    pm_init(&k, 0, 1872, 1404, 254000, 158750, 0);
+    int fx, fy;
+    CHECK(pm_map(&k, 0, 0, &fx, &fy) == 0);
+}
+
+/* The setting: no value means fill; "keep" keeps the aspect; the settings page closing applies a change */
+static void test_setting(void)
+{
+    rig_t r;
+    rig_new(&r, APP_ORIENT_BAR_BOTTOM);
+    CHECK(r.s.fill && r.s.map.ox == 0); /* default: fill */
+    strcpy(r.cfg_pen_area, "keep");
+    rig_start(&r, APP_ORIENT_BAR_BOTTOM);
+    CHECK(!r.s.fill && r.s.map.ox > 0);
+    strcpy(r.cfg_pen_area, "fill");
+    sk_cfg_reload(&r.s);
+    CHECK(r.s.fill && r.s.map.ox == 0);
+    strcpy(r.cfg_pen_area, "junk"); /* a bad value: the default */
+    sk_cfg_reload(&r.s);
+    CHECK(r.s.fill);
+    rig_end(&r);
 }
 
 int main(void)
 {
+    test_fill();
+    test_setting();
     test_width();
     test_map();
     test_direction();
