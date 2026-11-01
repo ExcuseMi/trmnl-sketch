@@ -198,6 +198,12 @@ static void test_idle_screens(void)
     CHECK(r.s.ghost);
     CHECK(run(&r, 6000) == 1 && r.s.mode == SK_GALLERY);
     CHECK(run(&r, 20000) == 0);
+    /* the tip held down on a menu screen: no flash however long (the stroke flag is not set there) */
+    rig_pt(&r, 40, 40, &x, &y);
+    sk_pen(&r.s, APP_PEN_IN_RANGE, x, y, 0, r.now += 10);
+    sk_pen(&r.s, APP_PEN_TIP | APP_PEN_IN_RANGE, x, y, 30000, r.now += 10);
+    run(&r, 300);
+    CHECK(r.s.tip && r.s.ghost && run(&r, 20000) == 0);
     rig_end(&r);
     rest(&r, APP_ORIENT_BAR_BOTTOM);
     key(&r, 3); /* the toolbar up, a hover on it */
