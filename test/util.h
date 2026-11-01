@@ -7,6 +7,7 @@
 #include "memfs.h"
 #include "sketch.h"
 #include "tbfw.h"
+#include "printjob.h"
 
 #define TW 1872
 #define TH 1404
@@ -15,8 +16,21 @@
 #define UM_W 254000u
 #define UM_H 158750u
 
+/* a printer that records what is posted */
+typedef struct {
+    int status, ipp, posts;
+    char url[96];
+    uint8_t *body[4];
+    size_t len[4];
+} fprinter_t;
+
 typedef struct {
     memfs_t fs;
+    fprinter_t pr;
+    uint8_t *gray;      /* the panel's 4-bit framebuffer */
+    int gray_mode;      /* the app's screen mode as the glue would have switched it */
+    int fulls, parts;   /* full and partial refreshes the glue would have pushed */
+    char cfg_printer[40];
     sketch_t s;
     uint8_t *fb;
     uint32_t now;
@@ -24,10 +38,28 @@ typedef struct {
     char cfg_cur[8], cfg_size[8];
 } rig_t;
 
+static int fake_post(void *u, const char *url, const void *body, size_t n, uint8_t *resp, size_t cap, size_t *rn)
+{
+    fprinter_t *p = u;
+    if (p->posts < 4) {
+        p->body[p->posts] = malloc(n);
+        memcpy(p->body[p->posts], body, n);
+        p->len[p->posts] = n;
+    }
+    p->posts++;
+    strncpy(p->url, url, sizeof(p->url) - 1);
+    *rn = 0;
+    if (p->status == 200 && cap >= 8) {
+        memset(resp, 0, 8);
+        resp[0] = 1, resp[1] = 1, resp[2] = (uint8_t)(p->ipp >> 8), resp[3] = (uint8_t)p->ipp, *rn = 8;
+    }
+    return p->status;
+}
+
 static int rig_get(void *u, const char *k, char *b, int cap)
 {
     rig_t *r = u;
-    const char *v = !strcmp(k, "cur") ? r->cfg_cur : !strcmp(k, "size") ? r->cfg_size : "";
+    const char *v = !strcmp(k, "cur") ? r->cfg_cur : !strcmp(k, "size") ? r->cfg_size : !strcmp(k, "printer") ? r->cfg_printer : "";
     int n = (int)strlen(v);
     if (n > cap) n = cap;
     memcpy(b, v, (size_t)n);
@@ -45,14 +77,18 @@ static int rig_set(void *u, const char *k, const char *v, int n)
 /* (Re)starts the app on the rig's file system: a restart keeps the files and settings, as the X does */
 static inline void rig_start(rig_t *r, int orient)
 {
-    if (r->started) sk_free(&r->s), free(r->fb);
+    if (r->started) sk_free(&r->s), free(r->fb), free(r->gray);
     r->fb = malloc((size_t)TS * TH);
     memset(r->fb, 0xff, (size_t)TS * TH);
+    r->gray = malloc((size_t)TW * TH / 2);
+    memset(r->gray, 0xff, (size_t)TW * TH / 2);
+    r->gray_mode = 0;
     app_touchbar_t bar;
     tbfw_layout(orient, &bar);
-    sk_env_t env = { &r->fs.fs, r, rig_get, rig_set };
+    sk_env_t env = { &r->fs.fs, r, rig_get, rig_set, { PJ_PWG, fake_post, &r->pr } };
     if (sk_init(&r->s, &env, r->fb, TW, TH, TS, orient, &bar)) abort();
     sk_set_tablet(&r->s, UM_W, UM_H, 1);
+    sk_set_screens(&r->s, r->fb, r->gray);
     r->started = 1;
 }
 static inline void rig_new(rig_t *r, int orient)
@@ -60,11 +96,29 @@ static inline void rig_new(rig_t *r, int orient)
     memset(r, 0, sizeof(*r));
     memfs_init(&r->fs);
     r->now = 1000;
+    r->pr.status = 200;
     rig_start(r, orient);
+}
+/* What the glue does each turn: switch the panel's mode when the app wants another (the panel clears to white and the
+   framebuffer is handed over again), then flush. Counts the full and partial refreshes. */
+static inline int rig_frame(rig_t *r, rect_t *out)
+{
+    int want = sk_screen_gray(&r->s);
+    if (want != r->gray_mode) {
+        r->gray_mode = want;
+        if (want) memset(r->gray, 0xff, (size_t)TW * TH / 2), sk_set_screens(&r->s, 0, r->gray);
+        else memset(r->fb, 0xff, (size_t)TS * TH), sk_set_screens(&r->s, r->fb, 0);
+    }
+    int n = sk_flush(&r->s, r->now += 100, out);
+    if (n == SK_FULL) r->fulls++;
+    else if (n > 0) r->parts += n;
+    return n;
 }
 static inline void rig_end(rig_t *r)
 {
+    for (int i = 0; i < 4; i++) free(r->pr.body[i]);
     sk_free(&r->s);
+    free(r->gray);
     free(r->fb);
     memfs_free(&r->fs);
 }

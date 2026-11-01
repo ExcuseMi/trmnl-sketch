@@ -16,9 +16,6 @@ void ui_legend(gfx_t *g, box_t *out);
 /* The hover cursor: a ring of radius r (and a dot) by inverting pixels; *out: its box. Undone by copying the page back */
 void ui_cursor(canvas_t *fb, int cx, int cy, int r, box_t *out);
 
-/* The menu, on a white screen. page: 1-based, of pages. bar: where the touch bar's zones are */
-void ui_menu(gfx_t *g, const app_touchbar_t *bar, int page, int pages, int tablet);
-
 /* The Wi-Fi screen's text from the page's status (pure, so it is tested) */
 typedef struct {
     char steps[2][96];

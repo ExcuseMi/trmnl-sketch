@@ -60,41 +60,6 @@ void ui_cursor(canvas_t *fb, int cx, int cy, int r, box_t *out)
     box_clip(out, fb->w, fb->h);
 }
 
-static void zone_label(gfx_t *g, const app_touchbar_t *bar, int z, const char *s)
-{
-    const font_face_t *f = face(1, 34);
-    const app_rect_t *r = &bar->zone[z];
-    gfx_rrect(g, r->x + 6, r->y + 6, r->x + r->w - 7, r->y + r->h - 7, 8, 3, WHT, BLK);
-    text(g, f, r->x + (r->w - text_w(f, s)) / 2, r->y + r->h / 2 + 12, s, BLK);
-}
-
-void ui_menu(gfx_t *g, const app_touchbar_t *bar, int page, int pages, int tablet)
-{
-    gfx_fill(g, WHT);
-    char line[64];
-    const font_face_t *big = face(1, 64), *f = face(0, 34);
-    text(g, big, 60, 130, "Sketch", BLK);
-    int n = 0;
-    line[n++] = 'P', line[n++] = 'a', line[n++] = 'g', line[n++] = 'e', line[n++] = ' ';
-    int v[2] = { page, pages };
-    for (int k = 0; k < 2; k++) {
-        char d[8];
-        int m = 0, x = v[k];
-        do d[m++] = (char)('0' + x % 10), x /= 10; while (x);
-        while (m) line[n++] = d[--m];
-        if (k == 0) line[n++] = ' ', line[n++] = 'o', line[n++] = 'f', line[n++] = ' ';
-    }
-    line[n] = 0;
-    text(g, f, 60, 200, line, BLK);
-    text(g, f, 60, 270, tablet ? "Pen tablet: connected" : "Pen tablet: none found (plug it into the X's USB port)", BLK);
-    text(g, f, 60, 340, "Left: Wi-Fi, download your sketches as PNG.", BLK);
-    text(g, f, 60, 384, "Middle: back to the page (a clean redraw).", BLK);
-    text(g, f, 60, 428, "Right: a new page.  Swipe: other pages.", BLK);
-    zone_label(g, bar, APP_TOUCH_LEFT, "Wi-Fi");
-    zone_label(g, bar, APP_TOUCH_MIDDLE, "Back");
-    zone_label(g, bar, APP_TOUCH_RIGHT, "New");
-}
-
 static void put(char *dst, size_t cap, const char *s)
 {
     size_t n = strlen(dst);
