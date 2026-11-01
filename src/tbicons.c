@@ -1,0 +1,159 @@
+/* SPDX-License-Identifier: MIT */
+#include "tbicons.h"
+#include "brush.h"
+#include "fmath.h"
+
+/* A tool lies on the 45 degree diagonal, tip at the lower left: a point is (u along the tool from the tip, v across) */
+typedef struct {
+    gfx_t *g;
+    float tx, ty;
+    int ink, bg;
+} tbi_tool_t;
+
+static void tbi_tp(const tbi_tool_t *t, float u, float v, float *x, float *y)
+{
+    const float k = 0.70711f;
+    *x = t->tx + (u + v) * k;
+    *y = t->ty + (v - u) * k;
+}
+
+/* A closed shape from (u, v) pairs: filled with `fill` and outlined 3 px with ink */
+static void tbi_shape(const tbi_tool_t *t, const float *uv, int n, int fill, int outline)
+{
+    float p[24];
+    for (int i = 0; i < n; i++) tbi_tp(t, uv[2 * i], uv[2 * i + 1], &p[2 * i], &p[2 * i + 1]);
+    gfx_poly(t->g, p, n, fill);
+    if (outline) gfx_poly_outline(t->g, p, n, 3, t->ink);
+}
+
+static void tbi_bar(const tbi_tool_t *t, float u0, float u1, float v, int w, int c)
+{
+    float ax, ay, bx, by;
+    tbi_tp(t, u0, v, &ax, &ay);
+    tbi_tp(t, u1, v, &bx, &by);
+    gfx_line(t->g, ax, ay, bx, by, w, c);
+}
+
+static void tbi_across(const tbi_tool_t *t, float u, float v0, float v1, int w, int c)
+{
+    float ax, ay, bx, by;
+    tbi_tp(t, u, v0, &ax, &ay);
+    tbi_tp(t, u, v1, &bx, &by);
+    gfx_line(t->g, ax, ay, bx, by, w, c);
+}
+
+static void tbi_fineliner(const tbi_tool_t *t)
+{
+    const float tip[] = { 0, 0, 12, -4, 12, 4 }, body[] = { 12, -6, 54, -6, 54, 6, 12, 6 }, grip[] = { 12, -6, 24, -6, 24, 6, 12, 6 };
+    tbi_shape(t, body, 4, t->bg, 1);
+    tbi_shape(t, grip, 4, t->ink, 0);
+    tbi_shape(t, tip, 3, t->ink, 0);
+    tbi_across(t, 48, -6, 6, 3, t->ink);
+}
+
+static void tbi_brushpen(const tbi_tool_t *t)
+{
+    const float bristle[] = { 0, 0, 5, -5, 12, -8, 20, -7, 20, 7, 12, 8, 5, 5 }, ferrule[] = { 20, -7, 32, -7, 32, 7, 20, 7 },
+        handle[] = { 32, -4, 60, -7, 60, 7, 32, 4 };
+    tbi_shape(t, handle, 4, t->bg, 1);
+    tbi_shape(t, ferrule, 4, t->bg, 1);
+    tbi_across(t, 26, -7, 7, 3, t->ink);
+    tbi_shape(t, bristle, 7, t->ink, 0);
+}
+
+static void tbi_pencil(const tbi_tool_t *t)
+{
+    const float wood[] = { 0, 0, 14, -7, 14, 7 }, lead[] = { 0, 0, 5, -2.6f, 5, 2.6f }, body[] = { 14, -7, 50, -7, 50, 7, 14, 7 },
+        rub[] = { 50, -7, 60, -7, 60, 7, 50, 7 };
+    tbi_shape(t, body, 4, t->bg, 1);
+    tbi_shape(t, wood, 3, t->bg, 1);
+    tbi_shape(t, lead, 3, t->ink, 0);
+    tbi_bar(t, 14, 50, 0, 3, t->ink);
+    tbi_shape(t, rub, 4, t->ink, 0);
+}
+
+static void tbi_marker(const tbi_tool_t *t)
+{
+    const float nib[] = { 0, -3, 0, 5, 13, 9, 13, -9 }, body[] = { 13, -9, 52, -9, 52, 9, 13, 9 }, label[] = { 24, -9, 38, -9, 38, 9, 24, 9 };
+    tbi_shape(t, body, 4, t->bg, 1);
+    tbi_shape(t, label, 4, t->ink, 0);
+    tbi_shape(t, nib, 4, t->ink, 0);
+    tbi_across(t, 56, -6, 6, 3, t->ink);
+}
+
+static void tbi_nib(const tbi_tool_t *t)
+{
+    const float blade[] = { 0, 0, 8, -6, 18, -13, 30, -12, 30, 12, 18, 13, 8, 6 }, collar[] = { 30, -11, 38, -11, 38, 11, 30, 11 };
+    tbi_shape(t, blade, 7, t->ink, 0);
+    tbi_bar(t, 0, 22, 0, 2, t->bg); /* the slit */
+    float hx, hy;
+    tbi_tp(t, 25, 0, &hx, &hy);
+    gfx_ellipse(t->g, hx - 3, hy - 3, hx + 3, hy + 3, 0, t->bg, t->bg); /* the breather hole */
+    tbi_shape(t, collar, 4, t->bg, 1);
+    tbi_bar(t, 38, 58, 0, 7, t->ink);
+}
+
+static void tbi_spray(const tbi_tool_t *t, int x, int y)
+{
+    gfx_t *g = t->g;
+    gfx_rrect(g, (float)(x + 18), (float)(y + 24), (float)(x + 46), (float)(y + 62), 4, 3, t->bg, t->ink);
+    gfx_fill_rect(g, (float)(x + 18), (float)(y + 40), (float)(x + 46), (float)(y + 52), t->ink);
+    gfx_rrect(g, (float)(x + 24), (float)(y + 15), (float)(x + 40), (float)(y + 24), 0, 3, t->bg, t->ink);
+    gfx_fill_rect(g, (float)(x + 28), (float)(y + 6), (float)(x + 38), (float)(y + 15), t->ink);
+    static const int dot[6][3] = { { 20, 8, 3 }, { 10, 5, 3 }, { 15, 16, 2 }, { 5, 14, 2 }, { 8, 24, 2 }, { 2, 6, 2 } };
+    for (int i = 0; i < 6; i++)
+        gfx_ellipse(g, (float)(x + dot[i][0] - dot[i][2]), (float)(y + dot[i][1] - dot[i][2]), (float)(x + dot[i][0] + dot[i][2]),
+            (float)(y + dot[i][1] + dot[i][2]), 0, t->ink, t->ink);
+}
+
+static void tbi_eraser(const tbi_tool_t *t)
+{
+    const float whole[] = { 0, -13, 56, -13, 56, 13, 0, 13 }, worn[] = { 0, -13, 24, -13, 24, 13, 0, 13 };
+    tbi_shape(t, whole, 4, t->bg, 1);
+    tbi_shape(t, worn, 4, t->ink, 0);
+}
+
+void tbi_brush(gfx_t *g, int brush, int x, int y, int ink, int bg)
+{
+    tbi_tool_t t = { g, (float)x + 8, (float)y + 56, ink, bg };
+    switch (brush) {
+    case BR_FINELINER: tbi_fineliner(&t); break;
+    case BR_BRUSHPEN: tbi_brushpen(&t); break;
+    case BR_PENCIL: tbi_pencil(&t); break;
+    case BR_MARKER: tbi_marker(&t); break;
+    case BR_CALLIGRAPHY: tbi_nib(&t); break;
+    case BR_SPRAY: tbi_spray(&t, x, y); break;
+    default: tbi_eraser(&t); break;
+    }
+}
+
+/* A curved arrow: an arc over the top with the head at its end; mx 1 undo (head on the left), -1 redo (mirrored) */
+static void tbi_curved(gfx_t *g, int x, int y, int mx, int ink)
+{
+    const float cx = (float)x + 32, cy = (float)y + 38, r = 19, m = (float)mx;
+    const float a0 = 35, a1 = 205;
+    float px = 0, py = 0;
+    for (int i = 0; i <= 12; i++) {
+        float th = (a0 + (a1 - a0) * (float)i / 12) * FM_PI / 180;
+        float qx = cx + m * r * fm_cos(th), qy = cy - r * fm_sin(th);
+        if (i) gfx_line(g, px, py, qx, qy, 7, ink);
+        px = qx, py = qy;
+    }
+    float th = a1 * FM_PI / 180, dx = m * -fm_sin(th), dy = -fm_cos(th); /* direction of travel at the end */
+    float p[6] = { px + dx * 14, py + dy * 14, px - dy * 13 - dx * 3, py + dx * 13 - dy * 3, px + dy * 13 - dx * 3, py - dx * 13 - dy * 3 };
+    gfx_poly(g, p, 3, ink);
+}
+
+void tbi_undo(gfx_t *g, int x, int y, int ink, int bg) { (void)bg, tbi_curved(g, x, y, 1, ink); }
+void tbi_redo(gfx_t *g, int x, int y, int ink, int bg) { (void)bg, tbi_curved(g, x, y, -1, ink); }
+
+void tbi_clear(gfx_t *g, int x, int y, int ink, int bg)
+{
+    float X = (float)x, Y = (float)y;
+    gfx_fill_rect(g, X + 11, Y + 14, X + 53, Y + 19, ink); /* the lid */
+    gfx_rrect(g, X + 24, Y + 6, X + 40, Y + 16, 2, 3, bg, ink); /* its handle */
+    float body[8] = { X + 16, Y + 22, X + 48, Y + 22, X + 44, Y + 60, X + 20, Y + 60 };
+    gfx_poly(g, body, 4, bg);
+    gfx_poly_outline(g, body, 4, 4, ink);
+    for (int i = 0; i < 3; i++) gfx_line(g, X + 25 + (float)i * 7, Y + 30, X + 25 + (float)i * 7, Y + 52, 3, ink);
+}

@@ -5,6 +5,7 @@
 #include "../../gen/fonts_gen.c"
 #include "../../src/canvas.c"
 #include "../../src/brush.c"
+#include "../../src/tbicons.c"
 #include "../../src/toolbar.c"
 #include "../../src/penmap.c"
 #include "../../src/hist.c"

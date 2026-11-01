@@ -85,7 +85,7 @@ static void tb_item_box(sketch_t *s, int i, box_t *b)
 {
     gfx_t g;
     mkg(s, &g);
-    ui_fb_box(&g, s->tb.cx[i], s->tb.cy, s->tb.cx[i] + s->tb.cell - 1, s->tb.cy + s->tb.cell - 1, b);
+    ui_fb_box(&g, s->tb.cx[i], s->tb.cy, s->tb.cx[i] + s->tb.cell - 1, s->tb.cy + s->tb.ch - 1, b);
     box_clip(b, s->fb.w, s->fb.h);
 }
 

@@ -195,12 +195,12 @@ static void test_layout_all_positions(void)
         tb_layout_t L;
         int sw = o == APP_ORIENT_BAR_LEFT || o == APP_ORIENT_BAR_RIGHT ? TH : TW, sh = o == APP_ORIENT_BAR_LEFT || o == APP_ORIENT_BAR_RIGHT ? TW : TH;
         tb_layout(&L, o, sw, sh);
-        CHECK(L.cell >= 70 && L.x0 == 0 && L.x1 == sw - 1);
+        CHECK(L.cell >= 70 && L.ch >= 96 && L.cell >= 64 && L.x0 == 0 && L.x1 == sw - 1);
         CHECK(L.top == (o != APP_ORIENT_BAR_TOP)); /* away from the touch bar */
         CHECK(L.top ? L.y0 == 0 : L.y1 == sh - 1);
         for (int i = 0; i < TI_N; i++) {
             CHECK(L.cx[i] >= 0 && L.cx[i] + L.cell <= sw && (i == 0 || L.cx[i] >= L.cx[i - 1] + L.cell)); /* inside, in order, no overlap */
-            int cx = L.cx[i] + L.cell / 2, cy = L.cy + L.cell / 2, fx, fy, ux, uy;
+            int cx = L.cx[i] + L.cell / 2, cy = L.cy + L.ch / 2, fx, fy, ux, uy;
             CHECK(tb_in(&L, cx, cy) && tb_hit(&L, cx, cy) == i);
             /* through the panel and back: what a pen on the panel hits */
             app_orient_to_fb(o, TW, TH, cx, cy, &fx, &fy);
@@ -330,7 +330,7 @@ static int rect_hits(const rect_t *q, const box_t *b)
 }
 static void item_fb_box(const rig_t *r, int i, box_t *b)
 {
-    *b = (box_t){ r->s.tb.cx[i], r->s.tb.cy, r->s.tb.cx[i] + r->s.tb.cell - 1, r->s.tb.cy + r->s.tb.cell - 1 };
+    *b = (box_t){ r->s.tb.cx[i], r->s.tb.cy, r->s.tb.cx[i] + r->s.tb.cell - 1, r->s.tb.cy + r->s.tb.ch - 1 };
 }
 
 static void test_pointer_over_the_strip(void)

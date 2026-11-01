@@ -1,21 +1,28 @@
 /* SPDX-License-Identifier: MIT */
 #include "toolbar.h"
 #include "fmath.h"
+#include "font.h"
+#include "penmap.h"
+#include "tbicons.h"
 
 #define TB_PAD 8
 #define TB_MARGIN 16
-#define TB_GAP 20
+#define TB_GAP 24
 #define TB_LINE 4
+#define TB_CH 104 /* glyph 64 + label */
 enum { TB_BLK = GFX_BLACK, TB_WHT = GFX_WHITE };
+
+static const char *const tb_label[TI_N] = { "Fine", "Brush", "Pencil", "Marker", "Calli", "Spray", "Eraser", "Black", "Dark", "Light", "S", "M", "L", "Undo", "Redo", "Clear" };
 
 void tb_layout(tb_layout_t *L, int orient, int sw, int sh)
 {
     int cell = (sw - 2 * TB_MARGIN - 3 * TB_GAP) / TI_N;
-    if (cell > 104) cell = 104;
+    if (cell > 100) cell = 100;
     L->cell = cell;
-    int total = cell * TI_N + 3 * TB_GAP, x = (sw - total) / 2, h = cell + 2 * TB_PAD + TB_LINE;
+    L->ch = TB_CH;
+    int total = cell * TI_N + 3 * TB_GAP, x = (sw - total) / 2, h = TB_CH + 2 * TB_PAD + TB_LINE;
     for (int i = 0; i < TI_N; i++) {
-        if (i == TI_SHADE || i == TI_SIZE || i == TI_UNDO) x += TB_GAP;
+        if (i == TI_SHADE || i == TI_SIZE || i == TI_UNDO) L->gap_x[i == TI_SHADE ? 0 : i == TI_SIZE ? 1 : 2] = x + TB_GAP / 2, x += TB_GAP;
         L->cx[i] = x;
         x += cell;
     }
@@ -29,57 +36,33 @@ int tb_in(const tb_layout_t *L, int x, int y) { return x >= L->x0 && x <= L->x1 
 
 int tb_hit(const tb_layout_t *L, int x, int y)
 {
-    if (y < L->cy || y >= L->cy + L->cell) return -1;
+    if (y < L->cy || y >= L->cy + L->ch) return -1;
     for (int i = 0; i < TI_N; i++)
         if (x >= L->cx[i] && x < L->cx[i] + L->cell) return i;
     return -1;
 }
 
-static void shape(gfx_t *g, const tb_layout_t *L, int brush, int x, int y, int c)
+/* The pattern as it will be inked (black dots on paper), in a bordered swatch; picked: a white border on the black cell */
+static void tb_swatch(gfx_t *g, int shade, int x, int y, int sel)
 {
-    int r = brush_cursor_r(brush, 1), x0 = r, x1 = -r, y0 = r, y1 = -r;
-    for (int dy = -r; dy <= r; dy++)
-        for (int dx = -r; dx <= r; dx++)
-            if (brush_cursor_px(brush, 1, dx, dy)) {
-                if (dx < x0) x0 = dx;
-                if (dx > x1) x1 = dx;
-                if (dy < y0) y0 = dy;
-                if (dy > y1) y1 = dy;
-            }
-    int dim = (x1 - x0 > y1 - y0 ? x1 - x0 : y1 - y0) + 1, sc = L->cell * 70 / 100 / dim;
-    if (sc < 2) sc = 2;
-    if (sc > 4) sc = 4;
-    int ox = x + L->cell / 2 - (x0 + x1 + 1) * sc / 2, oy = y + L->cell / 2 - (y0 + y1 + 1) * sc / 2;
-    for (int dy = y0; dy <= y1; dy++)
-        for (int dx = x0; dx <= x1; dx++)
-            if (brush_cursor_px(brush, 1, dx, dy))
-                gfx_fill_rect(g, (float)(ox + dx * sc), (float)(oy + dy * sc), (float)(ox + dx * sc + sc - 1), (float)(oy + dy * sc + sc - 1), c);
-}
-
-/* The pattern as it will be inked (black dots on paper), in a frame; picked: the frame is white on the black cell */
-static void swatch(gfx_t *g, const tb_layout_t *L, int shade, int x, int y, int sel)
-{
-    int q = L->cell * 55 / 100, sx = x + (L->cell - q) / 2, sy = y + (L->cell - q) / 2;
-    gfx_rrect(g, sx - 3, sy - 3, sx + q + 2, sy + q + 2, 0, 3, TB_WHT, sel ? TB_WHT : TB_BLK);
+    int q = 44, sx = x + (TBI_SIZE - q) / 2, sy = y + (TBI_SIZE - q) / 2;
+    gfx_rrect(g, (float)(sx - 4), (float)(sy - 4), (float)(sx + q + 3), (float)(sy + q + 3), 3, 3, TB_WHT, sel ? TB_WHT : TB_BLK);
     for (int py = 0; py < q; py++)
         for (int px = 0; px < q; px++) gfx_px(g, sx + px, sy + py, cv_shade_black(shade, sx + px, sy + py) ? TB_BLK : TB_WHT);
 }
 
-static void arrow(gfx_t *g, const tb_layout_t *L, int x, int y, int dir, int c)
+/* The pen's real width at full pressure for the size, as a dot */
+static void tb_dot(gfx_t *g, int size, int x, int y, int c)
 {
-    float m = (float)L->cell / 2, cx = (float)x + m, cy = (float)y + m, s = (float)L->cell * 0.26f;
-    float tip = cx + dir * s, back = cx - dir * s * 0.1f;
-    float p[6] = { tip, cy, back, cy - s * 0.8f, back, cy + s * 0.8f };
-    gfx_poly(g, p, 3, c);
-    gfx_line(g, back, cy, cx - dir * s, cy, 6, c);
-    gfx_line(g, cx - dir * s, cy, cx - dir * s, cy + s * 0.9f, 6, c);
+    int d = pen_max_d(size), mx = x + TBI_SIZE / 2, my = y + TBI_SIZE / 2;
+    gfx_ellipse(g, (float)(mx - d / 2), (float)(my - d / 2), (float)(mx + d / 2), (float)(my + d / 2), 0, c, c);
 }
 
-static void cross(gfx_t *g, const tb_layout_t *L, int x, int y, int c)
+static void tb_caption(gfx_t *g, const tb_layout_t *L, int i, int x, int y, int c)
 {
-    float m = (float)L->cell / 2, cx = (float)x + m, cy = (float)y + m, s = (float)L->cell * 0.22f;
-    gfx_line(g, cx - s, cy - s, cx + s, cy + s, 7, c);
-    gfx_line(g, cx - s, cy + s, cx + s, cy - s, 7, c);
+    const font_face_t *f = font_get(FONT_BOLD, 24);
+    int w = (int)((font_width64(f, tb_label[i], 0) + 32) >> 6);
+    gfx_text(g, f, (int32_t)(x + (L->cell - w) / 2) * 64, y + TBI_SIZE + 26, tb_label[i], 0, c);
 }
 
 void tb_draw(gfx_t *g, const tb_layout_t *L, const bstyle_t *cur, int hot)
@@ -88,27 +71,27 @@ void tb_draw(gfx_t *g, const tb_layout_t *L, const bstyle_t *cur, int hot)
     gfx_fill_rect(g, (float)L->x0, (float)L->y0, (float)L->x1, (float)L->y1, TB_WHT);
     int ly = L->top ? L->y1 - TB_LINE + 1 : L->y0;
     gfx_fill_rect(g, (float)L->x0, (float)ly, (float)L->x1, (float)(ly + TB_LINE - 1), TB_BLK);
+    for (int k = 0; k < 3; k++) /* a thin divider between the groups */
+        gfx_fill_rect(g, (float)(L->gap_x[k] - 1), (float)(L->cy + 8), (float)L->gap_x[k], (float)(L->cy + L->ch - 8), TB_BLK);
     for (int i = 0; i < TI_N; i++) {
-        int x = L->cx[i], y = L->cy, sel = 0;
+        int x = L->cx[i], y = L->cy, sel = 0, gx = x + (L->cell - TBI_SIZE) / 2, gy = y + 4;
         if (i < TI_SHADE) sel = cur->brush == i;
         else if (i < TI_SIZE) sel = cur->shade == i - TI_SHADE;
         else if (i < TI_UNDO) sel = cur->size == i - TI_SIZE;
-        if (sel) gfx_rrect(g, (float)x, (float)y, (float)(x + L->cell - 1), (float)(y + L->cell - 1), 12, 0, TB_BLK, TB_BLK);
+        int x1 = x + L->cell - 1, y1 = y + L->ch - 1;
+        if (sel) gfx_rrect(g, (float)x, (float)y, (float)x1, (float)y1, 12, 0, TB_BLK, TB_BLK);
         if (hot == i) { /* the pen is over it: a frame (on a picked item an inset white one) */
-            if (sel) gfx_rrect(g, (float)(x + 6), (float)(y + 6), (float)(x + L->cell - 7), (float)(y + L->cell - 7), 8, 3, TB_BLK, TB_WHT);
-            else gfx_rrect(g, (float)x, (float)y, (float)(x + L->cell - 1), (float)(y + L->cell - 1), 12, 4, TB_WHT, TB_BLK);
+            if (sel) gfx_rrect(g, (float)(x + 5), (float)(y + 5), (float)(x1 - 5), (float)(y1 - 5), 8, 3, TB_BLK, TB_WHT);
+            else gfx_rrect(g, (float)x, (float)y, (float)x1, (float)y1, 12, 4, TB_WHT, TB_BLK);
         }
-        int c = sel ? TB_WHT : TB_BLK;
-        if (i < TI_SHADE) shape(g, L, i, x, y, c);
-        else if (i < TI_SIZE) swatch(g, L, i - TI_SHADE, x, y, sel);
-        else if (i < TI_UNDO) {
-            static const int dia[3] = { 10, 22, 38 };
-            int d = dia[i - TI_SIZE] * L->cell / 104, mx = x + L->cell / 2, my = y + L->cell / 2;
-            if (d < 4) d = 4;
-            gfx_ellipse(g, (float)(mx - d / 2), (float)(my - d / 2), (float)(mx + d / 2), (float)(my + d / 2), 0, c, c);
-        } else if (i == TI_UNDO) arrow(g, L, x, y, -1, c);
-        else if (i == TI_REDO) arrow(g, L, x, y, 1, c);
-        else cross(g, L, x, y, c);
+        int c = sel ? TB_WHT : TB_BLK, bg = sel ? TB_BLK : TB_WHT;
+        if (i < TI_SHADE) tbi_brush(g, i, gx, gy, c, bg);
+        else if (i < TI_SIZE) tb_swatch(g, i - TI_SHADE, gx, gy, sel);
+        else if (i < TI_UNDO) tb_dot(g, i - TI_SIZE, gx, gy, c);
+        else if (i == TI_UNDO) tbi_undo(g, gx, gy, c, bg);
+        else if (i == TI_REDO) tbi_redo(g, gx, gy, c, bg);
+        else tbi_clear(g, gx, gy, c, bg);
+        tb_caption(g, L, i, x, y, c);
     }
     gfx_noclip(g);
 }
