@@ -6,6 +6,8 @@
 #include <string.h>
 #include "sk_cfg.h"
 
+enum { MBLK_ = GFX_BLACK, MWHT_ = GFX_WHITE };
+
 /* ---- the gallery and the menus (gray screens) ---- */
 
 /* copies s into d (cap bytes) cut to fit; no strcpy/strncpy: the X's loader does not export them */
@@ -85,7 +87,7 @@ void sk_screen_render(sketch_t *s)
             nums[i] = gnum(s, first + i);
             if (nums[i]) blit_add(s, nums[i], x, y);
         }
-    int px = s->L.ax1 - s->L.tw, py = (s->L.ay0 + s->L.ay1) / 2 - s->L.th / 2;
+    int px = s->L.ax1 - s->L.tw - 12, py = (s->L.ay0 + s->L.ay1) / 2 - s->L.th / 2; /* the preview, framed as a gallery tile */
     if (s->mode == SK_ACTIONS || s->mode == SK_CONFIRM) blit_add(s, s->act_num, px, py);
     cv_fill(&s->ui, 1);
     ui_g(s, &g);
@@ -98,7 +100,7 @@ void sk_screen_render(sketch_t *s)
         break;
     }
     case SK_ACTIONS: {
-        static const char *const items[] = { "Open", "Print", "Send to phone", "Back" };
+        static const char *const items[] = { "Open", "Print", "Send to phone", "Settings", "Back" };
         int k = 0, v = s->act_num;
         char d[8];
         int m = 0;
@@ -106,8 +108,9 @@ void sk_screen_render(sketch_t *s)
         do d[m++] = (char)('0' + v % 10), v /= 10; while (v);
         while (m) t[k++] = d[--m];
         t[k] = 0;
-        ui_list(&g, &s->L, t, items, 4, s->act_sel, &s->list_x, &s->list_y0);
-        s->list_n = 4;
+        ui_list(&g, &s->L, t, items, 5, s->act_sel, &s->list_x, &s->list_y0);
+        s->list_n = 5;
+        gfx_rrect(&g, px - 10, py - 10, px + s->L.tw + 9, py + s->L.th + 9, 12, 2, MWHT_, MBLK_);
         ui_menu_pills(&g, &s->bar, "Select");
         break;
     }
@@ -115,6 +118,7 @@ void sk_screen_render(sketch_t *s)
         static const char *const items[] = { "Print", "Back" };
         ui_list(&g, &s->L, "Print this drawing?", items, 2, s->act_sel, &s->list_x, &s->list_y0);
         s->list_n = 2;
+        gfx_rrect(&g, px - 10, py - 10, px + s->L.tw + 9, py + s->L.th + 9, 12, 2, MWHT_, MBLK_);
         char a[48] = "Printer: ";
         printer_addr(s, a + 9, 36);
         ui_footer(&g, &s->L, a);
@@ -206,9 +210,10 @@ static void list_select(sketch_t *s, uint32_t now)
             }
             sk_screen_render(s);
             break;
-        case 2:
+        case 2: case 3: /* the phone page: the files (download the drawings) or the settings form (the printer's address) */
             s->mode = SK_SHARE;
-            s->share_req = 1;
+            s->share_req = s->act_sel == 2 ? 1 : 2;
+            s->share_kind = s->share_req;
             s->share_rc = 0;
             memset(&s->share_shown, 0xff, sizeof(s->share_shown));
             break;

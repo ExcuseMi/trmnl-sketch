@@ -101,7 +101,7 @@ void ui_share(gfx_t *g, const app_touchbar_t *bar, const share_view_t *v)
     (void)bar;
     gfx_fill(g, WHT);
     const font_face_t *f = face(0, 34), *big = face(1, 64), *dig = face(1, 110);
-    text(g, big, 60, 130, "Download sketches", BLK);
+    text(g, big, 60, 130, v->settings ? "Sketch settings" : "Download sketches", BLK);
     int y = 220;
     if (v->steps[0][0]) text(g, f, 60, y, v->steps[0], BLK), y += 50;
     if (v->steps[1][0]) text(g, f, 60, y, v->steps[1], BLK), y += 90;

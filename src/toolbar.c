@@ -56,15 +56,13 @@ static void shape(gfx_t *g, const tb_layout_t *L, int brush, int x, int y, int c
                 gfx_fill_rect(g, (float)(ox + dx * sc), (float)(oy + dy * sc), (float)(ox + dx * sc + sc - 1), (float)(oy + dy * sc + sc - 1), c);
 }
 
+/* The pattern as it will be inked (black dots on paper), in a frame; picked: the frame is white on the black cell */
 static void swatch(gfx_t *g, const tb_layout_t *L, int shade, int x, int y, int sel)
 {
     int q = L->cell * 55 / 100, sx = x + (L->cell - q) / 2, sy = y + (L->cell - q) / 2;
-    gfx_rrect(g, sx - 3, sy - 3, sx + q + 2, sy + q + 2, 0, 3, sel ? BLK : WHT, sel ? WHT : BLK);
+    gfx_rrect(g, sx - 3, sy - 3, sx + q + 2, sy + q + 2, 0, 3, WHT, sel ? WHT : BLK);
     for (int py = 0; py < q; py++)
-        for (int px = 0; px < q; px++) {
-            int ink = cv_shade_black(shade, sx + px, sy + py);
-            gfx_px(g, sx + px, sy + py, ink ? (sel ? WHT : BLK) : (sel ? BLK : WHT));
-        }
+        for (int px = 0; px < q; px++) gfx_px(g, sx + px, sy + py, cv_shade_black(shade, sx + px, sy + py) ? BLK : WHT);
 }
 
 static void arrow(gfx_t *g, const tb_layout_t *L, int x, int y, int dir, int c)

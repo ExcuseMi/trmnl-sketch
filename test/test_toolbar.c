@@ -158,6 +158,8 @@ static void test_draw_near_strip(void)
     key(&r, 3);
     idle(&r, 3000);
     int below = r.s.tb.y1 + 1;
+    static uint8_t strip[TS * 200];
+    memcpy(strip, r.fb, (size_t)TS * (size_t)below);
     /* drawing elsewhere stays fast: ink below the strip is a few small partial rectangles, no flash, no full refresh */
     rect_t out[SK_MAX_RECTS];
     while (rig_frame(&r, out) != 0) {}
@@ -174,10 +176,7 @@ static void test_draw_near_strip(void)
     rig_line(&r, 700, 700, 700, below + 3, 60000, 0);
     rig_line(&r, 900, 700, 1100, below + 14, 60000, 0);
     settle(&r);
-    for (int x = 0; x < TW; x += 5) { /* the strip's bottom line is intact */
-        int yb = r.s.tb.y1 - 1;
-        CHECK(!((r.fb[yb * TS + x / 8] >> (7 - x % 8)) & 1));
-    }
+    CHECK(!memcmp(strip, r.fb, (size_t)TS * (size_t)below)); /* the strip is as it was: ink up to its edge does not eat it */
     CHECK(px_black(&r, 700, below + 10));
     /* a hover near the strip draws no cursor into it */
     rig_pen(&r, 800, r.s.tb.y1 + 4, APP_PEN_IN_RANGE, 0);

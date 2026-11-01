@@ -8,6 +8,7 @@ int png_write(const char *path, const gfx_t *g);
 int png_write_gray(const char *path, const uint8_t *gray, int fw, int fh, int orient);
 
 static int bad;
+static void brush_shots(const char *dir);
 
 static void save(rig_t *r, const char *dir, const char *name)
 {
@@ -46,8 +47,7 @@ static void draw_page(rig_t *r)
 {
     for (int s = 0; s < 3; s++) {
         wave(r, 200, 1650, 300 + s * 280, 70, 0);
-        sk_pen_key(&r->s, 1u << 3, 1u << 3, r->now += 50); /* size */
-        sk_pen_key(&r->s, 0, 1u << 3, r->now);
+        sk_set_size(&r->s, (s + 1) % 3, r->now += 50);
     }
     ring(r, 450, 1150, 150, 0);
     ring(r, 900, 1150, 120, 0);
@@ -99,6 +99,71 @@ static void gallery_shots(const char *dir)
     }
 }
 
+/* One stroke per brush, the toolbar's order from the top; the names are panels drawn on the screen only */
+static void brush_page(rig_t *r, const char *dir, const char *name, int shade)
+{
+    sk_set_shade(&r->s, shade, r->now += 50);
+    sk_set_size(&r->s, 1, r->now += 50);
+    for (int b = 0; b < BR_N; b++) {
+        int y = 140 + b * 190;
+        if (b == BR_ERASER) { /* the eraser works on dense scribbles of the marker */
+            sk_set_brush(&r->s, BR_MARKER, r->now += 50);
+            sk_set_size(&r->s, 2, r->now += 50);
+            for (int k = -1; k <= 1; k++) wave(r, 330, 1700, y + k * 34, 0, 0);
+            sk_set_size(&r->s, 1, r->now += 50);
+        }
+        sk_set_brush(&r->s, b, r->now += 50);
+        wave(r, 330, 1700, y, b == BR_ERASER ? 25 : 55, 0);
+        r->now += 3000;
+        sk_tick(&r->s, r->now);
+    }
+    rig_pen(r, 10, 10, 0, 0);
+    r->now += 3000;
+    sk_tick(&r->s, r->now);
+    for (int b = 0; b < BR_N; b++) { /* names over the left edge, on the screen only */
+        gfx_t g;
+        box_t bx;
+        gfx_init(&g, r->fb, TW, TH, TS, r->s.orient);
+        ui_toast(&g, brush_name(b), 140 + b * 190 - 38, &bx);
+    }
+    save(r, dir, name);
+}
+
+static void brush_shots(const char *dir)
+{
+    static rig_t r;
+    const char *const names[SH_N] = { "b1-brushes-black", "b2-brushes-dark", "b3-brushes-light" };
+    for (int sh = 0; sh < SH_N; sh++) {
+        rig_new(&r, APP_ORIENT_BAR_BOTTOM);
+        brush_page(&r, dir, names[sh], sh);
+        if (sh == 0) { /* the toolbar over this drawing (landscape), then the same page with it hidden again */
+            sk_set_brush(&r.s, BR_BRUSHPEN, r.now += 50);
+            sk_pen_key(&r.s, 1u << 3, 1u << 3, r.now += 50);
+            sk_pen_key(&r.s, 0, 1u << 3, r.now);
+            r.now += 3000;
+            sk_tick(&r.s, r.now);
+            save(&r, dir, "t1-toolbar-landscape");
+        }
+        rig_end(&r);
+    }
+    /* the cursor of every brush at the three sizes, over ink and paper */
+    rig_new(&r, APP_ORIENT_BAR_BOTTOM);
+    sk_set_brush(&r.s, BR_MARKER, r.now += 50);
+    sk_set_size(&r.s, 2, r.now += 50);
+    for (int j = 0; j < 3; j++) wave(&r, 100, 1770, 380 + j * 380, 0, 0);
+    rig_pen(&r, 10, 10, 0, 0);
+    r.now += 3000;
+    sk_tick(&r.s, r.now);
+    for (int b = 0; b < BR_N; b++)
+        for (int j = 0; j < 3; j++) {
+            box_t bx; /* each over paper (above the bar) and over the black bar */
+            ui_cursor(&r.s.fb, 120 + b * 255, 380 + j * 380 - 110, b, j, &bx);
+            ui_cursor(&r.s.fb, 120 + b * 255 + 120, 380 + j * 380, b, j, &bx);
+        }
+    save(&r, dir, "c1-cursors-each-brush-three-sizes");
+    rig_end(&r);
+}
+
 int main(int argc, char **argv)
 {
     const char *dir = argc > 1 ? argv[1] : "shots";
@@ -106,10 +171,7 @@ int main(int argc, char **argv)
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
     save(&r, dir, "1-legend-at-start");
     r.fs.fail_write = 0;
-    sk_pen_key(&r.s, 1u << 3, 1u << 3, r.now += 50);
-    sk_pen_key(&r.s, 0, 1u << 3, r.now); /* medium -> thick, so the loop below starts thin */
-    sk_pen_key(&r.s, 1u << 3, 1u << 3, r.now += 50);
-    sk_pen_key(&r.s, 0, 1u << 3, r.now);
+    sk_set_size(&r.s, 0, r.now += 50); /* the loop below starts thin */
     draw_page(&r);
     r.now += 3000;
     sk_tick(&r.s, r.now);
@@ -117,14 +179,12 @@ int main(int argc, char **argv)
     save(&r, dir, "2-three-sizes-with-pressure");
     rig_pen(&r, 700, 800, APP_PEN_IN_RANGE, 0);
     save(&r, dir, "3-hover-cursor");
-    sk_pen_key(&r.s, 1u << 3, 1u << 3, r.now += 50);
-    sk_pen_key(&r.s, 0, 1u << 3, r.now);
+    sk_set_size(&r.s, 1, r.now += 50);
     save(&r, dir, "4-toast-pen-size");
     r.now += 3000;
     sk_tick(&r.s, r.now);
     /* the eraser: the pen's button held, across the waves and one ring (medium size: the eraser is wider) */
-    sk_pen_key(&r.s, 1u << 3, 1u << 3, r.now += 50);
-    sk_pen_key(&r.s, 0, 1u << 3, r.now);
+    sk_set_size(&r.s, 2, r.now += 50);
     r.now += 3000;
     sk_tick(&r.s, r.now);
     for (int i = 0; i <= 40; i++) rig_pen(&r, 600 + i * 12, 220 + i * 10 + (i % 2) * 6, APP_PEN_TIP | APP_PEN_IN_RANGE | APP_PEN_BARREL, 30000);
@@ -161,8 +221,7 @@ int main(int argc, char **argv)
                 sk_pen(&r.s, APP_PEN_TIP | APP_PEN_IN_RANGE, x, y, (unsigned)(4000.0f + 58000.0f * sinf(t * 3.14159f)), r.now);
             }
             sk_pen(&r.s, APP_PEN_IN_RANGE, 48000, 12000, 0, r.now += 5);
-            sk_pen_key(&r.s, 1u << 3, 1u << 3, r.now += 50);
-            sk_pen_key(&r.s, 0, 1u << 3, r.now);
+            sk_set_size(&r.s, (s + 2) % 3, r.now += 50);
         }
         (void)m;
     }
@@ -170,6 +229,11 @@ int main(int argc, char **argv)
     sk_tick(&r.s, r.now);
     rig_pen(&r, 10, 10, 0, 0);
     save(&r, dir, "a-portrait-strokes");
+    sk_pen_key(&r.s, 1u << 3, 1u << 3, r.now += 50); /* tablet button 4: the toolbar, in portrait */
+    sk_pen_key(&r.s, 0, 1u << 3, r.now);
+    sk_set_brush(&r.s, BR_PENCIL, r.now += 50);
+    save(&r, dir, "t2-toolbar-portrait");
     rig_end(&r);
+    brush_shots(dir);
     return bad;
 }

@@ -89,7 +89,8 @@ static void push(int n, const rect_t *out)
     }
     for (int i = 0; i < n; i++) {
         app_rect_t r = { out[i].x, out[i].y, out[i].w, out[i].h };
-        api->screen_refresh(&r, APP_REFRESH_PARTIAL); /* the fastest the API has, 1-bit mode */
+        /* ink and cursors: the fastest the API has, 1-bit mode; the toolbar's strip: clean, only that rectangle */
+        api->screen_refresh(&r, out[i].flash ? APP_REFRESH_FULL : APP_REFRESH_PARTIAL);
     }
 }
 
@@ -130,7 +131,10 @@ int app_main(const app_api_t *a)
         sk_tick(&sk, now);
         if (sk.share_req > 0 && !sharing) {
             app_webshare_files_t opt = { SK_DIR, ".png", 4u * 1024 * 1024 };
-            share_rc = api->size >= APP_API_SLOT(37) ? api->webshare_start_files(APP_WEBSHARE_AUTO, &opt) : APP_ENOTSUP;
+            if (sk.share_req == 2) /* the settings form: the printer's address */
+                share_rc = api->size >= APP_API_SLOT(47) ? api->webshare_start_settings(APP_WEBSHARE_AUTO) : APP_ENOTSUP;
+            else
+                share_rc = api->size >= APP_API_SLOT(37) ? api->webshare_start_files(APP_WEBSHARE_AUTO, &opt) : APP_ENOTSUP;
             sharing = share_rc == 0;
             if (share_rc) api->log("sketch: wi-fi page start %d", share_rc);
             sk.share_req = 0;

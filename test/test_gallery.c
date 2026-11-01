@@ -295,7 +295,7 @@ static void test_pen_in_the_menus(void)
     rig_pen(&r, x + 3, y + 2, APP_PEN_IN_RANGE, 0);
     CHECK(r.s.mode == SK_ACTIONS && r.s.act_num == r.s.pg.nums[r.s.pg.n - 2]);
     /* in the list: a tap on "Back" returns to the gallery; the page took no ink from all of this */
-    int ix = r.s.list_x + 50, iy = r.s.list_y0 + 3 * 110 - 30;
+    int ix = r.s.list_x + 50, iy = r.s.list_y0 + 4 * 110 - 30; /* Back is the fifth row since Settings */
     rig_pen(&r, ix, iy, APP_PEN_TIP | APP_PEN_IN_RANGE, 20000);
     rig_pen(&r, ix, iy, APP_PEN_IN_RANGE, 0);
     CHECK(r.s.mode == SK_GALLERY);
@@ -337,6 +337,53 @@ static void test_orientations_render(void)
     }
 }
 
+/* The action list: a framed preview like a gallery tile, and "Settings" opens the phone's settings form (the printer) */
+static void test_actions_frame_and_settings(void)
+{
+    static rig_t r;
+    for (int o = 0; o < 4; o++) {
+        rig_new(&r, o);
+        make_pages(&r, 2);
+        tap(&r, APP_TOUCH_MIDDLE);
+        tap(&r, APP_TOUCH_MIDDLE); /* the list of the page on screen */
+        CHECK(r.s.mode == SK_ACTIONS && r.s.list_n == 5);
+        gfx_t g;
+        gfx_init(&g, r.s.ui.px, r.s.ui.w, r.s.ui.h, r.s.ui.stride, o);
+        int px = r.s.L.ax1 - r.s.L.tw - 12, py = (r.s.L.ay0 + r.s.L.ay1) / 2 - r.s.L.th / 2;
+        CHECK(!gfx_get(&g, px - 9, py + r.s.L.th / 2) && !gfx_get(&g, px + r.s.L.tw + 8, py + r.s.L.th / 2)); /* the frame: left and right edge */
+        CHECK(!gfx_get(&g, px + r.s.L.tw / 2, py - 9) && !gfx_get(&g, px + r.s.L.tw / 2, py + r.s.L.th + 8)); /* top and bottom */
+        CHECK(gfx_get(&g, px + r.s.L.tw / 2, py + r.s.L.th / 2)); /* inside it is paper, the thumbnail goes there */
+        CHECK(px + r.s.L.tw + 12 <= r.s.L.ax1 + 12 && py >= r.s.L.ay0 && py + r.s.L.th <= r.s.L.ay1); /* on the screen, level with the list */
+        CHECK(py + r.s.L.th / 2 > r.s.list_y0 && py + r.s.L.th / 2 < r.s.list_y0 + 4 * 110);
+        rig_end(&r);
+    }
+    rig_new(&r, APP_ORIENT_BAR_BOTTOM);
+    make_pages(&r, 2);
+    tap(&r, APP_TOUCH_MIDDLE);
+    tap(&r, APP_TOUCH_MIDDLE);
+    for (int i = 0; i < 3; i++) tap(&r, APP_TOUCH_RIGHT); /* Open, Print, Send to phone, Settings */
+    CHECK(r.s.act_sel == 3);
+    tap(&r, APP_TOUCH_MIDDLE);
+    CHECK(r.s.mode == SK_SHARE && r.s.share_req == 2 && r.s.share_kind == 2); /* the settings page, not the files */
+    app_webshare_status_t st;
+    memset(&st, 0, sizeof(st));
+    st.running = 1;
+    st.mode = APP_WEBSHARE_HOME;
+    strcpy(st.address, "192.168.1.9");
+    strcpy(st.code, "123456");
+    sk_share_update(&r.s, 0, &st);
+    CHECK(r.s.share.settings && r.s.share.up);
+    tap(&r, APP_TOUCH_MIDDLE); /* any touch ends it */
+    CHECK(r.s.mode == SK_GALLERY && r.s.share_req == -1);
+    tap(&r, APP_TOUCH_MIDDLE);
+    for (int i = 0; i < 2; i++) tap(&r, APP_TOUCH_RIGHT);
+    tap(&r, APP_TOUCH_MIDDLE);
+    CHECK(r.s.mode == SK_SHARE && r.s.share_req == 1 && r.s.share_kind == 1); /* "Send to phone" is still the files */
+    sk_share_update(&r.s, 0, &st);
+    CHECK(!r.s.share.settings);
+    rig_end(&r);
+}
+
 int main(void)
 {
     test_layout_four_positions();
@@ -349,5 +396,6 @@ int main(void)
     test_pen_in_the_menus();
     test_new_page_tile_and_empty_rule();
     test_orientations_render();
+    test_actions_frame_and_settings();
     return CHECK_DONE("test_gallery");
 }
