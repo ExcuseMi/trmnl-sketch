@@ -173,10 +173,10 @@ static void test_footprints(void)
 
 static int shape(int br, int size, uint8_t *bits /* (2r+1)^2 */)
 {
-    int r = brush_cursor_r(br, size), n = 0;
+    int r = brush_shape_r(br, size), n = 0; /* the natural outline; the drawn cursor is checked in test_cursors */
     for (int dy = -r; dy <= r; dy++)
         for (int dx = -r; dx <= r; dx++) {
-            int v = brush_cursor_px(br, size, dx, dy);
+            int v = brush_shape_px(br, size, dx, dy);
             if (bits) bits[(dy + r) * (2 * r + 1) + dx + r] = (uint8_t)v;
             n += v;
         }
@@ -187,11 +187,15 @@ static void test_cursors(void)
 {
     static uint8_t a[100 * 100], b[100 * 100];
     for (int br = 0; br < BR_N; br++) {
-        int prev_r = 0;
+        int prev_r = 0, prev_n = 0;
         for (int size = 0; size < 3; size++) {
-            int r = brush_cursor_r(br, size);
-            CHECK(r > prev_r && r < 40 && shape(br, size, 0) > 8); /* the size shows in the shape */
-            prev_r = r;
+            int r = brush_cursor_r(br, size), rs = brush_shape_r(br, size), n = shape(br, size, 0);
+            CHECK(r >= 16 && r >= rs + 1 && r < 40 && n > 8 && n > prev_n && r >= prev_r); /* the size shows in the shape; 32 px across at least */
+            prev_r = r, prev_n = n;
+            /* the drawn cursor holds the whole outline, thicker, and a cross to 16 px when the brush is small */
+            for (int dy = -rs; dy <= rs; dy++)
+                for (int dx = -rs; dx <= rs; dx++) CHECK(!brush_shape_px(br, size, dx, dy) || brush_cursor_px(br, size, dx, dy));
+            if (rs + 1 < 16) CHECK(brush_cursor_px(br, size, 16, 0) && brush_cursor_px(br, size, -16, 0) && brush_cursor_px(br, size, 0, 16) && brush_cursor_px(br, size, 0, -16));
             for (int d = -50; d <= 50; d++) /* nothing is drawn outside its square */
                 CHECK(!brush_cursor_px(br, size, d, r + 1 + (d & 3)) && !brush_cursor_px(br, size, r + 1 + (d & 3), d) && !brush_cursor_px(br, size, -r - 1 - (d & 3), d));
         }
@@ -199,7 +203,7 @@ static void test_cursors(void)
     /* every brush has its own shape */
     for (int i = 0; i < BR_N; i++)
         for (int j = i + 1; j < BR_N; j++) {
-            int ri = brush_cursor_r(i, 1), rj = brush_cursor_r(j, 1), same = ri == rj;
+            int ri = brush_shape_r(i, 1), rj = brush_shape_r(j, 1), same = ri == rj;
             if (same) {
                 shape(i, 1, a);
                 shape(j, 1, b);
@@ -208,32 +212,32 @@ static void test_cursors(void)
             CHECK(!same);
         }
     /* the ones the owner named */
-    int r = brush_cursor_r(BR_ERASER, 1), h = r - 1, inner = 0;
+    int r = brush_shape_r(BR_ERASER, 1), h = r - 1, inner = 0;
     for (int dy = -h + 1; dy < h; dy++)
-        for (int dx = -h + 1; dx < h; dx++) inner += brush_cursor_px(BR_ERASER, 1, dx, dy);
-    CHECK(inner == 0 && brush_cursor_px(BR_ERASER, 1, h, 0) && brush_cursor_px(BR_ERASER, 1, 0, -h) && !brush_cursor_px(BR_ERASER, 1, 0, 0)); /* hollow square */
-    CHECK(brush_cursor_px(BR_FINELINER, 1, 0, 0)); /* a ring with a dot: the hot spot */
-    r = brush_cursor_r(BR_FINELINER, 1);
-    CHECK(brush_cursor_px(BR_FINELINER, 1, r, 0) && brush_cursor_px(BR_FINELINER, 1, 0, r) && !brush_cursor_px(BR_FINELINER, 1, r - 3, 0));
+        for (int dx = -h + 1; dx < h; dx++) inner += brush_shape_px(BR_ERASER, 1, dx, dy);
+    CHECK(inner == 0 && brush_shape_px(BR_ERASER, 1, h, 0) && brush_shape_px(BR_ERASER, 1, 0, -h) && !brush_shape_px(BR_ERASER, 1, 0, 0)); /* hollow square */
+    CHECK(brush_shape_px(BR_FINELINER, 1, 0, 0)); /* a ring with a dot: the hot spot */
+    r = brush_shape_r(BR_FINELINER, 1);
+    CHECK(brush_shape_px(BR_FINELINER, 1, r, 0) && brush_shape_px(BR_FINELINER, 1, 0, r) && !brush_shape_px(BR_FINELINER, 1, r - 3, 0));
     CHECK(shape(BR_SPRAY, 1, 0) < shape(BR_FINELINER, 1, 0) * 3 && shape(BR_SPRAY, 1, 0) > 10); /* dotted: gaps in the ring */
     int gaps = 0; /* the spray ring is not closed */
-    r = brush_cursor_r(BR_SPRAY, 1);
+    r = brush_shape_r(BR_SPRAY, 1);
     for (int dy = -r; dy <= r; dy++)
         for (int dx = -r; dx <= r; dx++) {
             int d2 = dx * dx + dy * dy;
-            gaps += d2 <= r * r && d2 >= (r - 1) * (r - 1) && !brush_cursor_px(BR_SPRAY, 1, dx, dy);
+            gaps += d2 <= r * r && d2 >= (r - 1) * (r - 1) && !brush_shape_px(BR_SPRAY, 1, dx, dy);
         }
     CHECK(gaps > 10);
     /* calligraphy: a bar slanted like "/" */
-    CHECK(brush_cursor_px(BR_CALLIGRAPHY, 1, 3, -3) && brush_cursor_px(BR_CALLIGRAPHY, 1, -3, 3) && !brush_cursor_px(BR_CALLIGRAPHY, 1, 3, 3));
+    CHECK(brush_shape_px(BR_CALLIGRAPHY, 1, 3, -3) && brush_shape_px(BR_CALLIGRAPHY, 1, -3, 3) && !brush_shape_px(BR_CALLIGRAPHY, 1, 3, 3));
     /* brush pen: a drop, pointed to the upper right; pencil: a tip with the body to the upper right */
     int ext_ur = -99, ext_ll = -99;
     for (int br = BR_BRUSHPEN; br <= BR_PENCIL; br++) {
         ext_ur = ext_ll = -99;
-        r = brush_cursor_r(br, 1);
+        r = brush_shape_r(br, 1);
         for (int dy = -r; dy <= r; dy++)
             for (int dx = -r; dx <= r; dx++)
-                if (brush_cursor_px(br, 1, dx, dy)) {
+                if (brush_shape_px(br, 1, dx, dy)) {
                     if (dx - dy > ext_ur) ext_ur = dx - dy;
                     if (dy - dx > ext_ll) ext_ll = dy - dx;
                 }

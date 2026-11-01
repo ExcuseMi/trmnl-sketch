@@ -102,9 +102,9 @@ static void test_hover_cursor(void)
     CHECK(r.s.cursor && !same_page_and_fb(&r)); /* the cursor is drawn */
     CHECK(page_is(&r, page)); /* and the page is not touched by it */
     rig_pen(&r, 700, 500, APP_PEN_IN_RANGE | APP_PEN_BARREL, 0); /* the eraser's cursor is bigger */
-    int r1 = r.s.cr;
+    int cb1 = r.s.cb;
     rig_pen(&r, 710, 500, APP_PEN_IN_RANGE, 0);
-    CHECK(r1 > r.s.cr);
+    CHECK(cb1 == BR_ERASER && r.s.cb != BR_ERASER && brush_shape_r(cb1, r.s.sty.size) > brush_shape_r(r.s.cb, r.s.sty.size)); /* both cursors are at least 32 px; the eraser's outline is the bigger */
     rig_pen(&r, 1400, 900, 0, 0); /* the pen leaves the tablet */
     CHECK(!r.s.cursor && same_page_and_fb(&r)); /* no mark is left */
     for (int i = 0; i < 40; i++) rig_pen(&r, 300 + i * 30, 500, APP_PEN_IN_RANGE, 0);

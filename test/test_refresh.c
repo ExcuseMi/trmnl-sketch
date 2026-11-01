@@ -124,7 +124,7 @@ static void test_stroke_rates(void)
     run_stroke("writing", 0.6f, 0, 6000);
     run_stroke("fast stroke", 3.0f, 0, 20000);
     run_stroke("very fast stroke", 8.0f, 0, 90000);
-    run_stroke("hover, fast", 3.0f, 1, 12000);
+    run_stroke("hover, fast", 3.0f, 1, 16000); /* bigger cursor on purpose (owner 2026-11-01): was 12000 */
 }
 
 /* A push that comes too soon is held back: the batch time is kept */

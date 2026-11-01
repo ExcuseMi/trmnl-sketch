@@ -37,6 +37,8 @@ void cv_disc(canvas_t *c, int cx, int cy, int d, int colour, box_t *dirty);
 void cv_seg(canvas_t *c, int x0, int y0, int d0, int x1, int y1, int d1, int colour, box_t *dirty);
 /* Copies the rows and whole bytes covering box b from src to dst (same size and stride) */
 void cv_copy_box(canvas_t *dst, const canvas_t *src, const box_t *b);
+/* Sets one pixel (colour 0 black, 1 white), clipped (the cursors: undone by copying the page back) */
+void cv_set(canvas_t *c, int x, int y, int colour);
 /* Inverts one pixel (the hover cursor: drawn and undone by copying the page back) */
 void cv_flip(canvas_t *c, int x, int y);
 #endif

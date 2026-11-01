@@ -43,6 +43,8 @@ typedef struct {
     bstyle_t sty;        /* the brush, shade and size picked (brush may be the eraser) */
     int last_ink;        /* the brush before the eraser was picked */
     bstyle_t stk;        /* the open stroke's style */
+    int tb_hot, tb_ptr;  /* the toolbar item the pen is over (-1 none); the arrow pointer is drawn over the strip */
+    box_t tb_ptr_box;
     int tb_on, tb_hold;  /* the toolbar is up; a pen press that began on it is still down */
     tb_layout_t tb;
     box_t tb_box;        /* the strip in the framebuffer, whole bytes */
@@ -79,6 +81,7 @@ typedef struct {
     pj_result_t pres;
     struct { int num, x, y; } blit[SK_BLITS]; /* thumbnails to lay over `ui` */
     int blit_n;
+    int hot, ptr_ctl;    /* the control (CTL_*) the pen hovers over / a press began on */
     int ptr_down, ptr_moved, ptr_item, ptr_x, ptr_y; /* a pen or mouse press on a menu */
     uint32_t pushed_px;  /* statistics: pixels and rectangles handed out by sk_flush */
     uint32_t pushed_rects;
@@ -134,5 +137,6 @@ void sk_screen_render(sketch_t *s); /* draws the menu screen of the mode into `u
 void sk_menu_cursor(sketch_t *s); /* draws the pointer on the framebuffer at the hover place, when a menu shows one */
 void sk_to_gallery(sketch_t *s, uint32_t now);
 void sk_menu_touch(sketch_t *s, int zone, int gesture, uint32_t now);
+void sk_menu_key(sketch_t *s, unsigned down, uint32_t now); /* tablet buttons (bit 0 is button 1) in a menu screen */
 void sk_menu_pen(sketch_t *s, unsigned flags, int fx, int fy, int inside, uint32_t now);
 #endif

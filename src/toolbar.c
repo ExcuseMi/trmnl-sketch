@@ -82,7 +82,7 @@ static void cross(gfx_t *g, const tb_layout_t *L, int x, int y, int c)
     gfx_line(g, cx - s, cy + s, cx + s, cy - s, 7, c);
 }
 
-void tb_draw(gfx_t *g, const tb_layout_t *L, const bstyle_t *cur)
+void tb_draw(gfx_t *g, const tb_layout_t *L, const bstyle_t *cur, int hot)
 {
     gfx_clip(g, L->x0, L->y0, L->x1, L->y1);
     gfx_fill_rect(g, (float)L->x0, (float)L->y0, (float)L->x1, (float)L->y1, TB_WHT);
@@ -94,6 +94,10 @@ void tb_draw(gfx_t *g, const tb_layout_t *L, const bstyle_t *cur)
         else if (i < TI_SIZE) sel = cur->shade == i - TI_SHADE;
         else if (i < TI_UNDO) sel = cur->size == i - TI_SIZE;
         if (sel) gfx_rrect(g, (float)x, (float)y, (float)(x + L->cell - 1), (float)(y + L->cell - 1), 12, 0, TB_BLK, TB_BLK);
+        if (hot == i) { /* the pen is over it: a frame (on a picked item an inset white one) */
+            if (sel) gfx_rrect(g, (float)(x + 6), (float)(y + 6), (float)(x + L->cell - 7), (float)(y + L->cell - 7), 8, 3, TB_BLK, TB_WHT);
+            else gfx_rrect(g, (float)x, (float)y, (float)(x + L->cell - 1), (float)(y + L->cell - 1), 12, 4, TB_WHT, TB_BLK);
+        }
         int c = sel ? TB_WHT : TB_BLK;
         if (i < TI_SHADE) shape(g, L, i, x, y, c);
         else if (i < TI_SIZE) swatch(g, L, i - TI_SHADE, x, y, sel);

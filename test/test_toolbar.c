@@ -229,13 +229,18 @@ static void test_brush_cursor_on_screen(void)
             rig_pen(&r, 1000, 700, APP_PEN_IN_RANGE, 0);
             rig_pen(&r, 600, 505, APP_PEN_IN_RANGE, 0);
             CHECK(r.s.cursor && r.s.cb == b && r.s.cr == brush_cursor_r(b, size));
-            /* the screen shows exactly the shape on the page */
-            int r0 = r.s.cr, wrong = 0;
+            /* the screen shows the shape black, a 2 px white outline around it, and the page elsewhere */
+            int r0 = r.s.cr + BR_CUR_OUT, wrong = 0, blacks = 0;
             for (int dy = -r0; dy <= r0; dy++)
                 for (int dx = -r0; dx <= r0; dx++) {
                     int page_px = cv_get(&r.s.page, 600 + dx, 505 + dy), scr = (r.fb[(505 + dy) * TS + (600 + dx) / 8] >> (7 - (600 + dx) % 8)) & 1;
-                    wrong += (page_px != scr) != brush_cursor_px(b, size, dx, dy);
+                    int shape = brush_cursor_px(b, size, dx, dy), near = 0;
+                    for (int y = -2; y <= 2; y++)
+                        for (int x = -2; x <= 2; x++) near |= brush_cursor_px(b, size, dx + x, dy + y);
+                    wrong += scr != (shape ? 0 : near ? 1 : page_px);
+                    blacks += shape && !scr;
                 }
+            CHECK(blacks > 20);
             CHECK(wrong == 0);
             CHECK(!memcmp(page, r.s.page.px, sizeof(page)));
             rig_pen(&r, 10, 900, 0, 0); /* the pen leaves: no mark is left */
@@ -311,6 +316,77 @@ static void test_tail_and_eraser_toggle(void)
     rig_end(&r);
 }
 
+/* ---- the arrow pointer and the hover frame on the open strip ---- */
+
+static void push(uint8_t *panel, const rig_t *r, const rect_t *out, int n)
+{
+    if (n == SK_FULL) return (void)memcpy(panel, r->fb, (size_t)TS * TH);
+    for (int i = 0; i < n; i++)
+        for (int y = out[i].y; y < out[i].y + out[i].h; y++) memcpy(panel + y * TS + out[i].x / 8, r->fb + y * TS + out[i].x / 8, (size_t)out[i].w / 8);
+}
+static int rect_hits(const rect_t *q, const box_t *b)
+{
+    return !box_empty(b) && q->x <= b->x1 && q->x + q->w > b->x0 && q->y <= b->y1 && q->y + q->h > b->y0;
+}
+static void item_fb_box(const rig_t *r, int i, box_t *b)
+{
+    *b = (box_t){ r->s.tb.cx[i], r->s.tb.cy, r->s.tb.cx[i] + r->s.tb.cell - 1, r->s.tb.cy + r->s.tb.cell - 1 };
+}
+
+static void test_pointer_over_the_strip(void)
+{
+    static rig_t r;
+    static uint8_t panel[TS * TH], clean[TS * TH];
+    rect_t out[SK_MAX_RECTS];
+    rig_new(&r, APP_ORIENT_BAR_BOTTOM);
+    scribble(&r);
+    key(&r, 3);
+    settle(&r);
+    push(panel, &r, out, rig_frame(&r, out));
+    memcpy(clean, r.fb, sizeof(clean));
+    CHECK(!r.s.tb_ptr && r.s.tb_hot == -1);
+    int xa = r.s.tb.cx[2] + r.s.tb.cell / 2, xb = r.s.tb.cx[TI_SHADE + 1] + r.s.tb.cell / 2, y = r.s.tb.cy + r.s.tb.cell / 2;
+    rig_pen(&r, xa, y, APP_PEN_IN_RANGE, 0);
+    r.now += 200;
+    int n = rig_frame(&r, out);
+    CHECK(r.s.tb_ptr && r.s.tb_hot == 2 && !r.s.cursor && n > 0 && n != SK_FULL);
+    push(panel, &r, out, n);
+    CHECK(!memcmp(panel, r.fb, sizeof(panel)) && memcmp(clean, r.fb, sizeof(clean))); /* arrow and frame are drawn */
+    /* onto another item: only the old and the new item and the arrow's two boxes are pushed */
+    box_t oldp = r.s.tb_ptr_box, ia, ib;
+    item_fb_box(&r, 2, &ia);
+    item_fb_box(&r, TI_SHADE + 1, &ib);
+    rig_pen(&r, xb, y, APP_PEN_IN_RANGE, 0);
+    r.now += 200;
+    n = rig_frame(&r, out);
+    CHECK(r.s.tb_hot == TI_SHADE + 1 && n > 0 && n != SK_FULL);
+    for (int i = 0; i < n; i++) CHECK(rect_hits(&out[i], &ia) || rect_hits(&out[i], &ib) || rect_hits(&out[i], &oldp) || rect_hits(&out[i], &r.s.tb_ptr_box));
+    long area = 0;
+    for (int i = 0; i < n; i++) area += (long)out[i].w * out[i].h;
+    CHECK(area < (long)(r.s.tb_box.x1 - r.s.tb_box.x0) * (r.s.tb_box.y1 - r.s.tb_box.y0) / 3); /* not the strip */
+    push(panel, &r, out, n);
+    CHECK(!memcmp(panel, r.fb, sizeof(panel)));
+    /* the pen leaves the strip for the page: the brush cursor is back and the strip is as it was */
+    rig_pen(&r, 600, 700, APP_PEN_IN_RANGE, 0);
+    r.now += 200;
+    n = rig_frame(&r, out);
+    CHECK(!r.s.tb_ptr && r.s.tb_hot == -1 && r.s.cursor && n > 0 && n != SK_FULL);
+    push(panel, &r, out, n);
+    CHECK(!memcmp(panel, r.fb, sizeof(panel)));
+    rig_pen(&r, 10, 1000, 0, 0); /* and off the tablet: every mark gone */
+    r.now += 200;
+    push(panel, &r, out, rig_frame(&r, out));
+    CHECK(!r.s.cursor && !memcmp(clean, r.fb, sizeof(clean)) && !memcmp(panel, clean, sizeof(clean)));
+    /* leaving straight from the strip, over black ink and white paper, also leaves nothing */
+    rig_pen(&r, xa, y, APP_PEN_IN_RANGE, 0);
+    rig_pen(&r, 10, 1000, 0, 0);
+    r.now += 200;
+    push(panel, &r, out, rig_frame(&r, out));
+    CHECK(!r.s.tb_ptr && !memcmp(clean, r.fb, sizeof(clean)) && !memcmp(panel, clean, sizeof(clean)));
+    CHECK(same_page_and_fb(&r) || r.s.tb_on); /* the strip is on top of the page, nothing inked */
+    rig_end(&r);
+}
+
 int main(void)
 {
     test_toggle_and_restore();
@@ -319,6 +395,7 @@ int main(void)
     test_draw_near_strip();
     test_layout_all_positions();
     test_brush_cursor_on_screen();
+    test_pointer_over_the_strip();
     test_brushes_through_the_app();
     test_tail_and_eraser_toggle();
     return CHECK_DONE("test_toolbar");

@@ -18,6 +18,6 @@ typedef struct {
 void tb_layout(tb_layout_t *L, int orient, int sw, int sh);
 int tb_in(const tb_layout_t *L, int x, int y);  /* the point is on the strip */
 int tb_hit(const tb_layout_t *L, int x, int y); /* the item under the point, or -1 */
-/* Draws the strip; the current brush, shade and size are shown inverted */
-void tb_draw(gfx_t *g, const tb_layout_t *L, const bstyle_t *cur);
+/* Draws the strip; the current brush, shade and size are shown inverted, item `hot` (-1: none) has a frame (the pen is over it) */
+void tb_draw(gfx_t *g, const tb_layout_t *L, const bstyle_t *cur, int hot);
 #endif

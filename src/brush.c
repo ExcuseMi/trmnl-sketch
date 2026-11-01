@@ -125,7 +125,7 @@ void brush_seg(const bstyle_t *st, int colour, canvas_t *c, int x0, int y0, int 
 
 static const int ring_r_[3] = { 6, 8, 12 }, drop_rr[3] = { 3, 5, 8 }, pencil_l[3] = { 14, 20, 28 };
 
-int brush_cursor_r(int b, int size)
+int brush_shape_r(int b, int size)
 {
     size = sz(size);
     switch (b) {
@@ -151,7 +151,7 @@ static int in_pencil(int l, int dx, int dy) /* a cone, its tip at the hot spot, 
     return a >= 0 && a <= (float)l && bb <= a * 0.30f + 0.6f;
 }
 
-int brush_cursor_px(int b, int size, int dx, int dy)
+int brush_shape_px(int b, int size, int dx, int dy)
 {
     size = sz(size);
     int ax = dx < 0 ? -dx : dx, ay = dy < 0 ? -dy : dy, m = ax > ay ? ax : ay;
@@ -188,4 +188,23 @@ int brush_cursor_px(int b, int size, int dx, int dy)
         return (d2 <= r * r && d2 >= (r - 1) * (r - 1)) || (dx == 0 && dy == 0);
     }
     }
+}
+
+/* The cursor the owner sees: the footprint's shape drawn 3 px thick, and for small ones a cross out to 16 px so the
+   cursor is never smaller than 32 px across */
+#define CUR_MIN 16
+int brush_cursor_r(int b, int size)
+{
+    int r = brush_shape_r(b, size) + 1;
+    return r < CUR_MIN ? CUR_MIN : r;
+}
+int brush_cursor_px(int b, int size, int dx, int dy)
+{
+    int ax = dx < 0 ? -dx : dx, ay = dy < 0 ? -dy : dy, s = brush_shape_r(b, size);
+    if (s + 1 < CUR_MIN && ((ax <= 1 && ay <= CUR_MIN) || (ay <= 1 && ax <= CUR_MIN))) return 1;
+    if (ax > s + 1 || ay > s + 1) return 0;
+    for (int y = dy - 1; y <= dy + 1; y++)
+        for (int x = dx - 1; x <= dx + 1; x++)
+            if (brush_shape_px(b, size, x, y)) return 1;
+    return 0;
 }

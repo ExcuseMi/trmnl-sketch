@@ -63,6 +63,27 @@ static void split_msg(const char *m, char a[64], char b[64])
     if (cut < n) sk_cpy(b, 64, m + cut + (m[cut] == ' '));
 }
 
+static int gpages(const sketch_t *s) { return (gcount(s) + s->L.per - 1) / s->L.per; }
+/* The control as drawn on this screen (CTL_NONE: the screen has none like it) */
+static int ctl_live(const sketch_t *s, int c)
+{
+    if (!s->ui.px || (s->mode != SK_GALLERY && s->mode != SK_ACTIONS && s->mode != SK_CONFIRM)) return 0;
+    if (c == CTL_PREV) return s->mode == SK_GALLERY && s->sel / s->L.per > 0;
+    if (c == CTL_NEXT) return s->mode == SK_GALLERY && s->sel / s->L.per + 1 < gpages(s);
+    return c == CTL_UP || c == CTL_SEL || c == CTL_DOWN;
+}
+
+/* The user-frame box of a control, for drawing and for the pen */
+static int ctl_box(const sketch_t *s, int c, int *x0, int *y0, int *x1, int *y1)
+{
+    if (c == CTL_PREV || c == CTL_NEXT) return ui_nav_box(&s->L, c, x0, y0, x1, y1), 1;
+    if (c < CTL_UP || c > CTL_DOWN) return 0;
+    int z = c == CTL_UP ? APP_TOUCH_LEFT : c == CTL_DOWN ? APP_TOUCH_RIGHT : APP_TOUCH_MIDDLE;
+    const char *lab = c == CTL_UP ? "Up" : c == CTL_DOWN ? "Down" : s->mode == SK_GALLERY ? (s->sel == 0 ? "New page" : "Open") : "Select";
+    ui_pill_box(user_w(s), user_h(s), &s->bar, z, lab, c == CTL_UP ? PILL_UP : c == CTL_DOWN ? PILL_DOWN : PILL_NONE, x0, y0, x1, y1);
+    return 1;
+}
+
 /* Draws the screen of the current mode into `ui`: the chrome, then the thumbnails */
 static void menu_draw(sketch_t *s)
 {
@@ -84,12 +105,13 @@ static void menu_draw(sketch_t *s)
     if (s->mode == SK_ACTIONS || s->mode == SK_CONFIRM) blit_add(s, s->act_num, px, py);
     cv_fill(&s->ui, 1);
     ui_g(s, &g);
+    int hot = ctl_live(s, s->hot) ? s->hot : CTL_NONE;
     char t[24], l1[64], l2[64];
     switch (s->mode) {
     case SK_GALLERY: {
         int sel_slot = s->sel - first;
-        ui_gallery(&g, &s->L, nums, n, sel_slot, s->cur, s->sel / s->L.per, (gcount(s) + s->L.per - 1) / s->L.per, s->gnote);
-        ui_menu_pills(&g, &s->bar, s->sel == 0 ? "New page" : "Open");
+        ui_gallery(&g, &s->L, nums, n, sel_slot, s->cur, s->sel / s->L.per, gpages(s), s->gnote, hot);
+        ui_menu_pills(&g, &s->bar, s->sel == 0 ? "New page" : "Open", hot);
         break;
     }
     case SK_ACTIONS: {
@@ -104,7 +126,7 @@ static void menu_draw(sketch_t *s)
         ui_list(&g, &s->L, t, items, 5, s->act_sel, &s->lg);
         s->list_n = 5;
         gfx_rrect(&g, px - 10, py - 10, px + s->L.tw + 9, py + s->L.th + 9, 12, 2, MWHT_, MBLK_);
-        ui_menu_pills(&g, &s->bar, "Select");
+        ui_menu_pills(&g, &s->bar, "Select", hot);
         break;
     }
     case SK_CONFIRM: {
@@ -115,14 +137,14 @@ static void menu_draw(sketch_t *s)
         char a[48] = "Printer: ";
         printer_addr(s, a + 9, 36);
         ui_footer(&g, &s->L, a);
-        ui_menu_pills(&g, &s->bar, "Select");
+        ui_menu_pills(&g, &s->bar, "Select", hot);
         break;
     }
     case SK_BUSY: ui_message(&g, &s->L, "Printing...", "Sending the page to the printer.", "This takes a few seconds.", 0); break;
     default:
         split_msg(s->pres.msg, l1, l2);
         ui_message(&g, &s->L, s->pres.pages && s->pres.jobs ? "Printed" : "Not printed", l1, l2, 0);
-        ui_pill(&g, &s->bar, APP_TOUCH_MIDDLE, "OK", PILL_NONE);
+        ui_pill(&g, &s->bar, APP_TOUCH_MIDDLE, "OK", PILL_NONE, 0);
         break;
     }
     for (int i = 0; i < s->blit_n; i++) {
@@ -316,6 +338,14 @@ static void menu_move(sketch_t *s, int dir)
     if (v >= 0 && v < n) sel_set(s, v);
 }
 
+/* A whole screen of tiles back or forward, same slot (the last tile when that one is past the end); none past the ends */
+static void gal_page(sketch_t *s, int dir)
+{
+    int np = s->sel / s->L.per + dir, v = np * s->L.per + s->sel % s->L.per;
+    if (np < 0 || np >= gpages(s)) return;
+    sel_set(s, v >= gcount(s) ? gcount(s) - 1 : v);
+}
+
 void sk_menu_touch(sketch_t *s, int zone, int gesture, uint32_t now)
 {
     if (s->mode == SK_BUSY) return;
@@ -324,8 +354,7 @@ void sk_menu_touch(sketch_t *s, int zone, int gesture, uint32_t now)
         return;
     }
     if (s->mode == SK_GALLERY && (gesture == APP_GESTURE_SWIPE_LEFT || gesture == APP_GESTURE_SWIPE_RIGHT)) {
-        int v = s->sel + (gesture == APP_GESTURE_SWIPE_LEFT ? 1 : -1) * s->L.per;
-        return sel_set(s, v < 0 ? 0 : v >= gcount(s) ? gcount(s) - 1 : v);
+        return gal_page(s, gesture == APP_GESTURE_SWIPE_LEFT ? 1 : -1);
     }
     if (gesture != APP_GESTURE_TAP) return;
     if (zone == APP_TOUCH_LEFT) menu_move(s, -1);
@@ -333,6 +362,68 @@ void sk_menu_touch(sketch_t *s, int zone, int gesture, uint32_t now)
     else if (zone == APP_TOUCH_MIDDLE) {
         if (s->mode == SK_GALLERY) gal_activate(s, now);
         else list_select(s, now);
+    }
+}
+
+/* The control under a user-frame point (a little generous: the pen is not exact), or CTL_NONE */
+static int ctl_at(const sketch_t *s, int ux, int uy)
+{
+    for (int c = CTL_UP; c <= CTL_NEXT; c++) {
+        int x0, y0, x1, y1;
+        if (ctl_live(s, c) && ctl_box(s, c, &x0, &y0, &x1, &y1) && ux >= x0 - 20 && ux <= x1 + 20 && uy >= y0 - 20 && uy <= y1 + 20) return c;
+    }
+    return CTL_NONE;
+}
+
+static void ctl_fb_box(sketch_t *s, int c, box_t *b)
+{
+    gfx_t g;
+    int x0, y0, x1, y1;
+    box_clear(b);
+    if (!ctl_live(s, c) || !ctl_box(s, c, &x0, &y0, &x1, &y1)) return;
+    ui_g(s, &g);
+    ui_fb_box(&g, x0, y0, x1, y1, b);
+    box_clip(b, s->fb.w, s->fb.h);
+}
+
+/* The pen moves onto control c (or off all): the old and the new one are redrawn, nothing else */
+static void hot_set(sketch_t *s, int c)
+{
+    if (c == s->hot) return;
+    box_t a, b;
+    ctl_fb_box(s, s->hot, &a);
+    s->hot = c;
+    ctl_fb_box(s, c, &b);
+    if (s->want_full) return sk_screen_render(s);
+    redraw_boxes(s, &a, &b, 0);
+}
+
+static void ctl_press(sketch_t *s, int c, uint32_t now)
+{
+    if (c == CTL_UP || c == CTL_DOWN) menu_move(s, c == CTL_UP ? -1 : 1);
+    else if (c == CTL_PREV || c == CTL_NEXT) gal_page(s, c == CTL_PREV ? -1 : 1);
+    else if (s->mode == SK_GALLERY) gal_activate(s, now);
+    else list_select(s, now);
+}
+
+/* The tablet's buttons in the menu screens: 1 and 2 (and 7, 8 in lists) move the selection, 7 and 8 turn the gallery's
+   screen of tiles, 4 opens, 5 goes back (the gallery: closes it), 6 is the New page tile */
+void sk_menu_key(sketch_t *s, unsigned down, uint32_t now)
+{
+    if (s->mode == SK_BUSY) return;
+    if (s->mode == SK_SHARE || s->mode == SK_RESULT) return sk_touch(s, APP_TOUCH_MIDDLE, APP_GESTURE_TAP, now);
+    for (int b = 0; b < 8; b++) {
+        int gal = s->mode == SK_GALLERY;
+        if (!(down >> b & 1) || (s->mode < SK_GALLERY)) continue;
+        if (b == 0 || (b == 6 && !gal)) menu_move(s, -1);
+        else if (b == 1 || (b == 7 && !gal)) menu_move(s, 1);
+        else if (b == 6) gal_page(s, -1);
+        else if (b == 7) gal_page(s, 1);
+        else if (b == 3) ctl_press(s, CTL_SEL, now);
+        else if (b == 5 && gal) sel_set(s, 0), gal_activate(s, now);
+        else if (b == 4 && gal) to_draw(s);
+        else if (b == 4 && s->mode == SK_ACTIONS) s->mode = SK_GALLERY, sk_screen_render(s);
+        else if (b == 4 && s->mode == SK_CONFIRM) s->mode = SK_ACTIONS, s->act_sel = 1, sk_screen_render(s);
     }
 }
 
@@ -360,11 +451,14 @@ static void menu_hover(sketch_t *s, int over, int fx, int fy, int ux, int uy)
     if (!menu_pointer(s)) return;
     if (!over) {
         s->hover_valid = 0;
+        if (s->hot) hot_set(s, CTL_NONE);
         return sk_cursor_hide(s);
     }
     if (s->hover_valid && s->cursor && (fx - s->hover_x) * (fx - s->hover_x) + (fy - s->hover_y) * (fy - s->hover_y) < 9) return;
     s->hover_valid = 1, s->hover_x = fx, s->hover_y = fy;
-    int it = s->mode == SK_RESULT ? -1 : item_at(s, ux, uy);
+    int c = ctl_at(s, ux, uy);
+    if (c != s->hot) return hot_set(s, c); /* puts the pointer back too */
+    int it = s->mode == SK_RESULT || c ? -1 : item_at(s, ux, uy);
     if (it >= 0 && it != (s->mode == SK_GALLERY ? s->sel : s->act_sel)) return sel_set(s, it); /* puts the pointer back too */
     sk_cursor_hide(s);
     sk_menu_cursor(s);
@@ -377,12 +471,13 @@ void sk_menu_pen(sketch_t *s, unsigned flags, int fx, int fy, int inside, uint32
     gal_from_fb(s->orient, s->fb.w, s->fb.h, fx, fy, &ux, &uy);
     menu_hover(s, (flags & (APP_PEN_TIP | APP_PEN_IN_RANGE)) != 0 && inside, fx, fy, ux, uy);
     if (tip && inside) {
-        if (!s->ptr_down) s->ptr_down = 1, s->ptr_moved = 0, s->ptr_item = item_at(s, ux, uy), s->ptr_x = ux, s->ptr_y = uy;
+        if (!s->ptr_down) s->ptr_down = 1, s->ptr_moved = 0, s->ptr_ctl = ctl_at(s, ux, uy), s->ptr_item = s->ptr_ctl ? -1 : item_at(s, ux, uy), s->ptr_x = ux, s->ptr_y = uy;
         else if ((ux - s->ptr_x) * (ux - s->ptr_x) + (uy - s->ptr_y) * (uy - s->ptr_y) > 40 * 40) s->ptr_moved = 1;
         return;
     }
     if (!s->ptr_down) return;
     s->ptr_down = 0;
+    if (!s->ptr_moved && s->ptr_ctl && ctl_at(s, ux, uy) == s->ptr_ctl) return ctl_press(s, s->ptr_ctl, now);
     if (s->ptr_moved || s->ptr_item < 0 || item_at(s, ux, uy) != s->ptr_item) return;
     if (s->mode == SK_GALLERY) s->sel = s->ptr_item, gal_activate(s, now);
     else if (s->mode == SK_SHARE) sk_touch(s, APP_TOUCH_MIDDLE, APP_GESTURE_TAP, now);

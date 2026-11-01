@@ -47,39 +47,72 @@ void ui_legend(gfx_t *g, box_t *out)
     for (int i = 0; i < 5; i++) text(g, f, 44, 24 + 46 + i * 44, lines[i], BLK);
 }
 
-void ui_cursor(canvas_t *fb, int cx, int cy, int brush, int size, box_t *out)
+/* Draws a black shape with a white outline BR_CUR_OUT wide: `in(ctx, dx, dy)` for dx, dy within +-r */
+#define CUR_MAXR 48
+typedef int (*cur_in_fn)(const void *ctx, int dx, int dy);
+static uint8_t cur_mask[(2 * (CUR_MAXR + BR_CUR_OUT) + 1) * (2 * (CUR_MAXR + BR_CUR_OUT) + 1)];
+
+static void cur_outline(canvas_t *fb, int cx, int cy, int r, cur_in_fn in, const void *ctx, int orient, box_t *out)
 {
-    int r = brush_cursor_r(brush, size);
+    int n = 2 * (r + BR_CUR_OUT) + 1, o = r + BR_CUR_OUT;
     box_clear(out);
-    for (int dy = -r; dy <= r; dy++)
-        for (int dx = -r; dx <= r; dx++)
-            if (brush_cursor_px(brush, size, dx, dy)) cv_flip(fb, cx + dx, cy + dy);
-    box_add(out, cx - r, cy - r);
-    box_add(out, cx + r, cy + r);
+    for (int dy = -o; dy <= o; dy++)
+        for (int dx = -o; dx <= o; dx++) cur_mask[(dy + o) * n + dx + o] = (dx >= -r && dx <= r && dy >= -r && dy <= r) && in(ctx, dx, dy);
+    for (int dy = -o; dy <= o; dy++)
+        for (int dx = -o; dx <= o; dx++) {
+            int colour = -1;
+            if (cur_mask[(dy + o) * n + dx + o]) colour = 0;
+            else
+                for (int y = dy - BR_CUR_OUT; y <= dy + BR_CUR_OUT && colour < 0; y++)
+                    for (int x = dx - BR_CUR_OUT; x <= dx + BR_CUR_OUT; x++)
+                        if (x >= -o && x <= o && y >= -o && y <= o && cur_mask[(y + o) * n + x + o]) {
+                            colour = 1;
+                            break;
+                        }
+            int fx, fy;
+            if (orient < 0) fx = cx + dx, fy = cy + dy;
+            else app_orient_to_fb(orient, fb->w, fb->h, cx + dx, cy + dy, &fx, &fy);
+            box_add(out, fx, fy);
+            if (colour >= 0) cv_set(fb, fx, fy, colour);
+        }
     box_clip(out, fb->w, fb->h);
 }
 
-/* The pointer of the menus: the classic arrow, tip at the point */
-static int arrow_in(int x, int y)
+typedef struct { int brush, size; } cur_brush_t;
+static int brush_in(const void *ctx, int dx, int dy)
 {
-    static const int px[7] = { 0, 0, 7, 12, 17, 12, 21 }, py[7] = { 0, 31, 24, 36, 34, 22, 22 };
+    const cur_brush_t *b = ctx;
+    return brush_cursor_px(b->brush, b->size, dx, dy);
+}
+
+void ui_cursor(canvas_t *fb, int cx, int cy, int brush, int size, box_t *out)
+{
+    cur_brush_t b = { brush, size };
+    int r = brush_cursor_r(brush, size);
+    cur_outline(fb, cx, cy, r > CUR_MAXR ? CUR_MAXR : r, brush_in, &b, -1, out);
+}
+
+/* The pointer of the menus: the classic arrow, tip at the point, scaled to 28 x 48 */
+static int arrow_poly(int x, int y)
+{
+    static const int px[7] = { 0, 0, 9, 16, 22, 16, 27 }, py[7] = { 0, 40, 31, 47, 44, 29, 29 };
     int in = 0;
+    if (x < 0 || y < 0) return 0;
     for (int i = 0, j = 6; i < 7; j = i++)
         if ((py[i] > y) != (py[j] > y) && x < (px[j] - px[i]) * (y - py[i]) / (py[j] - py[i]) + px[i]) in = !in;
     return in;
 }
 
+static int arrow_in(const void *ctx, int dx, int dy)
+{
+    (void)ctx;
+    return arrow_poly(dx + ARROW_W / 2, dy + ARROW_H / 2);
+}
+
 void ui_arrow(canvas_t *fb, int orient, int ux, int uy, box_t *out)
 {
-    box_clear(out);
-    for (int dy = 0; dy < ARROW_H; dy++)
-        for (int dx = 0; dx < ARROW_W; dx++) {
-            int fx, fy;
-            app_orient_to_fb(orient, fb->w, fb->h, ux + dx, uy + dy, &fx, &fy);
-            if (fx < 0 || fy < 0 || fx >= fb->w || fy >= fb->h) continue;
-            box_add(out, fx, fy);
-            if (arrow_in(dx, dy)) cv_flip(fb, fx, fy);
-        }
+    /* the shape spans 0..ARROW_W-1 x 0..ARROW_H-1 from the tip: drawn about its centre, the outline included */
+    cur_outline(fb, ux + ARROW_W / 2, uy + ARROW_H / 2, ARROW_H / 2 + 1, arrow_in, 0, orient, out);
 }
 
 static void put(char *dst, size_t cap, const char *s)

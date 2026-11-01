@@ -141,3 +141,11 @@ void cv_flip(canvas_t *c, int x, int y)
     if (x < 0 || y < 0 || x >= c->w || y >= c->h) return;
     c->px[y * c->stride + (x >> 3)] ^= (uint8_t)(0x80 >> (x & 7));
 }
+
+void cv_set(canvas_t *c, int x, int y, int colour)
+{
+    if (x < 0 || y < 0 || x >= c->w || y >= c->h) return;
+    uint8_t *p = &c->px[y * c->stride + (x >> 3)], m = (uint8_t)(0x80 >> (x & 7));
+    if (colour) *p |= m;
+    else *p &= (uint8_t)~m;
+}

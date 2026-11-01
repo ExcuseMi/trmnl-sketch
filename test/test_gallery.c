@@ -75,7 +75,7 @@ static void test_selection_and_paging(void)
     CHECK(r.s.sel == 0); /* a swipe moves a whole screen */
     touch(&r, APP_TOUCH_MIDDLE, APP_GESTURE_SWIPE_LEFT);
     touch(&r, APP_TOUCH_MIDDLE, APP_GESTURE_SWIPE_LEFT);
-    CHECK(r.s.sel == 20); /* never past the oldest page */
+    CHECK(r.s.sel == 15); /* no screen past the last one */
     for (int i = 0; i < 5; i++) tap(&r, APP_TOUCH_RIGHT);
     CHECK(r.s.sel == 20);
     rig_end(&r);
@@ -560,6 +560,163 @@ static void test_pointer_in_every_position(void)
     }
 }
 
+/* ---- the pen on the hint pills and the paging arrows, the tablet buttons in the menus ---- */
+
+static void ctl_center(const rig_t *r, int c, int *x, int *y)
+{
+    int x0, y0, x1, y1;
+    if (c == CTL_PREV || c == CTL_NEXT) ui_nav_box(&r->s.L, c, &x0, &y0, &x1, &y1);
+    else {
+        int z = c == CTL_UP ? APP_TOUCH_LEFT : c == CTL_DOWN ? APP_TOUCH_RIGHT : APP_TOUCH_MIDDLE;
+        const char *lab = c == CTL_UP ? "Up" : c == CTL_DOWN ? "Down" : r->s.mode == SK_GALLERY ? (r->s.sel == 0 ? "New page" : "Open") : "Select";
+        ui_pill_box(r->s.orient % 2 ? TH : TW, r->s.orient % 2 ? TW : TH, &r->s.bar, z, lab, c == CTL_UP ? PILL_UP : c == CTL_DOWN ? PILL_DOWN : PILL_NONE, &x0, &y0, &x1, &y1);
+    }
+    *x = (x0 + x1) / 2, *y = (y0 + y1) / 2;
+}
+static void pen_tap_ctl(rig_t *r, int c)
+{
+    int x, y;
+    ctl_center(r, c, &x, &y);
+    rig_pen_user(r, x, y, APP_PEN_IN_RANGE, 0);
+    rig_pen_user(r, x, y, APP_PEN_TIP | APP_PEN_IN_RANGE, 20000);
+    rig_pen_user(r, x + 2, y + 1, APP_PEN_TIP | APP_PEN_IN_RANGE, 20000);
+    rig_pen_user(r, x + 2, y + 1, APP_PEN_IN_RANGE, 0);
+}
+static void btn(rig_t *r, int n) /* tablet button n (1..8) */
+{
+    sk_pen_key(&r->s, 1u << (n - 1), 1u << (n - 1), r->now += 50);
+    sk_pen_key(&r->s, 0, 1u << (n - 1), r->now);
+}
+static int sel_ok(const rig_t *r) { return r->s.sel >= 0 && r->s.sel < r->s.pg.n + 1; }
+
+static void test_pen_pills_and_paging_arrows(void)
+{
+    static rig_t r;
+    static uint8_t keep[TS * TH], panel[TS * TH];
+    rect_t out[SK_MAX_RECTS];
+    for (int o = 0; o < 4; o += 3) { /* landscape and portrait */
+        rig_new(&r, o);
+        make_pages(&r, 20);
+        rig_pen(&r, 10, 10, 0, 0);
+        tap(&r, APP_TOUCH_MIDDLE);
+        panel_push(panel, &r, out, rig_frame(&r, out));
+        memcpy(keep, r.s.page.px, sizeof(keep));
+        int per = r.s.L.per, f = r.fulls;
+        CHECK(r.s.pg.n + 1 > per && r.s.sel == 1);
+        pen_tap_ctl(&r, CTL_PREV); /* no earlier screen: nothing there to hit */
+        CHECK(r.s.sel == 1 && r.s.mode == SK_GALLERY);
+        pen_tap_ctl(&r, CTL_DOWN);
+        CHECK(r.s.sel == 2);
+        pen_tap_ctl(&r, CTL_UP);
+        pen_tap_ctl(&r, CTL_UP);
+        CHECK(r.s.sel == 0);
+        pen_tap_ctl(&r, CTL_DOWN);
+        panel_push(panel, &r, out, rig_frame(&r, out));
+        CHECK(r.s.sel == 1 && r.fulls == f); /* selection moves stay partial */
+        pen_tap_ctl(&r, CTL_NEXT);
+        CHECK(r.s.sel == 1 + per && r.s.sel / per == 1 && sel_ok(&r));
+        CHECK(rig_frame(&r, out) == SK_FULL && r.fulls == f + 1); /* a new screen of tiles: full */
+        pen_tap_ctl(&r, CTL_NEXT); /* the last screen has no next */
+        CHECK(r.s.sel / per == 1 && rig_frame(&r, out) != SK_FULL);
+        pen_tap_ctl(&r, CTL_PREV);
+        CHECK(r.s.sel == 1 && rig_frame(&r, out) == SK_FULL && r.fulls == f + 2);
+        pen_tap_ctl(&r, CTL_SEL);
+        CHECK(r.s.mode == SK_ACTIONS);
+        pen_tap_ctl(&r, CTL_DOWN);
+        CHECK(r.s.act_sel == 1);
+        pen_tap_ctl(&r, CTL_UP);
+        CHECK(r.s.act_sel == 0);
+        pen_tap_ctl(&r, CTL_SEL); /* Open: back to drawing */
+        CHECK(r.s.mode == SK_DRAW);
+        CHECK(!memcmp(keep, r.s.page.px, sizeof(keep)) || r.s.cur != r.s.pg.nums[r.s.pg.n - 1]); /* no ink from any tap */
+        rig_end(&r);
+    }
+}
+
+static void test_hover_on_arrows_and_pills(void)
+{
+    static rig_t r;
+    static uint8_t panel[TS * TH];
+    rect_t out[SK_MAX_RECTS];
+    rig_new(&r, APP_ORIENT_BAR_BOTTOM);
+    make_pages(&r, 20);
+    rig_pen(&r, 10, 10, 0, 0);
+    tap(&r, APP_TOUCH_MIDDLE);
+    panel_push(panel, &r, out, rig_frame(&r, out));
+    int f = r.fulls, x, y, sel = r.s.sel;
+    ctl_center(&r, CTL_NEXT, &x, &y);
+    rig_pen_user(&r, x, y, APP_PEN_IN_RANGE, 0);
+    r.now += 200;
+    int n = rig_frame(&r, out);
+    CHECK(r.s.hot == CTL_NEXT && r.s.sel == sel && n > 0 && n != SK_FULL && r.fulls == f);
+    panel_push(panel, &r, out, n);
+    CHECK(!memcmp(panel, r.fb, sizeof(panel)));
+    int black = fb_black(&r);
+    ctl_center(&r, CTL_DOWN, &x, &y);
+    rig_pen_user(&r, x, y, APP_PEN_IN_RANGE, 0);
+    r.now += 200;
+    n = rig_frame(&r, out);
+    CHECK(r.s.hot == CTL_DOWN && n > 0 && n != SK_FULL && r.s.sel == sel);
+    panel_push(panel, &r, out, n);
+    CHECK(!memcmp(panel, r.fb, sizeof(panel)) && fb_black(&r) != black);
+    sk_pen(&r.s, 0, 0, 0, 0, r.now += 5); /* out of range: the highlight goes */
+    r.now += 200;
+    panel_push(panel, &r, out, rig_frame(&r, out));
+    CHECK(r.s.hot == CTL_NONE && !memcmp(panel, r.s.ui.px, sizeof(panel)));
+    rig_end(&r);
+}
+
+static void test_tablet_buttons_in_the_menus(void)
+{
+    static rig_t r;
+    rect_t out[SK_MAX_RECTS];
+    rig_new(&r, APP_ORIENT_BAR_BOTTOM);
+    make_pages(&r, 20);
+    rig_pen(&r, 10, 10, 0, 0);
+    tap(&r, APP_TOUCH_MIDDLE);
+    rig_frame(&r, out);
+    uint8_t *keep = malloc(sizeof(r.s.page.px[0]) * (size_t)TS * TH);
+    memcpy(keep, r.s.page.px, (size_t)TS * TH);
+    int per = r.s.L.per, f = r.fulls;
+    btn(&r, 2);
+    CHECK(r.s.sel == 2 && rig_frame(&r, out) != SK_FULL && r.fulls == f); /* 2 forward, partial */
+    btn(&r, 1);
+    btn(&r, 1);
+    CHECK(r.s.sel == 0);
+    btn(&r, 1);
+    CHECK(r.s.sel == 0); /* not before the first tile */
+    btn(&r, 8);
+    CHECK(r.s.sel == per && rig_frame(&r, out) == SK_FULL); /* 8: next screen of tiles, full */
+    btn(&r, 8);
+    CHECK(r.s.sel / per == 1 && sel_ok(&r)); /* never past the last screen */
+    btn(&r, 2);
+    for (int i = 0; i < 30; i++) btn(&r, 2);
+    CHECK(r.s.sel == r.s.pg.n && sel_ok(&r));
+    btn(&r, 7);
+    CHECK(r.s.sel / per == 0 && sel_ok(&r) && rig_frame(&r, out) == SK_FULL); /* 7: previous screen */
+    btn(&r, 4);
+    CHECK(r.s.mode == SK_ACTIONS); /* 4 opens the selected */
+    btn(&r, 2);
+    btn(&r, 8);
+    CHECK(r.s.act_sel == 2); /* in lists 1/2 and 7/8 move */
+    btn(&r, 1);
+    CHECK(r.s.act_sel == 1);
+    btn(&r, 5);
+    CHECK(r.s.mode == SK_GALLERY); /* 5: back */
+    btn(&r, 5);
+    CHECK(r.s.mode == SK_DRAW && rig_frame(&r, out) == SK_FULL); /* in the gallery 5 closes it */
+    CHECK(!memcmp(keep, r.s.page.px, (size_t)TS * TH) && !r.s.stroke);
+    free(keep);
+    tap(&r, APP_TOUCH_MIDDLE);
+    int cur = r.s.cur;
+    btn(&r, 6); /* 6: the New page tile; this page has ink, so a new page opens */
+    CHECK(r.s.mode == SK_DRAW && r.s.cur != cur && sk_is_blank(&r.s.page));
+    tap(&r, APP_TOUCH_MIDDLE);
+    btn(&r, 6); /* the new page is empty: the rule "no run of empty pages" answers with a note */
+    CHECK(r.s.mode == SK_GALLERY && r.s.sel == 0 && r.s.gnote[0]);
+    rig_end(&r);
+}
+
 int main(void)
 {
     test_layout_four_positions();
@@ -577,5 +734,8 @@ int main(void)
     test_new_page_tile_and_empty_rule();
     test_orientations_render();
     test_actions_frame_and_settings();
+    test_pen_pills_and_paging_arrows();
+    test_hover_on_arrows_and_pills();
+    test_tablet_buttons_in_the_menus();
     return CHECK_DONE("test_gallery");
 }

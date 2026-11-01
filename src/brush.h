@@ -24,8 +24,13 @@ int brush_param(int brush, int size, unsigned pressure);
 /* The stroke from (x0, y0, p0) to (x1, y1, p1); one stamp when both are the same. colour 1: white (an erasing stroke) */
 void brush_seg(const bstyle_t *st, int colour, canvas_t *c, int x0, int y0, int p0, int x1, int y1, int p1, box_t *dirty);
 
-/* The hover cursor: a shape about its hot spot (0, 0) inside a square of half side brush_cursor_r. brush_cursor_px
-   says whether the pixel at (dx, dy) is part of it; the cursor is drawn by inverting those pixels */
+/* The brush's footprint outline about its hot spot (0, 0) inside a square of half side brush_shape_r */
+int brush_shape_r(int brush, int size);
+int brush_shape_px(int brush, int size, int dx, int dy);
+/* The hover cursor drawn: that outline 3 px thick, with a cross to 16 px for small brushes (so 32 px across at least),
+   inside a square of half side brush_cursor_r. brush_cursor_px says whether the pixel at (dx, dy) is black; a white
+   outline BR_CUR_OUT px wide goes around it (ui_cursor) so it shows on black ink too */
+#define BR_CUR_OUT 2
 int brush_cursor_r(int brush, int size);
 int brush_cursor_px(int brush, int size, int dx, int dy);
 #endif

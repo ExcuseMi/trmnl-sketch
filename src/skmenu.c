@@ -13,7 +13,7 @@ static const font_face_t *mface(int bold, int size) { return font_get(bold ? FON
 static int mtext_w(const font_face_t *f, const char *s) { return (int)((font_width64(f, s, 0) + 32) >> 6); }
 static void mtext(gfx_t *g, const font_face_t *f, int x, int y, const char *s, int c) { gfx_text(g, f, (int32_t)x * 64, y, s, 0, c); }
 
-static void tri(gfx_t *g, float cx, float cy, float s, int dir)
+static void tri(gfx_t *g, float cx, float cy, float s, int dir, int col)
 {
     float p[6];
     if (dir == PILL_UP) {
@@ -26,33 +26,61 @@ static void tri(gfx_t *g, float cx, float cy, float s, int dir)
         float t[6] = { cx - s / 4, cy - s / 2, cx - s / 4, cy + s / 2, cx + s / 2 - s / 4, cy };
         memcpy(p, t, sizeof(p));
     }
-    gfx_poly(g, p, 3, MBLK);
+    gfx_poly(g, p, 3, col);
 }
 
-void ui_pill(gfx_t *g, const app_touchbar_t *bar, int zone, const char *label, int icon)
+static int pill_w(const char *label, int icon)
 {
-    if (!label) return;
     const font_face_t *f = mface(0, 34);
-    int tw = mtext_w(f, label), ti = icon ? 24 : 0, content = tw + (ti ? ti + 16 : 0), pw = content + 2 * PILL_PAD_X;
+    return mtext_w(f, label) + (icon ? 24 + 16 : 0) + 2 * PILL_PAD_X;
+}
+
+static void pill_draw(gfx_t *g, int x, int y, const char *label, int icon, int hot)
+{
+    const font_face_t *f = mface(0, 34);
+    int pw = pill_w(label, icon), fg = hot ? MWHT : MBLK, left = x + PILL_PAD_X;
+    gfx_rrect(g, x, y, x + pw - 1, y + PILL_H - 1, PILL_H / 2, 3, hot ? MBLK : MWHT, MBLK);
+    if (icon) tri(g, (float)left + 12.0f, (float)y + (float)PILL_H / 2, 24.0f, icon, fg), left += 24 + 16;
+    mtext(g, f, left, y + (PILL_H + f->digit_h) / 2, label, fg);
+}
+
+void ui_pill_box(int sw, int sh, const app_touchbar_t *bar, int zone, const char *label, int icon, int *x0, int *y0, int *x1, int *y1)
+{
+    int pw = pill_w(label, icon), x, y;
     const app_rect_t *r = &bar->zone[zone];
-    int x, y;
     switch (bar->edge) {
     case APP_EDGE_LEFT: x = PILL_EDGE, y = r->y + r->h / 2 - PILL_H / 2; break;
-    case APP_EDGE_RIGHT: x = g->SW - PILL_EDGE - pw, y = r->y + r->h / 2 - PILL_H / 2; break;
+    case APP_EDGE_RIGHT: x = sw - PILL_EDGE - pw, y = r->y + r->h / 2 - PILL_H / 2; break;
     case APP_EDGE_TOP: x = r->x + r->w / 2 - pw / 2, y = PILL_EDGE; break;
-    default: x = r->x + r->w / 2 - pw / 2, y = g->SH - PILL_EDGE - PILL_H; break;
+    default: x = r->x + r->w / 2 - pw / 2, y = sh - PILL_EDGE - PILL_H; break;
     }
-    gfx_rrect(g, x, y, x + pw - 1, y + PILL_H - 1, PILL_H / 2, 3, MWHT, MBLK);
-    int left = x + PILL_PAD_X;
-    if (ti) tri(g, (float)left + (float)ti / 2, (float)y + (float)PILL_H / 2, (float)ti, icon), left += ti + 16;
-    mtext(g, f, left, y + (PILL_H + f->digit_h) / 2, label, MBLK);
+    *x0 = x, *y0 = y, *x1 = x + pw - 1, *y1 = y + PILL_H - 1;
 }
 
-void ui_menu_pills(gfx_t *g, const app_touchbar_t *bar, const char *select)
+void ui_pill(gfx_t *g, const app_touchbar_t *bar, int zone, const char *label, int icon, int hot)
 {
-    ui_pill(g, bar, APP_TOUCH_LEFT, "Up", PILL_UP);
-    ui_pill(g, bar, APP_TOUCH_MIDDLE, select, PILL_NONE);
-    ui_pill(g, bar, APP_TOUCH_RIGHT, "Down", PILL_DOWN);
+    if (!label) return;
+    int x0, y0, x1, y1;
+    ui_pill_box(g->SW, g->SH, bar, zone, label, icon, &x0, &y0, &x1, &y1);
+    pill_draw(g, x0, y0, label, icon, hot);
+}
+
+void ui_menu_pills(gfx_t *g, const app_touchbar_t *bar, const char *select, int hot)
+{
+    ui_pill(g, bar, APP_TOUCH_LEFT, "Up", PILL_UP, hot == CTL_UP);
+    ui_pill(g, bar, APP_TOUCH_MIDDLE, select, PILL_NONE, hot == CTL_SEL);
+    ui_pill(g, bar, APP_TOUCH_RIGHT, "Down", PILL_DOWN, hot == CTL_DOWN);
+}
+
+/* The paging pair in the title row: [Previous] page indicator [Next], right aligned */
+#define NAV_SLOT 170
+#define NAV_GAP 24
+void ui_nav_box(const gal_layout_t *L, int which, int *x0, int *y0, int *x1, int *y1)
+{
+    int wn = pill_w("Next", PILL_DOWN), wp = pill_w("Previous", PILL_UP), nx = L->ax1 - wn, px = nx - NAV_GAP - NAV_SLOT - NAV_GAP - wp;
+    *y0 = L->ay0 + 26, *y1 = *y0 + PILL_H - 1;
+    if (which == CTL_NEXT) *x0 = nx, *x1 = nx + wn - 1;
+    else *x0 = px, *x1 = px + wp - 1;
 }
 
 void ui_list(gfx_t *g, const gal_layout_t *L, const char *title, const char *const *items, int n, int sel, list_geom_t *geo)
@@ -75,23 +103,29 @@ void ui_list_row(const list_geom_t *geo, int i, int *x0, int *y0, int *x1, int *
     *x0 = geo->x - 30, *x1 = geo->x1, *y0 = geo->y0 + i * LIST_PITCH - 74, *y1 = geo->y0 + i * LIST_PITCH + 28;
 }
 
-void ui_gallery(gfx_t *g, const gal_layout_t *L, const int *nums, int count, int sel, int cur, int page, int pages, const char *note)
+void ui_gallery(gfx_t *g, const gal_layout_t *L, const int *nums, int count, int sel, int cur, int page, int pages, const char *note, int hot)
 {
     const font_face_t *big = mface(1, 64), *cap = mface(0, 34), *capb = mface(1, 34);
     char t[40] = "Sketches";
     mtext(g, big, L->ax0, L->ay0 + 110, t, MBLK);
+    mtext(g, cap, L->ax0, L->ay0 + 148, "Buttons 1/2 move, 7/8 screens, 4 open, 6 new page, 5 close", MBLK);
     if (pages > 1) {
         char pg[24];
-        int n = 0, v[2] = { page + 1, pages };
+        int n = 0, v[2] = { page + 1, pages }, a0, b0, a1, b1;
         for (int k = 0; k < 2; k++) {
             char d[8];
             int m = 0, x = v[k];
             do d[m++] = (char)('0' + x % 10), x /= 10; while (x);
             while (m) pg[n++] = d[--m];
-            if (!k) pg[n++] = '/';
+            if (!k) pg[n++] = ' ', pg[n++] = '/', pg[n++] = ' ';
         }
         pg[n] = 0;
-        mtext(g, cap, L->ax1 - mtext_w(cap, pg), L->ay0 + 110, pg, MBLK);
+        ui_nav_box(L, CTL_PREV, &a0, &b0, &a1, &b1);
+        int nx0, ny0, nx1, ny1;
+        ui_nav_box(L, CTL_NEXT, &nx0, &ny0, &nx1, &ny1);
+        mtext(g, cap, (a1 + nx0) / 2 - mtext_w(cap, pg) / 2, b0 + (PILL_H + cap->digit_h) / 2, pg, MBLK);
+        if (page > 0) pill_draw(g, a0, b0, "Previous", PILL_UP, hot == CTL_PREV);
+        if (page + 1 < pages) pill_draw(g, nx0, ny0, "Next", PILL_DOWN, hot == CTL_NEXT);
     }
     for (int i = 0; i < count; i++) {
         int x, y;

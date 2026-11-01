@@ -40,7 +40,7 @@ static void tb_paint(sketch_t *s)
 {
     gfx_t g;
     mkg(s, &g);
-    tb_draw(&g, &s->tb, &s->sty);
+    tb_draw(&g, &s->tb, &s->sty, s->tb_hot);
 }
 
 /* The page in box b goes to the screen; the strip of an open toolbar is drawn over it again if the box touched it */
@@ -60,6 +60,11 @@ void sk_show_page(sketch_t *s)
 
 void sk_cursor_hide(sketch_t *s)
 {
+    if (s->tb_ptr) { /* the arrow over the toolbar: the page and the strip come back under it */
+        s->tb_ptr = 0;
+        fb_put(s, &s->tb_ptr_box);
+        mark(s, &s->tb_ptr_box);
+    }
     if (!s->cursor) return;
     if (s->mode >= SK_GALLERY) { /* the menus' pointer: the clean screen comes back */
         if (s->ui.px) cv_copy_box(&s->fb, &s->ui, &s->cur_box);
@@ -67,11 +72,63 @@ void sk_cursor_hide(sketch_t *s)
         s->cursor = 0;
         return;
     }
-    box_t b = { s->cx - s->cr, s->cy - s->cr, s->cx + s->cr, s->cy + s->cr };
+    int o = s->cr + BR_CUR_OUT;
+    box_t b = { s->cx - o, s->cy - o, s->cx + o, s->cy + o };
     box_clip(&b, s->fb.w, s->fb.h);
     fb_put(s, &b);
     mark(s, &b);
     s->cursor = 0;
+}
+
+/* The framebuffer box of toolbar item i */
+static void tb_item_box(sketch_t *s, int i, box_t *b)
+{
+    gfx_t g;
+    mkg(s, &g);
+    ui_fb_box(&g, s->tb.cx[i], s->tb.cy, s->tb.cx[i] + s->tb.cell - 1, s->tb.cy + s->tb.cell - 1, b);
+    box_clip(b, s->fb.w, s->fb.h);
+}
+
+/* The pen over the strip: the arrow pointer, and the item under it framed. Only the old and the new item (and the
+   arrow's boxes) are refreshed; the strip is repainted whole in the framebuffer, which changes nothing else. */
+static void tb_pointer(sketch_t *s, int ux, int uy)
+{
+    int item = tb_hit(&s->tb, ux, uy), old = s->tb_hot;
+    int fx, fy;
+    app_orient_to_fb(s->orient, s->fb.w, s->fb.h, ux, uy, &fx, &fy);
+    if (s->tb_ptr && item == old && (fx - s->cx) * (fx - s->cx) + (fy - s->cy) * (fy - s->cy) < 9) return;
+    s->tb_hot = item;
+    sk_cursor_hide(s);
+    tb_paint(s);
+    box_t b;
+    if (item != old)
+        for (int k = 0; k < 2; k++) {
+            int i = k ? item : old;
+            if (i >= 0) tb_item_box(s, i, &b), mark(s, &b);
+        }
+    ui_arrow(&s->fb, s->orient, ux, uy, &b);
+    box_clip(&b, s->fb.w, s->fb.h);
+    if (s->note_on && hit(&b, &s->note)) { /* never over a note: restoring the page would eat it */
+        fb_put(s, &b);
+        return;
+    }
+    s->tb_ptr = 1, s->tb_ptr_box = b, s->cx = fx, s->cy = fy;
+    mark(s, &b);
+}
+
+/* The pen left the strip: the pointer and the frame go */
+static void tb_pointer_off(sketch_t *s)
+{
+    int old = s->tb_hot;
+    if (!s->tb_ptr && old < 0) return;
+    s->tb_hot = -1;
+    sk_cursor_hide(s);
+    if (old >= 0 && s->tb_on) {
+        box_t b;
+        tb_paint(s);
+        tb_item_box(s, old, &b);
+        mark(s, &b);
+    }
 }
 
 /* The brush that draws now: the pen's button inverts the eraser (held on an ink brush: erase; on the eraser: ink) */
@@ -84,7 +141,7 @@ static int eff_brush(const sketch_t *s)
 static void cursor_show(sketch_t *s, int fx, int fy)
 {
     int br = eff_brush(s), r = brush_cursor_r(br, s->sty.size);
-    box_t want = { fx - r, fy - r, fx + r, fy + r };
+    box_t want = { fx - r - BR_CUR_OUT, fy - r - BR_CUR_OUT, fx + r + BR_CUR_OUT, fy + r + BR_CUR_OUT };
     if (s->cursor && s->cr == r && s->cb == br && (fx - s->cx) * (fx - s->cx) + (fy - s->cy) * (fy - s->cy) < 9) return;
     sk_cursor_hide(s);
     if (s->note_on && hit(&want, &s->note)) return; /* never over a note: restoring the page would eat it */
@@ -372,6 +429,7 @@ void sk_toolbar(sketch_t *s, uint32_t now)
     sk_cursor_hide(s);
     if (s->tb_on) { /* the page under the strip comes back as it was */
         s->tb_on = s->tb_hold = 0;
+        s->tb_hot = -1;
         cv_copy_box(&s->fb, &s->page, &s->tb_box);
         return tb_flash(s);
     }
@@ -467,6 +525,11 @@ void sk_pen(sketch_t *s, unsigned flags, unsigned x, unsigned y, unsigned pressu
         s->stroke = 0;
         s->save_at = now + SK_AUTOSAVE_MS;
     }
+    if (s->tb_on && range && !tip && inside && on_bar) { /* the arrow over the strip, not the brush's cursor */
+        s->hover_valid = 0;
+        return tb_pointer(s, ux, uy);
+    }
+    tb_pointer_off(s);
     s->hover_valid = range && !tip && inside && !on_bar;
     s->hover_x = fx, s->hover_y = fy;
     if (s->hover_valid) cursor_show(s, fx, fy);
@@ -475,8 +538,11 @@ void sk_pen(sketch_t *s, unsigned flags, unsigned x, unsigned y, unsigned pressu
 
 void sk_pen_key(sketch_t *s, unsigned keys, unsigned changed, uint32_t now)
 {
-    if (s->mode != SK_DRAW) return;
     unsigned down = keys & changed;
+    if (s->mode != SK_DRAW) {
+        if (down) sk_menu_key(s, down, now);
+        return;
+    }
     for (int b = 0; b < 8; b++) {
         if (!(down >> b & 1)) continue;
         switch (b) {
@@ -617,6 +683,7 @@ void sk_set_orient(sketch_t *s, int orient, const app_touchbar_t *bar)
 int sk_init(sketch_t *s, const sk_env_t *env, uint8_t *fb, int w, int h, int stride, int orient, const app_touchbar_t *bar)
 {
     memset(s, 0, sizeof(*s));
+    s->tb_hot = -1;
     s->env = *env;
     s->fb = (canvas_t){ fb, w, h, stride };
     size_t bytes = (size_t)stride * (size_t)h;
