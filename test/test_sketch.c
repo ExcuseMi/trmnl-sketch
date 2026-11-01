@@ -318,7 +318,7 @@ static void test_menu_and_share(void)
     CHECK(rig_frame(&r, out) == SK_FULL && same_page_and_fb(&r) && !r.gray_mode);
     share_view_t v;
     share_view(&v, APP_ENONET, &st);
-    CHECK(strstr(v.note, "No Wi-Fi") && !v.address[0]); /* a start that failed says so */
+    CHECK(strstr(v.note, "No network") && !v.address[0]); /* a start that failed says so */
     share_view(&v, 0, &st);
     CHECK(strstr(v.note, "wrong codes"));
     rig_end(&r);

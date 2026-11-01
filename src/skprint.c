@@ -29,7 +29,7 @@ static uint8_t *read_file(sketch_t *s, int num, size_t *n)
 static void fail(sketch_t *s, const char *msg)
 {
     memset(&s->pres, 0, sizeof(s->pres));
-    strncpy(s->pres.msg, msg, sizeof(s->pres.msg) - 1);
+    sk_cpy(s->pres.msg, sizeof(s->pres.msg), msg);
 }
 
 int sk_print_page(sketch_t *s, int num)

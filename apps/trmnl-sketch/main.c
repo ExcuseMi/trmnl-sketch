@@ -6,6 +6,7 @@
 #include "app_orient.h"
 #include "sk_cfg.h"
 #include "sketch.h"
+#include "printjob.h"
 
 APP_INFO("Sketch", 32 * 1024);
 
@@ -47,6 +48,28 @@ static const sk_fs_t fs = { 0, f_open, f_read, f_write, f_close, f_rename, f_rem
 static int cfg_get(void *u, const char *k, char *b, int cap) { return (void)u, api->setting_get(k, b, (size_t)cap); }
 static int cfg_set(void *u, const char *k, const char *v, int n) { return (void)u, api->setting_set(k, v, (size_t)n); }
 
+/* One IPP POST per print job (the same adaptor as the Print app's main.c) */
+static int f_post(void *u, const char *url, const void *body, size_t n, uint8_t *resp, size_t cap, size_t *rn)
+{
+    (void)u;
+    static const char *const hdr[] = { "Content-Type: application/ipp", 0 };
+    app_http_request_t rq = { "POST", url, hdr, body, n, 30000 };
+    app_http_response_t rs;
+    memset(&rs, 0, sizeof(rs));
+    *rn = 0;
+    if (!api->net_up()) return PJ_NET_NO_WIFI;
+    int rc = api->http_request(&rq, resp, cap, &rs);
+    if (rc == APP_ENONET || rs.status == APP_ENONET) return PJ_NET_NO_WIFI;
+    if (rc == APP_ETIMEDOUT || rs.status == APP_ETIMEDOUT) return PJ_NET_TIMEOUT;
+    if (rs.status <= 0) return PJ_NET_UNREACHABLE;
+    *rn = rs.body_len < cap ? rs.body_len : cap;
+    return rs.status;
+}
+
+static const app_setting_decl_t decl[] = {
+    { "printer", "Printer address (IP, or IP:port; the port is 631 if left out)", 0, 0, 64, APP_SETTING_TEXT },
+};
+
 static int have_pen(void) { return api->size >= APP_API_SLOT(50); }
 
 /* The tablet connected now (it may come after the app starts) */
@@ -79,7 +102,8 @@ int app_main(const app_api_t *a)
     int orient = ao_start(api); /* follows the X's position: APP_EVENT_ORIENTATION */
     app_touchbar_t bar;
     ao_layout(api, orient, fw, fh, &bar);
-    sk_env_t env = { &fs, 0, cfg_get, cfg_set };
+    if (api->size >= APP_API_SLOT(47)) api->settings_declare(decl, 1); /* the printer's address, own setting: settings are per app */
+    sk_env_t env = { &fs, 0, cfg_get, cfg_set, { PJ_PWG, f_post, 0 } };
     int rc = sk_init(&sk, &env, fb, fw, fh, stride, orient, &bar);
     if (rc) return rc;
     if (api->size >= APP_API_SLOT(41)) api->touch_hold(1u << APP_TOUCH_MIDDLE);
@@ -88,10 +112,21 @@ int app_main(const app_api_t *a)
     read_tablet();
     int sharing = 0, share_rc = 0;
     uint32_t sec = 0, pen_check = api->millis();
+    int gray = 0;
     for (;;) {
         uint32_t now = api->millis();
         rect_t out[SK_MAX_RECTS];
+        if (sk_screen_gray(&sk) != gray) { /* the gallery and menus are 4-bit; drawing is 1-bit (fast partial refresh) */
+            gray = sk_screen_gray(&sk);
+            uint8_t *p = api->screen_set_mode(gray ? APP_SCREEN_GRAY4 : APP_SCREEN_1BIT);
+            if (!p) {
+                api->log("sketch: screen mode switch failed");
+                break;
+            }
+            sk_set_screens(&sk, gray ? 0 : p, gray ? p : 0);
+        }
         push(sk_flush(&sk, now, out), out);
+        if (sk.print_req) sk_run_print(&sk); /* "Printing..." is on the glass; blocks while the job goes out */
         sk_tick(&sk, now);
         if (sk.share_req > 0 && !sharing) {
             app_webshare_files_t opt = { SK_DIR, ".png", 4u * 1024 * 1024 };

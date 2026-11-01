@@ -6,8 +6,10 @@ Sketch for the TRMNL X with a USB pen tablet (XP-Pen Deco 01 V2; firmware API 2.
 |---|---|
 | pen | line width from pressure (thin, medium, thick sizes); the pen's button held: eraser; hovering shows a small ring |
 | tablet buttons 1..8 | undo, redo, eraser on/off, size, clear, new page, previous, next |
-| touch bar | tap left undo, tap right redo, tap middle menu (Wi-Fi, back, new page); swipe left/right next/previous page; hold middle clear |
-| menu, Wi-Fi | the files profile of the X's Wi-Fi page lists `sketch/sk0001.png` ...; download them from a phone |
+| touch bar | tap left undo, tap right redo, tap middle the gallery; swipe left/right next/previous page; hold middle clear |
+| gallery | thumbnails (16 grays) of all pages, newest first, "New page" tile first; touch bar like the X's menus (Up / Select / Down pills); pen or mouse tap opens a tile (no hover highlight: gray screens only refresh in full); a drawing's list: Open, Print, Send to phone, Back |
+| Print | confirm screen, then the page file goes through the Print app's job code (`../trmnl-print/src/printjob.c`, one source); printer address is Sketch's own `printer` setting (settings are per app), default 192.0.2.40 |
+| Send to phone | the files profile of the X's phone page lists `sketch/sk0001.png` ...; download them from a phone |
 
 | Part | Where |
 |---|---|

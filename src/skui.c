@@ -72,7 +72,7 @@ void share_view(share_view_t *v, int rc, const app_webshare_status_t *st)
     memset(v, 0, sizeof(*v));
     if (rc != 0) {
         put(v->note, sizeof(v->note),
-            rc == APP_ENOMEM ? "Not enough memory for the Wi-Fi page." : rc == APP_ENONET ? "No Wi-Fi network could be started." : "The Wi-Fi page could not start.");
+            rc == APP_ENOMEM ? "Not enough memory for the phone page." : rc == APP_ENONET ? "No network could be started." : "The Wi-Fi page could not start.");
         return;
     }
     if (!st->running) {
@@ -80,12 +80,12 @@ void share_view(share_view_t *v, int rc, const app_webshare_status_t *st)
         return;
     }
     if (st->mode == APP_WEBSHARE_AP) {
-        put(v->steps[0], sizeof(v->steps[0]), "1. Join the Wi-Fi network \"");
+        put(v->steps[0], sizeof(v->steps[0]), "1. Join the network \"");
         put(v->steps[0], sizeof(v->steps[0]), st->network);
         put(v->steps[0], sizeof(v->steps[0]), "\" with your phone.");
         put(v->steps[1], sizeof(v->steps[1]), "2. Open this address, then type the code:");
     } else {
-        put(v->steps[0], sizeof(v->steps[0]), "1. With your phone on the same Wi-Fi open:");
+        put(v->steps[0], sizeof(v->steps[0]), "1. With your phone on the same network open:");
         put(v->steps[1], sizeof(v->steps[1]), "2. Then type the code:");
     }
     put(v->address, sizeof(v->address), st->address);

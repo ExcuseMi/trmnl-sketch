@@ -292,6 +292,14 @@ static void toggle_eraser(sketch_t *s, uint32_t now)
 
 /* ---- the gallery and the menus (gray screens) ---- */
 
+/* copies s into d (cap bytes) cut to fit; no strcpy/strncpy: the X's loader does not export them */
+void sk_cpy(char *d, size_t cap, const char *s)
+{
+    size_t n = 0;
+    while (s[n] && n + 1 < cap) d[n] = s[n], n++;
+    d[n] = 0;
+}
+
 static int gcount(const sketch_t *s) { return s->pg.n + 1; }
 static int gnum(const sketch_t *s, int idx) { return idx <= 0 || idx > s->pg.n ? 0 : s->pg.nums[s->pg.n - idx]; }
 static int gidx_of(const sketch_t *s, int num)
@@ -341,7 +349,7 @@ static void split_msg(const char *m, char a[64], char b[64])
         while (cut > 20 && m[cut] != ' ') cut--;
     memset(a, 0, 64), memset(b, 0, 64);
     memcpy(a, m, cut > 63 ? 63 : cut);
-    if (cut < n) strncpy(b, m + cut + (m[cut] == ' '), 63);
+    if (cut < n) sk_cpy(b, 64, m + cut + (m[cut] == ' '));
 }
 
 /* Draws the screen of the current gray mode into `ui` and lists the thumbnails to lay over it */
@@ -451,7 +459,7 @@ static void gal_activate(sketch_t *s, uint32_t now)
     int num = gnum(s, s->sel);
     if (num == 0) {
         if (is_blank(&s->page)) { /* no run of empty pages (owner 2026-11-01) */
-            strcpy(s->gnote, "This page is still empty");
+            sk_cpy(s->gnote, sizeof(s->gnote), "This page is still empty");
             return screen_render(s);
         }
         to_draw(s);

@@ -42,3 +42,31 @@ int png_write(const char *path, const gfx_t *canvas)
     free(z);
     return fclose(f) ? -1 : 0;
 }
+
+/* The 4-bit gray screen (fw x fh) as the person sees it in `orient`: an 8-bit gray PNG */
+int png_write_gray(const char *path, const uint8_t *gray, int fw, int fh, int orient)
+{
+    int W = orient % 2 ? fh : fw, H = orient % 2 ? fw : fh;
+    uLong raw_n = (uLong)(W + 1) * (uLong)H, z_n = compressBound(raw_n);
+    uint8_t *raw = calloc(raw_n, 1), *z = malloc(z_n);
+    if (!raw || !z) return free(raw), free(z), -1;
+    for (int y = 0; y < H; y++)
+        for (int x = 0; x < W; x++) {
+            int fx, fy;
+            app_orient_to_fb(orient, fw, fh, x, y, &fx, &fy);
+            int v = (fx & 1) ? gray[(size_t)fy * (size_t)(fw / 2) + (size_t)(fx >> 1)] & 15 : gray[(size_t)fy * (size_t)(fw / 2) + (size_t)(fx >> 1)] >> 4;
+            raw[(size_t)y * (size_t)(W + 1) + 1 + (size_t)x] = (uint8_t)(v * 17);
+        }
+    if (compress2(z, &z_n, raw, raw_n, 9) != Z_OK) return free(raw), free(z), -1;
+    FILE *f = fopen(path, "wb");
+    if (!f) return free(raw), free(z), -1;
+    fwrite("\x89PNG\r\n\x1a\n", 1, 8, f);
+    uint8_t ih[13] = { (uint8_t)(W >> 24), (uint8_t)(W >> 16), (uint8_t)(W >> 8), (uint8_t)W, (uint8_t)(H >> 24),
+        (uint8_t)(H >> 16), (uint8_t)(H >> 8), (uint8_t)H, 8, 0, 0, 0, 0 };
+    chunk(f, "IHDR", ih, 13);
+    chunk(f, "IDAT", z, (uint32_t)z_n);
+    chunk(f, "IEND", 0, 0);
+    free(raw);
+    free(z);
+    return fclose(f) ? -1 : 0;
+}

@@ -98,6 +98,7 @@ void sk_set_screens(sketch_t *s, uint8_t *fb1, uint8_t *gray);
 void sk_run_print(sketch_t *s);
 /* Sends page `num`'s saved file to the printer; 0 or < 0 with s->pres.msg set (skprint.c) */
 int sk_print_page(sketch_t *s, int num);
+void sk_cpy(char *d, size_t cap, const char *s); /* bounded copy */
 /* What to push: SK_FULL (the whole screen, clean), else the number of rectangles in out (SK_MAX_RECTS at most) */
 int sk_flush(sketch_t *s, uint32_t now, rect_t *out);
 /* Milliseconds until sk_tick or sk_flush has something to do (idle: a large number) */

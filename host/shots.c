@@ -5,6 +5,7 @@
 #include "util.h"
 
 int png_write(const char *path, const gfx_t *g);
+int png_write_gray(const char *path, const uint8_t *gray, int fw, int fh, int orient);
 
 static int bad;
 
@@ -53,6 +54,51 @@ static void draw_page(rig_t *r)
     wave(r, 1150, 1700, 1150, 90, 0);
 }
 
+static void gshot(rig_t *r, const char *dir, const char *name)
+{
+    rect_t out[SK_MAX_RECTS];
+    rig_frame(r, out);
+    char path[256];
+    snprintf(path, sizeof(path), "%s/%s.png", dir, name);
+    if (png_write_gray(path, r->gray, TW, TH, r->s.orient)) fprintf(stderr, "cannot write %s\n", path), bad = 1;
+    printf("%s\n", path);
+}
+
+/* eight drawings, then the gallery, the action list and the print screens, in two positions */
+static void gallery_shots(const char *dir)
+{
+    static rig_t r;
+    for (int o = 0; o < 2; o++) { /* the bar at the bottom, then on the left (portrait) */
+        rig_new(&r, o);
+        for (int i = 0; i < 8; i++) {
+            if (i & 1) wave(&r, 150, 1700, 250 + (i * 90) % 800, 40 + i * 12, 0);
+            else ring(&r, 400 + (i * 170) % 900, 500 + (i * 110) % 500, 120 + i * 15, 0);
+            if (i % 3 == 0) wave(&r, 300, 1500, 1100, 60, 0);
+            r.now += 3000;
+            sk_tick(&r.s, r.now);
+            if (i < 7) sk_pen_key(&r.s, 1u << 5, 1u << 5, r.now += 50), sk_pen_key(&r.s, 0, 1u << 5, r.now);
+        }
+        sk_touch(&r.s, APP_TOUCH_MIDDLE, APP_GESTURE_TAP, r.now += 50);
+        sk_touch(&r.s, APP_TOUCH_LEFT, APP_GESTURE_TAP, r.now += 50);
+        sk_touch(&r.s, APP_TOUCH_RIGHT, APP_GESTURE_TAP, r.now += 50);
+        sk_touch(&r.s, APP_TOUCH_RIGHT, APP_GESTURE_TAP, r.now += 50);
+        gshot(&r, dir, o ? "c-gallery-portrait" : "b-gallery-landscape");
+        sk_touch(&r.s, APP_TOUCH_MIDDLE, APP_GESTURE_TAP, r.now += 50);
+        sk_touch(&r.s, APP_TOUCH_RIGHT, APP_GESTURE_TAP, r.now += 50);
+        gshot(&r, dir, o ? "e-actions-portrait" : "d-actions-landscape");
+        if (!o) {
+            sk_touch(&r.s, APP_TOUCH_MIDDLE, APP_GESTURE_TAP, r.now += 50);
+            gshot(&r, dir, "f-print-confirm");
+            sk_touch(&r.s, APP_TOUCH_MIDDLE, APP_GESTURE_TAP, r.now += 50);
+            gshot(&r, dir, "g-printing");
+            r.pr.status = 200;
+            sk_run_print(&r.s);
+            gshot(&r, dir, "h-printed");
+        }
+        rig_end(&r);
+    }
+}
+
 int main(int argc, char **argv)
 {
     const char *dir = argc > 1 ? argv[1] : "shots";
@@ -90,14 +136,17 @@ int main(int argc, char **argv)
     r.now += 3000;
     sk_tick(&r.s, r.now);
     save(&r, dir, "6-after-undo");
-    sk_touch(&r.s, APP_TOUCH_MIDDLE, APP_GESTURE_TAP, r.now += 50);
-    save(&r, dir, "7-menu");
     sk_touch(&r.s, APP_TOUCH_LEFT, APP_GESTURE_TAP, r.now += 50);
+    sk_touch(&r.s, APP_TOUCH_MIDDLE, APP_GESTURE_TAP, r.now += 50);
+    sk_touch(&r.s, APP_TOUCH_RIGHT, APP_GESTURE_TAP, r.now += 50);
+    sk_touch(&r.s, APP_TOUCH_RIGHT, APP_GESTURE_TAP, r.now += 50);
+    sk_touch(&r.s, APP_TOUCH_MIDDLE, APP_GESTURE_TAP, r.now += 50);
     app_webshare_status_t st = { .running = 1, .mode = APP_WEBSHARE_AP };
     strcpy(st.code, "482915"), strcpy(st.network, "Writer"), strcpy(st.address, "http://4.3.2.1"), strcpy(st.ip, "4.3.2.1");
     sk_share_update(&r.s, 0, &st);
     save(&r, dir, "8-wifi-page");
     rig_end(&r);
+    gallery_shots(dir);
 
     /* portrait: the touch bar on the left, the legend and a page of strokes turned with it */
     rig_new(&r, APP_ORIENT_BAR_LEFT);
