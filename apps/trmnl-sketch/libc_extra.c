@@ -15,3 +15,12 @@ __attribute__((optimize("no-tree-loop-distribute-patterns"))) void *memmove(void
         while (n--) d[n] = s[n];
     return dst;
 }
+
+/* memcmp is not in the loader's table either (found by the same import check, 2026-11-01) */
+__attribute__((optimize("no-tree-loop-distribute-patterns"))) int memcmp(const void *a, const void *b, size_t n)
+{
+    const unsigned char *x = a, *y = b;
+    for (; n; n--, x++, y++)
+        if (*x != *y) return *x < *y ? -1 : 1;
+    return 0;
+}

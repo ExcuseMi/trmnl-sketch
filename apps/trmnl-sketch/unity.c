@@ -1,0 +1,15 @@
+/* The app's sources as one translation unit: the Xtensa linker (ld 2.43.1) crashes with "double free or corruption"
+   on --gc-sections --strip-all for several orders of separate objects (2026-11-01), and apps/build.sh's flags are
+   not ours to change. Names are file-local (static) in each source, so they must not clash; the build says if they do.
+   SPDX-License-Identifier: MIT */
+#include "../../gen/fonts_gen.c"
+#include "../../src/canvas.c"
+#include "../../src/penmap.c"
+#include "../../src/hist.c"
+#include "../../src/pngio.c"
+#include "../../src/pages.c"
+#include "../../src/rects.c"
+#include "../../src/skui.c"
+#include "../../src/sketch.c"
+#include "../../src/font.c"
+#include "../../src/gfx.c"

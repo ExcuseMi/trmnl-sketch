@@ -3,7 +3,7 @@
 CC ?= gcc
 FW ?= $(HOME)/workspace/trmnl-fw-gb
 PY ?= $(HOME)/workspace/trmnl-fpv/.venv/bin/python
-CFLAGS = -std=c11 -O1 -g -Wall -Wextra -Werror -Wshadow -Isrc -Ihost -Igen -I$(FW)/include -fsanitize=address,undefined -fno-sanitize-recover=all
+CFLAGS = -Itest -std=c11 -O1 -g -Wall -Wextra -Werror -Wshadow -Isrc -Ihost -Igen -I$(FW)/include -fsanitize=address,undefined -fno-sanitize-recover=all
 CORE = src/canvas.c src/penmap.c src/hist.c src/pngio.c src/pages.c src/rects.c src/skui.c src/sketch.c src/font.c src/gfx.c gen/fonts_gen.c
 HOST = host/memfs.c build/tbfw.o
 TESTS = $(patsubst test/%.c,build/%,$(wildcard test/test_*.c))
@@ -30,3 +30,12 @@ shots: build/shots
 clean:
 	rm -rf build shots gen
 .PHONY: all fonts test shots clean
+# The app ELF, with the firmware fork's import check (every libc call must be in the loader's table).
+# The Xtensa linker (ld 2.43.1, --gc-sections --strip-all) aborts with "double free or corruption" for some output
+# paths on this app (heap layout; no ELF is made then, so nothing broken can ship): each try uses another path length.
+elf: gen/fonts_gen.c
+	@mkdir -p build/elf; ok=0; for n in sk sk2 a bb cccc ddddddd eeeeeeee; do d=$${TMPDIR:-/tmp}/sketch-elf-$$n; rm -rf $$d; \
+	  if OUT=$$d $(FW)/apps/build.sh $(CURDIR)/apps/trmnl-sketch >/dev/null 2>&1; then cp $$d/trmnl-sketch.elf build/elf/; rm -rf $$d; ok=1; break; fi; \
+	  rm -rf $$d; done; [ $$ok = 1 ] || { echo "the linker crashed on every path: see Makefile"; exit 1; }; \
+	  ls -l build/elf/trmnl-sketch.elf; sha256sum build/elf/trmnl-sketch.elf
+.PHONY: elf
