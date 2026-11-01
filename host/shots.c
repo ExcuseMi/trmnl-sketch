@@ -4,6 +4,10 @@
 #include <stdio.h>
 #include "util.h"
 
+/* the old calls name three pens by index: thin 5 px, medium 9, thick 17 (the slider now takes any size 1..48) */
+#define SZ(i) ((i) == 0 ? 5 : (i) == 1 ? 9 : 17)
+#define sk_set_size(s, n, t) (sk_set_size)((s), SZ(n), (t))
+
 int png_write(const char *path, const gfx_t *g);
 
 static int bad;
@@ -193,6 +197,11 @@ static void brush_shots(const char *dir)
             rect_t o[SK_MAX_RECTS];
             rig_frame(&r, o);
             save(&r, dir, "t3-toolbar-pointer");
+            rig_pen_user(&r, tb_slider_x(&r.s.tb, 30), r.s.tb.sl_y, APP_PEN_TIP | APP_PEN_IN_RANGE, 30000); /* the knob picked up: size 30 and the footprint */
+            r.now += 200;
+            rig_frame(&r, o);
+            save(&r, dir, "t4-slider-dragging");
+            rig_pen_user(&r, tb_slider_x(&r.s.tb, 30), r.s.tb.sl_y, APP_PEN_IN_RANGE, 0);
         }
         rig_end(&r);
     }
@@ -282,6 +291,10 @@ int main(int argc, char **argv)
     sk_pen_key(&r.s, 0, 1u << 3, r.now);
     sk_set_brush(&r.s, BR_PENCIL, r.now += 50);
     save(&r, dir, "t2-toolbar-portrait");
+    rig_pen_user(&r, tb_slider_x(&r.s.tb, 24), r.s.tb.sl_y, APP_PEN_TIP | APP_PEN_IN_RANGE, 30000);
+    r.now += 200;
+    save(&r, dir, "t5-slider-portrait");
+    rig_pen_user(&r, tb_slider_x(&r.s.tb, 24), r.s.tb.sl_y, APP_PEN_IN_RANGE, 0);
     rig_end(&r);
     brush_shots(dir);
     return bad;
