@@ -296,6 +296,15 @@ static void test_damaged_page(void)
     rect_t out[SK_MAX_RECTS];
     rig_frame(&r, out);
     CHECK(r.s.dmg_n == 1 && r.s.dmg[0] == 2); /* found while the tiles were drawn */
+    { /* and drawn as a "Damaged" tile: text inside the frame where a drawing's thumbnail would be (a blank tile has none) */
+        gfx_t g;
+        int x, y, black = 0;
+        gfx_init(&g, r.fb, TW, TH, TS, r.s.orient);
+        gal_tile_xy(&r.s.L, 2, &x, &y);
+        for (int dy = 4; dy < r.s.L.th - 4; dy++)
+            for (int dx = 4; dx < r.s.L.tw - 4; dx++) black += !gfx_get(&g, x + dx, y + dy);
+        CHECK(black > 1200); /* 2100 with the word, 540 without */
+    }
     btn(&r, 2); /* tile 2 is page 2 (3 is newest) */
     CHECK(r.s.sel == 2);
     btn(&r, 4);
