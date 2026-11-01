@@ -2,27 +2,27 @@
 #include "toolbar.h"
 #include "fmath.h"
 
-#define PAD 8
-#define MARGIN 16
-#define GROUP_GAP 20
-#define LINE 4
-enum { BLK = GFX_BLACK, WHT = GFX_WHITE };
+#define TB_PAD 8
+#define TB_MARGIN 16
+#define TB_GAP 20
+#define TB_LINE 4
+enum { TB_BLK = GFX_BLACK, TB_WHT = GFX_WHITE };
 
 void tb_layout(tb_layout_t *L, int orient, int sw, int sh)
 {
-    int cell = (sw - 2 * MARGIN - 3 * GROUP_GAP) / TI_N;
+    int cell = (sw - 2 * TB_MARGIN - 3 * TB_GAP) / TI_N;
     if (cell > 104) cell = 104;
     L->cell = cell;
-    int total = cell * TI_N + 3 * GROUP_GAP, x = (sw - total) / 2, h = cell + 2 * PAD + LINE;
+    int total = cell * TI_N + 3 * TB_GAP, x = (sw - total) / 2, h = cell + 2 * TB_PAD + TB_LINE;
     for (int i = 0; i < TI_N; i++) {
-        if (i == TI_SHADE || i == TI_SIZE || i == TI_UNDO) x += GROUP_GAP;
+        if (i == TI_SHADE || i == TI_SIZE || i == TI_UNDO) x += TB_GAP;
         L->cx[i] = x;
         x += cell;
     }
     L->top = orient != APP_ORIENT_BAR_TOP;
     L->x0 = 0, L->x1 = sw - 1;
     L->y0 = L->top ? 0 : sh - h, L->y1 = L->top ? h - 1 : sh - 1;
-    L->cy = L->top ? PAD : L->y0 + PAD + LINE;
+    L->cy = L->top ? TB_PAD : L->y0 + TB_PAD + TB_LINE;
 }
 
 int tb_in(const tb_layout_t *L, int x, int y) { return x >= L->x0 && x <= L->x1 && y >= L->y0 && y <= L->y1; }
@@ -60,9 +60,9 @@ static void shape(gfx_t *g, const tb_layout_t *L, int brush, int x, int y, int c
 static void swatch(gfx_t *g, const tb_layout_t *L, int shade, int x, int y, int sel)
 {
     int q = L->cell * 55 / 100, sx = x + (L->cell - q) / 2, sy = y + (L->cell - q) / 2;
-    gfx_rrect(g, sx - 3, sy - 3, sx + q + 2, sy + q + 2, 0, 3, WHT, sel ? WHT : BLK);
+    gfx_rrect(g, sx - 3, sy - 3, sx + q + 2, sy + q + 2, 0, 3, TB_WHT, sel ? TB_WHT : TB_BLK);
     for (int py = 0; py < q; py++)
-        for (int px = 0; px < q; px++) gfx_px(g, sx + px, sy + py, cv_shade_black(shade, sx + px, sy + py) ? BLK : WHT);
+        for (int px = 0; px < q; px++) gfx_px(g, sx + px, sy + py, cv_shade_black(shade, sx + px, sy + py) ? TB_BLK : TB_WHT);
 }
 
 static void arrow(gfx_t *g, const tb_layout_t *L, int x, int y, int dir, int c)
@@ -85,16 +85,16 @@ static void cross(gfx_t *g, const tb_layout_t *L, int x, int y, int c)
 void tb_draw(gfx_t *g, const tb_layout_t *L, const bstyle_t *cur)
 {
     gfx_clip(g, L->x0, L->y0, L->x1, L->y1);
-    gfx_fill_rect(g, (float)L->x0, (float)L->y0, (float)L->x1, (float)L->y1, WHT);
-    int ly = L->top ? L->y1 - LINE + 1 : L->y0;
-    gfx_fill_rect(g, (float)L->x0, (float)ly, (float)L->x1, (float)(ly + LINE - 1), BLK);
+    gfx_fill_rect(g, (float)L->x0, (float)L->y0, (float)L->x1, (float)L->y1, TB_WHT);
+    int ly = L->top ? L->y1 - TB_LINE + 1 : L->y0;
+    gfx_fill_rect(g, (float)L->x0, (float)ly, (float)L->x1, (float)(ly + TB_LINE - 1), TB_BLK);
     for (int i = 0; i < TI_N; i++) {
         int x = L->cx[i], y = L->cy, sel = 0;
         if (i < TI_SHADE) sel = cur->brush == i;
         else if (i < TI_SIZE) sel = cur->shade == i - TI_SHADE;
         else if (i < TI_UNDO) sel = cur->size == i - TI_SIZE;
-        if (sel) gfx_rrect(g, (float)x, (float)y, (float)(x + L->cell - 1), (float)(y + L->cell - 1), 12, 0, BLK, BLK);
-        int c = sel ? WHT : BLK;
+        if (sel) gfx_rrect(g, (float)x, (float)y, (float)(x + L->cell - 1), (float)(y + L->cell - 1), 12, 0, TB_BLK, TB_BLK);
+        int c = sel ? TB_WHT : TB_BLK;
         if (i < TI_SHADE) shape(g, L, i, x, y, c);
         else if (i < TI_SIZE) swatch(g, L, i - TI_SHADE, x, y, sel);
         else if (i < TI_UNDO) {
