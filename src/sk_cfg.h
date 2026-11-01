@@ -10,7 +10,6 @@
 #define SK_PAGES_MAX 9999
 #define SK_DIR "sketch"      /* inside the app's folder; the Wi-Fi page lists its .png files */
 #define SK_FILE_MAX (700 * 1024) /* the largest page file read (a 1872 x 1404 page is 329 KB raw) */
-#define SK_CURSOR_R 9
 #define SK_SIZES 3
 
 #endif

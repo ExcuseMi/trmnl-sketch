@@ -2,6 +2,7 @@
 #include "sketch.h"
 #include <stdlib.h>
 #include <string.h>
+#include "fmath.h"
 #include "sk_cfg.h"
 
 #define TOAST_MS 2500
@@ -35,37 +36,63 @@ static int cfg_int(sketch_t *s, const char *key, int def)
 /* ---- the page on the screen ---- */
 
 static void whole(box_t *b, const canvas_t *c) { *b = (box_t){ 0, 0, c->w - 1, c->h - 1 }; }
-void sk_show_page(sketch_t *s) { box_t b; whole(&b, &s->page), cv_copy_box(&s->fb, &s->page, &b); }
+static void tb_paint(sketch_t *s)
+{
+    gfx_t g;
+    mkg(s, &g);
+    tb_draw(&g, &s->tb, &s->sty);
+}
+
+/* The page in box b goes to the screen; the strip of an open toolbar is drawn over it again if the box touched it */
+static void fb_put(sketch_t *s, const box_t *b)
+{
+    cv_copy_box(&s->fb, &s->page, b);
+    if (s->tb_on && hit(b, &s->tb_box)) tb_paint(s);
+}
+
+void sk_show_page(sketch_t *s)
+{
+    box_t b;
+    whole(&b, &s->page);
+    cv_copy_box(&s->fb, &s->page, &b);
+    if (s->tb_on) tb_paint(s);
+}
 
 void sk_cursor_hide(sketch_t *s)
 {
     if (!s->cursor) return;
     box_t b = { s->cx - s->cr, s->cy - s->cr, s->cx + s->cr, s->cy + s->cr };
     box_clip(&b, s->fb.w, s->fb.h);
-    cv_copy_box(&s->fb, &s->page, &b);
+    fb_put(s, &b);
     mark(s, &b);
     s->cursor = 0;
 }
 
-static int erasing(const sketch_t *s) { return s->eraser ^ (s->barrel != 0); }
+/* The brush that draws now: the pen's button inverts the eraser (held on an ink brush: erase; on the eraser: ink) */
+static int eff_brush(const sketch_t *s)
+{
+    if (!s->barrel) return s->sty.brush;
+    return s->sty.brush == BR_ERASER ? s->last_ink : BR_ERASER;
+}
 
 static void cursor_show(sketch_t *s, int fx, int fy)
 {
-    int r = erasing(s) ? pen_erase_d(s->size) / 2 + 1 : SK_CURSOR_R;
+    int br = eff_brush(s), r = brush_cursor_r(br, s->sty.size);
     box_t want = { fx - r, fy - r, fx + r, fy + r };
-    if (s->cursor && s->cr == r && (fx - s->cx) * (fx - s->cx) + (fy - s->cy) * (fy - s->cy) < 9) return;
+    if (s->cursor && s->cr == r && s->cb == br && (fx - s->cx) * (fx - s->cx) + (fy - s->cy) * (fy - s->cy) < 9) return;
     sk_cursor_hide(s);
     if (s->note_on && hit(&want, &s->note)) return; /* never over a note: restoring the page would eat it */
+    if (s->tb_on && hit(&want, &s->tb_box)) return;  /* nor over the toolbar */
     box_t b;
-    ui_cursor(&s->fb, fx, fy, r, &b);
+    ui_cursor(&s->fb, fx, fy, br, s->sty.size, &b);
     mark(s, &b);
-    s->cursor = 1, s->cx = fx, s->cy = fy, s->cr = r;
+    s->cursor = 1, s->cx = fx, s->cy = fy, s->cr = r, s->cb = br;
 }
 
 void sk_note_hide(sketch_t *s)
 {
     if (!s->note_on) return;
-    cv_copy_box(&s->fb, &s->page, &s->note);
+    fb_put(s, &s->note);
     mark(s, &s->note);
     s->note_on = s->legend = 0;
 }
@@ -87,7 +114,7 @@ void sk_toast(sketch_t *s, const char *text, uint32_t now)
     gfx_t g;
     box_t b;
     mkg(s, &g);
-    ui_toast(&g, text, &b);
+    ui_toast(&g, text, s->tb_on && s->tb.top ? s->tb.y1 + 14 : 24, &b);
     note_set(s, &b, now + TOAST_MS);
 }
 
@@ -96,7 +123,7 @@ static void page_changed(sketch_t *s, const box_t *b, uint32_t now)
 {
     sk_cursor_hide(s);
     if (s->note_on && hit(b, &s->note)) sk_note_hide(s);
-    cv_copy_box(&s->fb, &s->page, b);
+    fb_put(s, b);
     mark(s, b);
     s->dirty = 1;
     s->save_at = now + SK_AUTOSAVE_MS;
@@ -276,21 +303,118 @@ void sk_clear(sketch_t *s, uint32_t now)
     sk_toast(s, "Cleared. Undo brings it back", now);
 }
 
-static void next_size(sketch_t *s, uint32_t now)
-{
-    static const char *const name[SK_SIZES] = { "Pen: thin", "Pen: medium", "Pen: thick" };
-    s->size = (s->size + 1) % SK_SIZES;
-    cfg_num(s, "size", s->size);
-    sk_toast(s, name[s->size], now);
-}
-
 static void toggle_eraser(sketch_t *s, uint32_t now)
 {
-    s->eraser = !s->eraser;
-    sk_toast(s, s->eraser ? "Eraser on" : "Eraser off", now);
+    if (s->sty.brush == BR_ERASER) s->sty.brush = (uint8_t)s->last_ink;
+    else s->last_ink = s->sty.brush, s->sty.brush = BR_ERASER;
+    if (s->tb_on) tb_paint(s), mark(s, &s->tb_box);
+    sk_toast(s, s->sty.brush == BR_ERASER ? "Eraser on" : "Eraser off", now);
+}
+
+/* ---- brush, shade, size and the toolbar ---- */
+
+static void picked(sketch_t *s, const char *text, uint32_t now)
+{
+    if (s->tb_on) tb_paint(s), mark(s, &s->tb_box);
+    sk_toast(s, text, now);
+}
+
+void sk_set_brush(sketch_t *s, int brush, uint32_t now)
+{
+    if (brush < 0 || brush >= BR_N) return;
+    if (brush != BR_ERASER) s->last_ink = brush, cfg_num(s, "brush", brush);
+    s->sty.brush = (uint8_t)brush;
+    picked(s, brush_name(brush), now);
+}
+
+void sk_set_shade(sketch_t *s, int shade, uint32_t now)
+{
+    if (shade < 0 || shade >= SH_N) return;
+    s->sty.shade = (uint8_t)shade;
+    cfg_num(s, "shade", shade);
+    picked(s, shade_name(shade), now);
+}
+
+void sk_set_size(sketch_t *s, int size, uint32_t now)
+{
+    static const char *const name[SK_SIZES] = { "Size: thin", "Size: medium", "Size: thick" };
+    if (size < 0 || size >= SK_SIZES) return;
+    s->sty.size = (uint8_t)size;
+    cfg_num(s, "size", size);
+    picked(s, name[size], now);
+}
+
+static void tb_flash(sketch_t *s) { box_union(&s->flash, &s->tb_box); }
+
+static void tb_place(sketch_t *s) /* the strip for the screen in the user's frame, and its box in the framebuffer */
+{
+    gfx_t g;
+    box_t b;
+    mkg(s, &g);
+    tb_layout(&s->tb, s->orient, g.SW, g.SH);
+    ui_fb_box(&g, s->tb.x0, s->tb.y0, s->tb.x1, s->tb.y1, &b);
+    b.x0 &= ~7;
+    b.x1 |= 7;
+    box_clip(&b, s->fb.w, s->fb.h);
+    s->tb_box = b;
+}
+
+void sk_toolbar(sketch_t *s, uint32_t now)
+{
+    (void)now;
+    if (s->mode != SK_DRAW) return;
+    sk_cursor_hide(s);
+    if (s->tb_on) { /* the page under the strip comes back as it was */
+        s->tb_on = s->tb_hold = 0;
+        cv_copy_box(&s->fb, &s->page, &s->tb_box);
+        return tb_flash(s);
+    }
+    sk_note_hide(s);
+    hist_end(&s->hist);
+    s->stroke = 0;
+    tb_place(s);
+    s->tb_on = 1;
+    tb_paint(s);
+    tb_flash(s);
+}
+
+static void tb_press(sketch_t *s, int item, uint32_t now)
+{
+    if (item < 0) return;
+    if (item < TI_SHADE) sk_set_brush(s, item - TI_BRUSH, now);
+    else if (item < TI_SIZE) sk_set_shade(s, item - TI_SHADE, now);
+    else if (item < TI_SIZE + SK_SIZES) sk_set_size(s, item - TI_SIZE, now);
+    else if (item == TI_UNDO) sk_undo(s, now);
+    else if (item == TI_REDO) sk_redo(s, now);
+    else sk_clear(s, now);
 }
 
 /* ---- input ---- */
+
+/* A point of the open stroke: drawn on the page, then on the screen */
+static void stroke_add(sketch_t *s, int fx, int fy, int p, uint32_t now)
+{
+    box_t dirty;
+    box_clear(&dirty);
+    hist_add(&s->hist, fx, fy, p, &dirty);
+    if (!box_empty(&dirty)) {
+        fb_put(s, &dirty);
+        mark(s, &dirty);
+    }
+    s->px = s->lx, s->py = s->ly, s->lx = fx, s->ly = fy, s->lp = p;
+    s->dirty = 1;
+    s->save_at = now + SK_AUTOSAVE_MS;
+}
+
+/* The brush pen's end tapers out along the last movement */
+static void stroke_tail(sketch_t *s, uint32_t now)
+{
+    if (!brush_tail(s->stk.brush) || (s->lx == s->px && s->ly == s->py)) return;
+    float dx = (float)(s->lx - s->px), dy = (float)(s->ly - s->py), len = fm_sqrt(dx * dx + dy * dy);
+    int p = s->lp, x = s->lx, y = s->ly;
+    for (int k = 1; k <= 3; k++)
+        stroke_add(s, x + fm_round(dx / len * 4.0f * (float)k), y + fm_round(dy / len * 4.0f * (float)k), p * (3 - k) / 3, now);
+}
 
 void sk_pen(sketch_t *s, unsigned flags, unsigned x, unsigned y, unsigned pressure, uint32_t now)
 {
@@ -298,35 +422,46 @@ void sk_pen(sketch_t *s, unsigned flags, unsigned x, unsigned y, unsigned pressu
     int fx, fy, inside = pm_map(&s->map, x, y, &fx, &fy);
     if (s->mode != SK_DRAW) return sk_menu_pen(s, flags, fx, fy, inside, now);
     int tip = (flags & APP_PEN_TIP) != 0, range = (flags & (APP_PEN_IN_RANGE | APP_PEN_TIP)) != 0;
+    int on_bar = 0, ux, uy;
+    gal_from_fb(s->orient, s->fb.w, s->fb.h, fx, fy, &ux, &uy);
+    if (s->tb_on && inside) on_bar = tb_in(&s->tb, ux, uy);
+    if (!tip) s->tb_hold = 0;
+    if (tip && on_bar) { /* a press on the strip picks, never inks; a stroke dragged onto it just ends */
+        int was = s->stroke;
+        if (was) stroke_tail(s, now), hist_end(&s->hist), s->stroke = 0;
+        if (!s->tb_hold) {
+            s->tb_hold = 1;
+            sk_cursor_hide(s);
+            if (!was) tb_press(s, tb_hit(&s->tb, ux, uy), now);
+        }
+        return;
+    }
+    if (tip && s->tb_hold) return; /* dragged off the strip: no ink until the pen lifts */
     if (tip && inside) {
         if (!s->stroke) {
+            int br = eff_brush(s);
             sk_cursor_hide(s);
             sk_note_hide(s);
-            s->stroke_erase = erasing(s);
-            hist_begin(&s->hist, s->stroke_erase ? HK_ERASE : HK_INK);
+            s->stk = s->sty;
+            s->stk.brush = (uint8_t)br;
+            s->stroke_erase = brush_is_eraser(br);
+            hist_begin_style(&s->hist, s->stroke_erase ? HK_ERASE : HK_INK, &s->stk);
             s->stroke = 1;
-            s->pressure = pressure;
+            s->lx = s->px = fx, s->ly = s->py = fy;
+            s->pressure = brush_tail(br) ? pressure / 4 : pressure; /* the brush pen swells from nothing */
         } else {
             s->pressure = (s->pressure + pressure) / 2;
         }
-        int d = s->stroke_erase ? pen_erase_d(s->size) : pen_diam(s->size, s->pressure);
-        box_t dirty;
-        box_clear(&dirty);
-        hist_add(&s->hist, fx, fy, d, &dirty);
-        if (!box_empty(&dirty)) {
-            cv_copy_box(&s->fb, &s->page, &dirty);
-            mark(s, &dirty);
-        }
-        s->dirty = 1;
-        s->save_at = now + SK_AUTOSAVE_MS;
+        stroke_add(s, fx, fy, brush_param(s->stk.brush, s->stk.size, s->pressure), now);
         return;
     }
     if (s->stroke) {
+        stroke_tail(s, now);
         hist_end(&s->hist);
         s->stroke = 0;
         s->save_at = now + SK_AUTOSAVE_MS;
     }
-    s->hover_valid = range && !tip && inside;
+    s->hover_valid = range && !tip && inside && !on_bar;
     s->hover_x = fx, s->hover_y = fy;
     if (s->hover_valid) cursor_show(s, fx, fy);
     else sk_cursor_hide(s);
@@ -342,7 +477,7 @@ void sk_pen_key(sketch_t *s, unsigned keys, unsigned changed, uint32_t now)
         case 0: sk_undo(s, now); break;
         case 1: sk_redo(s, now); break;
         case 2: toggle_eraser(s, now); break;
-        case 3: next_size(s, now); break;
+        case 3: sk_toolbar(s, now); break;
         case 4: sk_clear(s, now); break;
         case 5: sk_new_page(s, now); break;
         case 6: step_page(s, -1, now); break;
@@ -408,10 +543,19 @@ int sk_flush(sketch_t *s, uint32_t now, rect_t *out)
             }
         }
         rs_init(&s->pend);
+        box_clear(&s->flash);
         s->last_push = now;
         s->pushed_px += (uint32_t)(s->fb.w * s->fb.h);
         s->pushed_rects++;
         return SK_FULL;
+    }
+    if (!box_empty(&s->flash)) { /* the toolbar came or went: its strip alone, clean */
+        out[0] = (rect_t){ (int16_t)s->flash.x0, (int16_t)s->flash.y0, (int16_t)(s->flash.x1 - s->flash.x0 + 1), (int16_t)(s->flash.y1 - s->flash.y0 + 1), 1 };
+        box_clear(&s->flash);
+        s->pushed_px += (uint32_t)(out[0].w * out[0].h);
+        s->pushed_rects++;
+        s->last_push = now;
+        return 1;
     }
     if (!s->pend.n || (uint32_t)(now - s->last_push) < SK_BATCH_MS) return 0;
     int n = rs_take(&s->pend, out);
@@ -424,7 +568,7 @@ int sk_flush(sketch_t *s, uint32_t now, rect_t *out)
 uint32_t sk_next_due(const sketch_t *s, uint32_t now)
 {
     uint32_t due = 1000000;
-    if (s->want_full) return 0;
+    if (s->want_full || !box_empty(&s->flash)) return 0;
     if (s->pend.n) {
         int32_t d = (int32_t)(s->last_push + SK_BATCH_MS - now);
         due = d < 0 ? 0 : (uint32_t)d;
@@ -457,7 +601,8 @@ void sk_set_orient(sketch_t *s, int orient, const app_touchbar_t *bar)
     if (s->mode == SK_DRAW) {
         sk_cursor_hide(s);
         sk_note_hide(s);
-        sk_show_page(s); /* nothing but the page is left on the screen */
+        if (s->tb_on) tb_place(s);
+        sk_show_page(s); /* nothing but the page (and the toolbar, if it is up) is left on the screen */
     } else if (s->mode >= SK_GALLERY) {
         sk_screen_render(s);
     } else {
@@ -481,7 +626,12 @@ int sk_init(sketch_t *s, const sk_env_t *env, uint8_t *fb, int w, int h, int str
     hist_init(&s->hist, &s->page, base, pts, SK_HIST_POINTS, st, SK_HIST_STROKES);
     pg_init(&s->pg, env->fs);
     pg_scan(&s->pg);
-    s->size = cfg_int(s, "size", 1) % SK_SIZES;
+    s->sty.size = (uint8_t)(cfg_int(s, "size", 1) % SK_SIZES);
+    s->sty.shade = (uint8_t)(cfg_int(s, "shade", 0) % SH_N);
+    s->sty.brush = (uint8_t)(cfg_int(s, "brush", 0) % BR_N);
+    if (s->sty.brush == BR_ERASER) s->sty.brush = BR_FINELINER;
+    s->last_ink = s->sty.brush;
+    box_clear(&s->flash);
     s->orient = orient;
     s->bar = *bar;
     pm_init(&s->map, orient, w, h, 0, 0);

@@ -9,6 +9,7 @@
 
 typedef struct {
     int16_t x, y, w, h;
+    int16_t flash; /* 1: refresh this rectangle clean (it flashes), not partially */
 } rect_t;
 
 typedef struct {

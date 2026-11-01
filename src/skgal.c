@@ -153,6 +153,7 @@ void sk_to_gallery(sketch_t *s, uint32_t now)
     sk_cursor_hide(s);
     sk_note_hide(s);
     s->cursor = 0;
+    s->tb_on = s->tb_hold = 0; /* the toolbar is for drawing only */
     s->mode = SK_GALLERY;
     s->sel = gidx_of(s, s->cur);
     s->gnote[0] = 0;

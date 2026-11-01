@@ -58,11 +58,11 @@ static void test_pressure_and_size(void)
     rig_line(&r, 200, 500, 600, 500, 65000, 0);
     int light = col_thickness(&r, 400, 280, 320), hard = col_thickness(&r, 400, 480, 520);
     CHECK(light >= 1 && hard > light * 2); /* a harder press, a thicker line */
-    key(&r, 3); /* size: medium -> thick */
+    sk_set_size(&r.s, 2, r.now += 50); /* size: medium -> thick (the toolbar's thick; tablet button 4 is the toolbar now) */
     rig_line(&r, 200, 700, 600, 700, 65000, 0);
     int thick = col_thickness(&r, 400, 680, 720);
     CHECK(thick > hard);
-    key(&r, 3); /* thick -> thin */
+    sk_set_size(&r.s, 0, r.now += 50); /* thick -> thin */
     rig_line(&r, 200, 900, 600, 900, 65000, 0);
     int thin = col_thickness(&r, 400, 880, 920);
     CHECK(thin < hard && thin >= 1);
@@ -113,7 +113,7 @@ static void test_hover_cursor(void)
     rig_pen(&r, 800, 800, 0, 0);
     CHECK(same_page_and_fb(&r));
     /* cursor and note never fight: a toast shows, a cursor beside it is cleared with it */
-    key(&r, 3);
+    sk_set_size(&r.s, 2, r.now += 50);
     rig_pen(&r, 60, 60, APP_PEN_IN_RANGE, 0); /* under the toast */
     CHECK(!r.s.cursor);
     idle(&r, 3000);

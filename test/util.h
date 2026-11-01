@@ -35,7 +35,7 @@ typedef struct {
     uint8_t *fb;
     uint32_t now;
     int started;
-    char cfg_cur[8], cfg_size[8];
+    char cfg_cur[8], cfg_size[8], cfg_brush[8], cfg_shade[8];
 } rig_t;
 
 static int fake_post(void *u, const char *url, const void *body, size_t n, uint8_t *resp, size_t cap, size_t *rn)
@@ -59,7 +59,7 @@ static int fake_post(void *u, const char *url, const void *body, size_t n, uint8
 static int rig_get(void *u, const char *k, char *b, int cap)
 {
     rig_t *r = u;
-    const char *v = !strcmp(k, "cur") ? r->cfg_cur : !strcmp(k, "size") ? r->cfg_size : !strcmp(k, "printer") ? r->cfg_printer : "";
+    const char *v = !strcmp(k, "cur") ? r->cfg_cur : !strcmp(k, "size") ? r->cfg_size : !strcmp(k, "brush") ? r->cfg_brush : !strcmp(k, "shade") ? r->cfg_shade : !strcmp(k, "printer") ? r->cfg_printer : "";
     int n = (int)strlen(v);
     if (n > cap) n = cap;
     memcpy(b, v, (size_t)n);
@@ -68,7 +68,7 @@ static int rig_get(void *u, const char *k, char *b, int cap)
 static int rig_set(void *u, const char *k, const char *v, int n)
 {
     rig_t *r = u;
-    char *d = !strcmp(k, "cur") ? r->cfg_cur : r->cfg_size;
+    char *d = !strcmp(k, "cur") ? r->cfg_cur : !strcmp(k, "brush") ? r->cfg_brush : !strcmp(k, "shade") ? r->cfg_shade : r->cfg_size;
     memcpy(d, v, (size_t)n);
     d[n] = 0;
     return 0;

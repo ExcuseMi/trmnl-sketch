@@ -5,6 +5,7 @@
 #define SKETCH_H
 #include <stdint.h>
 #include <app_api.h>
+#include "brush.h"
 #include "canvas.h"
 #include "gallery.h"
 #include "printjob.h"
@@ -15,6 +16,7 @@
 #include "rects.h"
 #include "skmenu.h"
 #include "skui.h"
+#include "toolbar.h"
 
 typedef struct {
     const sk_fs_t *fs;
@@ -38,14 +40,21 @@ typedef struct {
     app_touchbar_t bar;
     int orient, mode;
     int cur;             /* page number on screen */
-    int size, eraser;    /* pen size 0..2; eraser toggled on */
+    bstyle_t sty;        /* the brush, shade and size picked (brush may be the eraser) */
+    int last_ink;        /* the brush before the eraser was picked */
+    bstyle_t stk;        /* the open stroke's style */
+    int tb_on, tb_hold;  /* the toolbar is up; a pen press that began on it is still down */
+    tb_layout_t tb;
+    box_t tb_box;        /* the strip in the framebuffer, whole bytes */
+    box_t flash;         /* to refresh clean (the strip toggled), empty: none */
+    int lx, ly, px, py, lp; /* the open stroke's last two points and the byte of the last, for the tail */
     int tablet;          /* a tablet is connected (pen_info) */
     int stroke, barrel;  /* a stroke is open; a pen button is held */
     int stroke_erase;    /* the open stroke erases */
     int hover_valid, hover_x, hover_y; /* the pen hovers over the page there */
     uint32_t um_w, um_h; /* the tablet's area, micrometres (0: unknown) */
     unsigned pressure;   /* smoothed */
-    int cursor, cx, cy, cr; /* the hover cursor is drawn at fb (cx, cy) with radius cr */
+    int cursor, cx, cy, cr, cb; /* the hover cursor is drawn at fb (cx, cy) with half size cr, for brush cb */
     box_t note;          /* the corner note (legend or toast) on screen, when note_on */
     int note_on, legend;
     uint32_t note_until;
@@ -81,6 +90,13 @@ void sk_free(sketch_t *s);
 void sk_set_tablet(sketch_t *s, uint32_t width_um, uint32_t height_um, int connected);
 void sk_set_orient(sketch_t *s, int orient, const app_touchbar_t *bar);
 
+/* Brush, shade and size (the toolbar and the settings call these; each toasts its name) */
+void sk_set_brush(sketch_t *s, int brush, uint32_t now);
+void sk_set_shade(sketch_t *s, int shade, uint32_t now);
+void sk_set_size(sketch_t *s, int size, uint32_t now);
+/* Shows the toolbar, or hides it again (the same tablet button): only the strip is refreshed, clean; the page under it is
+   kept and comes back as it was */
+void sk_toolbar(sketch_t *s, uint32_t now);
 void sk_pen(sketch_t *s, unsigned flags, unsigned x, unsigned y, unsigned pressure, uint32_t now);
 void sk_pen_key(sketch_t *s, unsigned keys, unsigned changed, uint32_t now);
 void sk_touch(sketch_t *s, int zone, int gesture, uint32_t now);

@@ -37,23 +37,52 @@ int cv_get(const canvas_t *c, int x, int y)
     return (c->px[y * c->stride + (x >> 3)] >> (7 - (x & 7))) & 1;
 }
 
-static void span(canvas_t *c, int y, int x0, int x1, int colour)
+/* The 4 x 4 ordered dither (Bayer) of the shades: a pixel is black where its threshold is below the level */
+static const uint8_t bayer[4][4] = { { 0, 8, 2, 10 }, { 12, 4, 14, 6 }, { 3, 11, 1, 9 }, { 15, 7, 13, 5 } };
+static const uint8_t shade_level[SH_N] = { 16, 11, 5 };
+
+int cv_shade_black(int shade, int x, int y)
+{
+    if (shade <= 0 || shade >= SH_N) return 1;
+    return bayer[y & 3][x & 3] < shade_level[shade];
+}
+
+/* One row's byte mask of the black pixels of a shade (the pattern repeats every 4 pixels, MSB leftmost) */
+static uint8_t shade_mask(int shade, int y)
+{
+    int nib = 0;
+    for (int x = 0; x < 4; x++) nib = nib << 1 | cv_shade_black(shade, x, y);
+    return (uint8_t)(nib << 4 | nib);
+}
+
+/* x0..x1 of row y, already clipped: colour 1 whitens, colour 0 blackens where `mask` (a byte of black pixels) says */
+static void span_m(canvas_t *c, int y, int x0, int x1, int colour, uint8_t mask)
 {
     uint8_t *row = c->px + y * c->stride;
-    while (x0 <= x1 && (x0 & 7)) {
-        uint8_t m = (uint8_t)(0x80 >> (x0 & 7));
-        row[x0 >> 3] = colour ? (uint8_t)(row[x0 >> 3] | m) : (uint8_t)(row[x0 >> 3] & ~m);
-        x0++;
+    for (int b = x0 >> 3; b <= x1 >> 3; b++) {
+        uint8_t m = mask;
+        if (b == x0 >> 3) m &= (uint8_t)(0xff >> (x0 & 7));
+        if (b == x1 >> 3) m &= (uint8_t)(0xff << (7 - (x1 & 7)));
+        row[b] = colour ? (uint8_t)(row[b] | m) : (uint8_t)(row[b] & ~m);
     }
-    while (x0 + 7 <= x1) {
-        row[x0 >> 3] = colour ? 0xff : 0;
-        x0 += 8;
-    }
-    while (x0 <= x1) {
-        uint8_t m = (uint8_t)(0x80 >> (x0 & 7));
-        row[x0 >> 3] = colour ? (uint8_t)(row[x0 >> 3] | m) : (uint8_t)(row[x0 >> 3] & ~m);
-        x0++;
-    }
+}
+
+void cv_span_s(canvas_t *c, int y, int x0, int x1, int colour, int shade)
+{
+    if (y < 0 || y >= c->h) return;
+    if (x0 < 0) x0 = 0;
+    if (x1 > c->w - 1) x1 = c->w - 1;
+    if (x0 > x1) return;
+    span_m(c, y, x0, x1, colour, colour ? 0xff : shade_mask(shade, y));
+}
+
+void cv_px_s(canvas_t *c, int x, int y, int colour, int shade)
+{
+    if (x < 0 || y < 0 || x >= c->w || y >= c->h) return;
+    if (!colour && !cv_shade_black(shade, x, y)) return;
+    uint8_t m = (uint8_t)(0x80 >> (x & 7));
+    uint8_t *b = c->px + y * c->stride + (x >> 3);
+    *b = colour ? (uint8_t)(*b | m) : (uint8_t)(*b & ~m);
 }
 
 /* floor(sqrt(n)) */
@@ -64,7 +93,9 @@ static int isqrt(int n)
     return r;
 }
 
-void cv_disc(canvas_t *c, int cx, int cy, int d, int colour, box_t *dirty)
+void cv_disc(canvas_t *c, int cx, int cy, int d, int colour, box_t *dirty) { cv_disc_s(c, cx, cy, d, colour, 0, dirty); }
+
+void cv_disc_s(canvas_t *c, int cx, int cy, int d, int colour, int shade, box_t *dirty)
 {
     if (d < 1) d = 1;
     int r = d / 2; /* d = 1: one pixel; d = 2r + 1 odd discs, d even a little rounder */
@@ -76,7 +107,7 @@ void cv_disc(canvas_t *c, int cx, int cy, int d, int colour, box_t *dirty)
         if (x0 < 0) x0 = 0;
         if (x1 > c->w - 1) x1 = c->w - 1;
         if (x0 > x1) continue;
-        span(c, y, x0, x1, colour);
+        span_m(c, y, x0, x1, colour, colour ? 0xff : shade_mask(shade, y));
         if (dirty) box_add(dirty, x0, y), box_add(dirty, x1, y);
     }
 }

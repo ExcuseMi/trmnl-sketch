@@ -5,18 +5,20 @@
 #ifndef HIST_H
 #define HIST_H
 #include <stdint.h>
+#include "brush.h"
 #include "canvas.h"
 
 enum { HK_INK, HK_ERASE, HK_CLEAR };
 
 typedef struct {
     int16_t x, y;
-    uint8_t d;
+    uint8_t d; /* the brush's byte for this point (brush.h): a diameter, a side or a pressure */
 } hpt_t;
 
 typedef struct {
     uint32_t first, n; /* points */
     uint8_t kind;
+    bstyle_t style; /* the brush, shade and size it was drawn with */
     box_t bb; /* where the stroke changed the page */
 } hstroke_t;
 
@@ -34,7 +36,8 @@ typedef struct {
 void hist_init(hist_t *h, canvas_t *page, uint8_t *base_px, hpt_t *pts, uint32_t pt_cap, hstroke_t *st, int st_cap);
 /* The page was replaced (loaded): no undo into the old one */
 void hist_reset(hist_t *h);
-void hist_begin(hist_t *h, int kind);
+void hist_begin(hist_t *h, int kind); /* the fineliner in black (HK_ERASE: a round eraser) */
+void hist_begin_style(hist_t *h, int kind, const bstyle_t *style);
 /* A point of the open stroke: draws it on the page and adds the touched box to *dirty */
 void hist_add(hist_t *h, int x, int y, int d, box_t *dirty);
 void hist_end(hist_t *h);

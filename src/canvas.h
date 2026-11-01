@@ -19,6 +19,15 @@ void box_add(box_t *b, int x, int y);
 void box_union(box_t *b, const box_t *o);
 void box_clip(box_t *b, int w, int h);
 
+/* Pen shades: black, and two grays as 4 x 4 ordered-dither patterns fixed to the page (the same pixel is black or not
+   whatever stroke draws it, so erasing and redrawing, undo and redo give the same pattern). Only ink (colour 0) is
+   shaded; white (the eraser) is always solid. */
+enum { SH_BLACK, SH_DARK, SH_LIGHT, SH_N };
+int cv_shade_black(int shade, int x, int y); /* 1: the pattern is black at this page pixel */
+void cv_span_s(canvas_t *c, int y, int x0, int x1, int colour, int shade); /* clipped */
+void cv_px_s(canvas_t *c, int x, int y, int colour, int shade);            /* clipped */
+void cv_disc_s(canvas_t *c, int cx, int cy, int d, int colour, int shade, box_t *dirty);
+
 void cv_fill(canvas_t *c, int colour); /* 1 white, 0 black */
 int cv_get(const canvas_t *c, int x, int y);
 /* A disc of diameter d (>= 1) centred on (cx, cy); the touched box is added to *dirty (may be NULL) */

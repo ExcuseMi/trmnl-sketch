@@ -27,8 +27,8 @@ static void apply(canvas_t *c, const hstroke_t *s, const hpt_t *p)
     if (s->kind == HK_CLEAR) return cv_fill(c, 1);
     int colour = s->kind == HK_ERASE;
     for (uint32_t i = 0; i < s->n; i++) {
-        if (i == 0) cv_disc(c, p[i].x, p[i].y, p[i].d, colour, 0);
-        else cv_seg(c, p[i - 1].x, p[i - 1].y, p[i - 1].d, p[i].x, p[i].y, p[i].d, colour, 0);
+        const hpt_t *a = i ? &p[i - 1] : &p[i];
+        brush_seg(&s->style, colour, c, a->x, a->y, a->d, p[i].x, p[i].y, p[i].d, 0);
     }
 }
 
@@ -56,6 +56,12 @@ static void replay(hist_t *h)
 
 void hist_begin(hist_t *h, int kind)
 {
+    static const bstyle_t plain = { BR_FINELINER, SH_BLACK, 1 };
+    hist_begin_style(h, kind, &plain);
+}
+
+void hist_begin_style(hist_t *h, int kind, const bstyle_t *style)
+{
     if (h->open) hist_end(h);
     h->st_n = h->st_cur; /* a new stroke ends the redo list */
     h->pt_n = h->st_cur ? h->st[h->st_cur - 1].first + h->st[h->st_cur - 1].n : 0;
@@ -65,6 +71,7 @@ void hist_begin(hist_t *h, int kind)
     s->first = h->pt_n;
     s->n = 0;
     s->kind = (uint8_t)kind;
+    s->style = *style;
     box_clear(&s->bb);
     h->open = 1;
 }
@@ -82,10 +89,11 @@ void hist_add(hist_t *h, int x, int y, int d, box_t *dirty)
         s = &h->st[h->st_cur - 1];
         if (h->pt_n >= h->pt_cap) {
             int kind = s->kind;
+            bstyle_t style = s->style;
             hpt_t keep = h->pts[s->first + s->n - 1];
             bake(h, h->st_cur);
             h->open = 0;
-            hist_begin(h, kind);
+            hist_begin_style(h, kind, &style);
             s = &h->st[h->st_cur - 1];
             h->pts[h->pt_n++] = keep;
             s->n = 1;
@@ -97,8 +105,8 @@ void hist_add(hist_t *h, int x, int y, int d, box_t *dirty)
     int colour = s->kind == HK_ERASE;
     box_t b;
     box_clear(&b);
-    if (!last) cv_disc(h->page, x, y, d, colour, &b);
-    else cv_seg(h->page, last->x, last->y, last->d, x, y, d, colour, &b);
+    if (!last) brush_seg(&s->style, colour, h->page, x, y, d, x, y, d, &b);
+    else brush_seg(&s->style, colour, h->page, last->x, last->y, last->d, x, y, d, &b);
     h->pts[h->pt_n++] = (hpt_t){ (int16_t)x, (int16_t)y, (uint8_t)d };
     s->n++;
     box_union(&s->bb, &b);

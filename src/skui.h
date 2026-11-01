@@ -3,6 +3,7 @@
 #ifndef SKUI_H
 #define SKUI_H
 #include <app_api.h>
+#include "brush.h"
 #include "canvas.h"
 #include "gfx.h"
 
@@ -10,11 +11,12 @@
 void ui_fb_box(const gfx_t *g, int x0, int y0, int x1, int y1, box_t *out);
 
 /* A one-line note in the corner of the screen; *out: the framebuffer box it covers */
-void ui_toast(gfx_t *g, const char *text, box_t *out);
+void ui_toast(gfx_t *g, const char *text, int y, box_t *out); /* the panel's top edge at y (24: the corner) */
 /* The button legend in the corner */
 void ui_legend(gfx_t *g, box_t *out);
-/* The hover cursor: a ring of radius r (and a dot) by inverting pixels; *out: its box. Undone by copying the page back */
-void ui_cursor(canvas_t *fb, int cx, int cy, int r, box_t *out);
+/* The hover cursor of a brush at a size (its shape: brush.h) by inverting pixels; *out: its box. Undone by copying the
+   page back */
+void ui_cursor(canvas_t *fb, int cx, int cy, int brush, int size, box_t *out);
 
 /* The Wi-Fi screen's text from the page's status (pure, so it is tested) */
 typedef struct {

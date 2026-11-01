@@ -20,41 +20,40 @@ static const font_face_t *face(int bold, int size) { return font_get(bold ? FONT
 static int text_w(const font_face_t *f, const char *s) { return (int)((font_width64(f, s, 0) + 32) >> 6); }
 static void text(gfx_t *g, const font_face_t *f, int x, int y, const char *s, int c) { gfx_text(g, f, (int32_t)x * 64, y, s, 0, c); }
 
-static void panel(gfx_t *g, int w, int h, box_t *out)
+static void panel(gfx_t *g, int y, int w, int h, box_t *out)
 {
-    gfx_rrect(g, 24, 24, 24 + w, 24 + h, 10, 4, WHT, BLK);
-    ui_fb_box(g, 24, 24, 24 + w, 24 + h, out);
+    gfx_rrect(g, 24, y, 24 + w, y + h, 10, 4, WHT, BLK);
+    ui_fb_box(g, 24, y, 24 + w, y + h, out);
 }
 
-void ui_toast(gfx_t *g, const char *s, box_t *out)
+void ui_toast(gfx_t *g, const char *s, int y, box_t *out)
 {
     const font_face_t *f = face(1, 34);
     int w = text_w(f, s) + 40;
-    panel(g, w, 64, out);
-    text(g, f, 44, 24 + 44, s, BLK);
+    panel(g, y, w, 64, out);
+    text(g, f, 44, y + 44, s, BLK);
 }
 
 void ui_legend(gfx_t *g, box_t *out)
 {
-    static const char *const lines[] = { "Tablet buttons: 1 undo, 2 redo, 3 eraser, 4 size,", "5 clear, 6 new page, 7 previous, 8 next.",
-        "Pen button: eraser while held.", "Touch bar: left undo, right redo, middle menu;", "swipe for pages, hold the middle to clear." };
+    static const char *const lines[] = { "Tablet buttons: 1 undo, 2 redo, 3 eraser, 4 toolbar,", "5 clear, 6 new page, 7 previous, 8 next.",
+        "Pen button: eraser while held. Toolbar: brushes, shades, sizes.", "Touch bar: left undo, right redo, middle menu;", "swipe for pages, hold the middle to clear." };
     const font_face_t *f = face(0, 34);
     int w = 0;
     for (int i = 0; i < 5; i++)
         if (text_w(f, lines[i]) > w) w = text_w(f, lines[i]);
     w += 40;
-    panel(g, w, 20 + 5 * 44, out);
+    panel(g, 24, w, 20 + 5 * 44, out);
     for (int i = 0; i < 5; i++) text(g, f, 44, 24 + 46 + i * 44, lines[i], BLK);
 }
 
-void ui_cursor(canvas_t *fb, int cx, int cy, int r, box_t *out)
+void ui_cursor(canvas_t *fb, int cx, int cy, int brush, int size, box_t *out)
 {
+    int r = brush_cursor_r(brush, size);
     box_clear(out);
     for (int dy = -r; dy <= r; dy++)
-        for (int dx = -r; dx <= r; dx++) {
-            int d2 = dx * dx + dy * dy;
-            if ((d2 <= r * r && d2 >= (r - 1) * (r - 1)) || (dx == 0 && dy == 0)) cv_flip(fb, cx + dx, cy + dy);
-        }
+        for (int dx = -r; dx <= r; dx++)
+            if (brush_cursor_px(brush, size, dx, dy)) cv_flip(fb, cx + dx, cy + dy);
     box_add(out, cx - r, cy - r);
     box_add(out, cx + r, cy + r);
     box_clip(out, fb->w, fb->h);

@@ -1,11 +1,11 @@
 # Host build: tests with sanitizers, the shots tool, the baked fonts. The app ELF is built by the firmware fork's
 # apps/build.sh from apps/trmnl-sketch (run `make fonts` first).
 CC ?= gcc
-FW ?= $(HOME)/workspace/trmnl-fw-launch
+FW ?= $(HOME)/workspace/trmnl-fw-files
 PRINT ?= $(HOME)/workspace/trmnl-print/src
 PY ?= $(HOME)/workspace/trmnl-fpv/.venv/bin/python
 CFLAGS = -Itest -std=c11 -O1 -g -Wall -Wextra -Werror -Wshadow -Isrc -I$(PRINT) -Ihost -Igen -I$(FW)/include -fsanitize=address,undefined -fno-sanitize-recover=all
-CORE = src/canvas.c src/penmap.c src/hist.c src/pngio.c src/pages.c src/rects.c src/skui.c src/skmenu.c src/gallery.c src/skprint.c src/skgal.c $(PRINT)/pcl.c $(PRINT)/pwg.c $(PRINT)/ipp.c $(PRINT)/imgfit.c $(PRINT)/textlay.c $(PRINT)/printjob.c src/sketch.c src/font.c src/gfx.c gen/fonts_gen.c
+CORE = src/canvas.c src/brush.c src/toolbar.c src/penmap.c src/hist.c src/pngio.c src/pages.c src/rects.c src/skui.c src/skmenu.c src/gallery.c src/skprint.c src/skgal.c $(PRINT)/pcl.c $(PRINT)/pwg.c $(PRINT)/ipp.c $(PRINT)/imgfit.c $(PRINT)/textlay.c $(PRINT)/printjob.c src/sketch.c src/font.c src/gfx.c gen/fonts_gen.c
 HOST = host/memfs.c build/tbfw.o
 TESTS = $(patsubst test/%.c,build/%,$(wildcard test/test_*.c))
 

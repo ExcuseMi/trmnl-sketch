@@ -57,7 +57,7 @@ int rs_take(rset_t *s, rect_t *out)
 {
     int n = s->n;
     for (int i = 0; i < n; i++)
-        out[i] = (rect_t){ (int16_t)s->b[i].x0, (int16_t)s->b[i].y0, (int16_t)(s->b[i].x1 - s->b[i].x0 + 1), (int16_t)(s->b[i].y1 - s->b[i].y0 + 1) };
+        out[i] = (rect_t){ (int16_t)s->b[i].x0, (int16_t)s->b[i].y0, (int16_t)(s->b[i].x1 - s->b[i].x0 + 1), (int16_t)(s->b[i].y1 - s->b[i].y0 + 1), 0 };
     s->n = 0;
     return n;
 }
