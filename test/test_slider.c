@@ -101,6 +101,8 @@ static void test_drag(void)
             CHECK(n != SK_FULL);
         }
         CHECK(r.s.sty.size == SK_SIZE_MAX);
+        for (int k = 0; k < 5; k++) rig_pen(&r, x1 + 40 + 20 * k, 700, APP_PEN_TIP | APP_PEN_IN_RANGE, 30000); /* dragged off the strip onto the page */
+        CHECK(!r.s.stroke && r.s.sty.size == SK_SIZE_MAX);
         rig_pen(&r, x1 + 30, y, APP_PEN_IN_RANGE, 0); /* lifted */
         CHECK(!r.s.tb_drag && !strcmp(r.cfg_size, "48"));
         CHECK(!memcmp(page, r.s.page.px, sizeof(page))); /* no ink while dragging, the old ink stays */
