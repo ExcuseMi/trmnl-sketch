@@ -12,6 +12,7 @@
 #include "../../src/pngio.c"
 #include "../../src/pages.c"
 #include "../../src/rects.c"
+#include "../../src/skpush.c"
 #include "../../src/skui.c"
 #include "../../src/skpills.c"
 #include "../../src/skmenu.c"

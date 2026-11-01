@@ -77,6 +77,7 @@ typedef struct {
     uint32_t save_at;
     rset_t pend;
     uint32_t last_push;
+    int batch_ms;        /* new ink waits this long after the last push (SK_BATCH_MS; the speed run tries others) */
     int want_full, share_req, share_kind; /* share_req: 1 start the files page, 2 the settings page, -1 stop; share_kind: which one is on screen */
     share_view_t share, share_shown;
     int share_rc;

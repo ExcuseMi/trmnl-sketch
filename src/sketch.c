@@ -642,7 +642,7 @@ int sk_flush(sketch_t *s, uint32_t now, rect_t *out)
 {
     int n = sk_flash_step(s, now, out);
     if (n != SK_NOFLASH) return n;
-    if (!s->pend.n || (uint32_t)(now - s->last_push) < SK_BATCH_MS) return 0;
+    if (!s->pend.n || (uint32_t)(now - s->last_push) < (uint32_t)s->batch_ms) return 0;
     n = rs_take(&s->pend, out);
     for (int i = 0; i < n; i++) s->pushed_px += (uint32_t)(out[i].w * out[i].h);
     s->pushed_rects += (uint32_t)n;
@@ -658,7 +658,7 @@ uint32_t sk_next_due(const sketch_t *s, uint32_t now)
     uint32_t cd = sk_cleanup_due(s, now);
     if (cd < due) due = cd;
     if (s->pend.n) {
-        int32_t d = (int32_t)(s->last_push + SK_BATCH_MS - now);
+        int32_t d = (int32_t)(s->last_push + (uint32_t)s->batch_ms - now);
         due = d < 0 ? 0 : (uint32_t)d;
     }
     if (s->dirty && !s->stroke) {
@@ -716,7 +716,7 @@ void sk_set_orient(sketch_t *s, int orient, const app_touchbar_t *bar)
 int sk_init(sketch_t *s, const sk_env_t *env, uint8_t *fb, int w, int h, int stride, int orient, const app_touchbar_t *bar)
 {
     memset(s, 0, sizeof(*s));
-    s->tb_hot = -1;
+    s->tb_hot = -1, s->batch_ms = SK_BATCH_MS;
     s->env = *env;
     s->fb = (canvas_t){ fb, w, h, stride };
     size_t bytes = (size_t)stride * (size_t)h;

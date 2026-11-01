@@ -5,7 +5,7 @@ FW ?= $(HOME)/workspace/trmnl-fw-files
 PRINT ?= $(HOME)/workspace/trmnl-print/src
 PY ?= $(HOME)/workspace/trmnl-fpv/.venv/bin/python
 CFLAGS = -Itest -std=c11 -O1 -g -Wall -Wextra -Werror -Wshadow -Isrc -I$(PRINT) -Ihost -Igen -I$(FW)/include -fsanitize=address,undefined -fno-sanitize-recover=all
-CORE = src/canvas.c src/brush.c src/toolbar.c src/tbicons.c src/penmap.c src/hist.c src/pngio.c src/pages.c src/rects.c src/skcfg.c src/sksize.c src/skflash.c src/skui.c src/skpills.c src/skmenu.c src/gallery.c src/skprint.c src/skgal.c $(PRINT)/pcl.c $(PRINT)/pwg.c $(PRINT)/ipp.c $(PRINT)/imgfit.c $(PRINT)/textlay.c $(PRINT)/printer.c $(PRINT)/printjob.c src/sketch.c src/font.c src/gfx.c gen/fonts_gen.c
+CORE = src/canvas.c src/brush.c src/toolbar.c src/tbicons.c src/penmap.c src/hist.c src/pngio.c src/pages.c src/rects.c src/skpush.c src/skcfg.c src/sksize.c src/skflash.c src/skui.c src/skpills.c src/skmenu.c src/gallery.c src/skprint.c src/skgal.c $(PRINT)/pcl.c $(PRINT)/pwg.c $(PRINT)/ipp.c $(PRINT)/imgfit.c $(PRINT)/textlay.c $(PRINT)/printer.c $(PRINT)/printjob.c src/sketch.c src/font.c src/gfx.c gen/fonts_gen.c
 HOST = host/memfs.c build/tbfw.o
 TESTS = $(patsubst test/%.c,build/%,$(wildcard test/test_*.c))
 
@@ -24,7 +24,7 @@ build/%: test/%.c $(CORE) $(HOST) test/check.h test/util.h $(wildcard src/*.h ho
 # builds and breaks only the ELF (2026-11-01: BLK, WHT, MARGIN). This compiles that unit on the host with every test run.
 unity-check: gen/fonts_gen.c
 	$(CC) -fsyntax-only -std=gnu11 -Wall -Wextra -Werror -Wshadow -Isrc -I$(PRINT) -Igen -I$(FW)/include apps/trmnl-sketch/unity.c
-test: $(TESTS) unity-check
+test: $(TESTS) unity-check speed
 	@for t in $(TESTS); do ./$$t || exit 1; done
 build/shots: host/shots.c host/png.c $(CORE) $(HOST) test/util.h $(wildcard src/*.h host/*.h)
 	@mkdir -p build
@@ -35,6 +35,16 @@ shots: build/shots
 clean:
 	rm -rf build shots gen
 .PHONY: all fonts test shots clean unity-check
+# Drawing speed on the X, simulated (host/speed.c: the driver's timing, the model's evidence): fails when a pen stream's
+# p95 latency is over test/speed.bounds + 20 %. `make speed-table` compares the variants.
+build/speed: host/speed.c $(CORE) $(HOST) test/util.h $(wildcard src/*.h host/*.h)
+	@mkdir -p build
+	$(CC) $(CFLAGS) host/speed.c $(CORE) $(HOST) -o $@ -lm -lz -lstdc++
+speed: build/speed
+	./build/speed --check test/speed.bounds
+speed-table: build/speed
+	./build/speed
+.PHONY: speed speed-table
 # The app ELF, with the firmware fork's import check (every libc call must be in the loader's table).
 # The Xtensa linker (ld 2.43.1, --gc-sections --strip-all) aborts with "double free or corruption" for some output
 # paths on this app (heap layout; no ELF is made then, so nothing broken can ship): each try uses another path length.
