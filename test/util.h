@@ -27,8 +27,6 @@ typedef struct {
 typedef struct {
     memfs_t fs;
     fprinter_t pr;
-    uint8_t *gray;      /* the panel's 4-bit framebuffer */
-    int gray_mode;      /* the app's screen mode as the glue would have switched it */
     int fulls, parts;   /* full and partial refreshes the glue would have pushed */
     char cfg_printer[40];
     sketch_t s;
@@ -77,18 +75,14 @@ static int rig_set(void *u, const char *k, const char *v, int n)
 /* (Re)starts the app on the rig's file system: a restart keeps the files and settings, as the X does */
 static inline void rig_start(rig_t *r, int orient)
 {
-    if (r->started) sk_free(&r->s), free(r->fb), free(r->gray);
+    if (r->started) sk_free(&r->s), free(r->fb);
     r->fb = malloc((size_t)TS * TH);
     memset(r->fb, 0xff, (size_t)TS * TH);
-    r->gray = malloc((size_t)TW * TH / 2);
-    memset(r->gray, 0xff, (size_t)TW * TH / 2);
-    r->gray_mode = 0;
     app_touchbar_t bar;
     tbfw_layout(orient, &bar);
     sk_env_t env = { &r->fs.fs, r, rig_get, rig_set, { PJ_PWG, fake_post, &r->pr } };
     if (sk_init(&r->s, &env, r->fb, TW, TH, TS, orient, &bar)) abort();
     sk_set_tablet(&r->s, UM_W, UM_H, 1);
-    sk_set_screens(&r->s, r->fb, r->gray);
     r->started = 1;
 }
 static inline void rig_new(rig_t *r, int orient)
@@ -99,16 +93,9 @@ static inline void rig_new(rig_t *r, int orient)
     r->pr.status = 200;
     rig_start(r, orient);
 }
-/* What the glue does each turn: switch the panel's mode when the app wants another (the panel clears to white and the
-   framebuffer is handed over again), then flush. Counts the full and partial refreshes. */
+/* What the glue does each turn: flush, and count the full and partial refreshes it would push */
 static inline int rig_frame(rig_t *r, rect_t *out)
 {
-    int want = sk_screen_gray(&r->s);
-    if (want != r->gray_mode) {
-        r->gray_mode = want;
-        if (want) memset(r->gray, 0xff, (size_t)TW * TH / 2), sk_set_screens(&r->s, 0, r->gray);
-        else memset(r->fb, 0xff, (size_t)TS * TH), sk_set_screens(&r->s, r->fb, 0);
-    }
     int n = sk_flush(&r->s, r->now += 100, out);
     if (n == SK_FULL) r->fulls++;
     else if (n > 0) r->parts += n;
@@ -118,7 +105,6 @@ static inline void rig_end(rig_t *r)
 {
     for (int i = 0; i < 4; i++) free(r->pr.body[i]);
     sk_free(&r->s);
-    free(r->gray);
     free(r->fb);
     memfs_free(&r->fs);
 }
@@ -131,6 +117,15 @@ static inline void rig_pt(const rig_t *r, int fx, int fy, unsigned *x, unsigned 
     float u = (float)fx + (m->wt - (float)m->sw) / 2, v = (float)fy + (m->ht - (float)m->sh) / 2;
     *x = (unsigned)(u / m->wt * 65535.0f + 0.5f);
     *y = (unsigned)(v / m->ht * 65535.0f + 0.5f);
+}
+
+/* the pen at a point of the user's frame (any position of the X): the inverse of pm_map */
+static inline void rig_pen_user(rig_t *r, int ux, int uy, unsigned flags, unsigned pressure)
+{
+    const penmap_t *m = &r->s.map;
+    float u = (float)ux + (m->wt - (float)m->sw) / 2, v = (float)uy + (m->ht - (float)m->sh) / 2;
+    r->now += 5;
+    sk_pen(&r->s, flags, (unsigned)(u / m->wt * 65535.0f + 0.5f), (unsigned)(v / m->ht * 65535.0f + 0.5f), pressure, r->now);
 }
 
 static inline void rig_pen(rig_t *r, int fx, int fy, unsigned flags, unsigned pressure)

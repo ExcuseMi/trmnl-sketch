@@ -11,6 +11,8 @@
 #define GAL_TW 312 /* a thumbnail, in the panel's frame (the page is 1872 x 1404: 6 px per thumbnail pixel) */
 #define GAL_TH 234
 #define GAL_CACHE 24
+#define GAL_ROW (GAL_TW / 8)
+#define GAL_BYTES (GAL_ROW * GAL_TH)
 #define GAL_LABEL 56 /* the caption under a tile */
 
 typedef struct {
@@ -32,7 +34,7 @@ void gal_from_fb(int orient, int fw, int fh, int fx, int fy, int *x, int *y);
 typedef struct {
     int num;            /* page number, 0: unused */
     uint32_t used;
-    uint8_t *px;        /* GAL_TW x GAL_TH, 4 bits, high nibble first, 15 white */
+    uint8_t *px;        /* GAL_TW x GAL_TH, 1 bit, MSB leftmost, 1 white (error-diffused from the area average) */
 } gal_thumb_t;
 
 typedef struct {
@@ -46,18 +48,13 @@ void gal_cache_free(gal_cache_t *c);
 void gal_invalidate(gal_cache_t *c, int num);
 /* The cached thumbnail of page num or NULL */
 const uint8_t *gal_find(gal_cache_t *c, int num);
-/* Makes page num's thumbnail from src (box filter). The least recently used one goes when the cache is full. NULL when
-   memory is short. */
+/* Makes page num's thumbnail from src: the area average of each cell, Floyd-Steinberg dithered to 1 bit (the gallery
+   runs in the panel's 1-bit mode so the pen's cursor can be shown). The least recently used one goes when the cache is
+   full. NULL when memory is short. */
 const uint8_t *gal_make(gal_cache_t *c, int num, const canvas_t *src);
-/* The 4-bit gray of one thumbnail pixel (0 black .. 15 white) */
-static inline int gal_px(const uint8_t *t, int x, int y)
-{
-    uint8_t b = t[(y * GAL_TW + x) / 2];
-    return (x & 1) ? b & 15 : b >> 4;
-}
+/* One thumbnail pixel: 1 white */
+static inline int gal_bit(const uint8_t *t, int x, int y) { return (t[y * GAL_ROW + (x >> 3)] >> (7 - (x & 7))) & 1; }
 
-/* The gray screen (4 bits per pixel, fw x fh) from the chrome (1-bit, fw x fh, 0 = ink) */
-void gal_gray_from_mono(uint8_t *gray, const canvas_t *mono);
-/* A thumbnail onto the gray screen at user-frame (x, y), turned for `orient`; the rest of the screen is untouched */
-void gal_gray_blit(uint8_t *gray, int fw, int fh, int orient, const uint8_t *thumb, int x, int y);
+/* A thumbnail into the 1-bit screen `dst` at user-frame (x, y), turned for `orient`; the rest is untouched */
+void gal_blit(canvas_t *dst, int orient, const uint8_t *thumb, int x, int y);
 #endif

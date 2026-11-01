@@ -18,6 +18,12 @@ void ui_legend(gfx_t *g, box_t *out);
    page back */
 void ui_cursor(canvas_t *fb, int cx, int cy, int brush, int size, box_t *out);
 
+#define ARROW_W 22
+#define ARROW_H 37
+/* The plain arrow pointer of the gallery and the menus (tip at user-frame (ux, uy) of `orient`) by inverting pixels;
+   *out: the framebuffer box it covers (clipped). Undone by copying the clean screen back */
+void ui_arrow(canvas_t *fb, int orient, int ux, int uy, box_t *out);
+
 /* The Wi-Fi screen's text from the page's status (pure, so it is tested) */
 typedef struct {
     char steps[2][96];

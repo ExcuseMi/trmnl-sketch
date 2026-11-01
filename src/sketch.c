@@ -61,6 +61,12 @@ void sk_show_page(sketch_t *s)
 void sk_cursor_hide(sketch_t *s)
 {
     if (!s->cursor) return;
+    if (s->mode >= SK_GALLERY) { /* the menus' pointer: the clean screen comes back */
+        if (s->ui.px) cv_copy_box(&s->fb, &s->ui, &s->cur_box);
+        mark(s, &s->cur_box);
+        s->cursor = 0;
+        return;
+    }
     box_t b = { s->cx - s->cr, s->cy - s->cr, s->cx + s->cr, s->cy + s->cr };
     box_clip(&b, s->fb.w, s->fb.h);
     fb_put(s, &b);
@@ -534,15 +540,10 @@ int sk_flush(sketch_t *s, uint32_t now, rect_t *out)
 {
     if (s->want_full) {
         s->want_full = 0;
-        if (s->mode >= SK_GALLERY) sk_compose_gray(s);
-        else if (s->fb_stale) {
-            s->fb_stale = 0;
-            if (s->mode == SK_DRAW) sk_show_page(s);
-            else if (s->share.steps[0][0] || s->share.note[0]) {
-                gfx_t g;
-                mkg(s, &g);
-                ui_share(&g, &s->bar, &s->share);
-            }
+        if (s->mode >= SK_GALLERY && s->ui.px) { /* the screen as it is, then the pointer on it */
+            memcpy(s->fb.px, s->ui.px, (size_t)s->fb.stride * (size_t)s->fb.h);
+            s->cursor = 0;
+            sk_menu_cursor(s);
         }
         rs_init(&s->pend);
         box_clear(&s->flash);

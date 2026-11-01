@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: MIT */
-/* The gallery, the action list, the print screens and the pen and touch bar in them: the controller of the gray screens
-   (sketch.c holds drawing, pages and saving). */
+/* The gallery, the action list, the print screens and the pen and touch bar in them: the controller of the menu screens
+   (sketch.c holds drawing, pages and saving). They run in the panel's 1-bit mode: the pointer and the highlight are
+   partial refreshes, a full one only when a screen opens or closes. */
 #include "sketch.h"
 #include <stdlib.h>
 #include <string.h>
@@ -8,7 +9,7 @@
 
 enum { MBLK_ = GFX_BLACK, MWHT_ = GFX_WHITE };
 
-/* ---- the gallery and the menus (gray screens) ---- */
+/* ---- the gallery and the menus ---- */
 
 /* copies s into d (cap bytes) cut to fit; no strcpy/strncpy: the X's loader does not export them */
 void sk_cpy(char *d, size_t cap, const char *s)
@@ -27,14 +28,6 @@ static int gidx_of(const sketch_t *s, int num)
 }
 static int user_w(const sketch_t *s) { return s->orient == APP_ORIENT_BAR_LEFT || s->orient == APP_ORIENT_BAR_RIGHT ? s->fb.h : s->fb.w; }
 static int user_h(const sketch_t *s) { return s->orient == APP_ORIENT_BAR_LEFT || s->orient == APP_ORIENT_BAR_RIGHT ? s->fb.w : s->fb.h; }
-
-int sk_screen_gray(const sketch_t *s) { return s->mode >= SK_GALLERY; }
-
-void sk_set_screens(sketch_t *s, uint8_t *fb1, uint8_t *gray)
-{
-    if (fb1) s->fb.px = fb1, s->fb_stale = 1;
-    if (gray) s->gfb = gray;
-}
 
 static void printer_addr(sketch_t *s, char *out, int cap)
 {
@@ -70,8 +63,8 @@ static void split_msg(const char *m, char a[64], char b[64])
     if (cut < n) sk_cpy(b, 64, m + cut + (m[cut] == ' '));
 }
 
-/* Draws the screen of the current gray mode into `ui` and lists the thumbnails to lay over it */
-void sk_screen_render(sketch_t *s)
+/* Draws the screen of the current mode into `ui`: the chrome, then the thumbnails */
+static void menu_draw(sketch_t *s)
 {
     if (!s->ui.px) return;
     gfx_t g;
@@ -108,7 +101,7 @@ void sk_screen_render(sketch_t *s)
         do d[m++] = (char)('0' + v % 10), v /= 10; while (v);
         while (m) t[k++] = d[--m];
         t[k] = 0;
-        ui_list(&g, &s->L, t, items, 5, s->act_sel, &s->list_x, &s->list_y0);
+        ui_list(&g, &s->L, t, items, 5, s->act_sel, &s->lg);
         s->list_n = 5;
         gfx_rrect(&g, px - 10, py - 10, px + s->L.tw + 9, py + s->L.th + 9, 12, 2, MWHT_, MBLK_);
         ui_menu_pills(&g, &s->bar, "Select");
@@ -116,7 +109,7 @@ void sk_screen_render(sketch_t *s)
     }
     case SK_CONFIRM: {
         static const char *const items[] = { "Print", "Back" };
-        ui_list(&g, &s->L, "Print this drawing?", items, 2, s->act_sel, &s->list_x, &s->list_y0);
+        ui_list(&g, &s->L, "Print this drawing?", items, 2, s->act_sel, &s->lg);
         s->list_n = 2;
         gfx_rrect(&g, px - 10, py - 10, px + s->L.tw + 9, py + s->L.th + 9, 12, 2, MWHT_, MBLK_);
         char a[48] = "Printer: ";
@@ -132,17 +125,92 @@ void sk_screen_render(sketch_t *s)
         ui_pill(&g, &s->bar, APP_TOUCH_MIDDLE, "OK", PILL_NONE);
         break;
     }
+    for (int i = 0; i < s->blit_n; i++) {
+        const uint8_t *tb = gal_find(&s->cache, s->blit[i].num);
+        if (tb) gal_blit(&s->ui, s->orient, tb, s->blit[i].x, s->blit[i].y);
+    }
+}
+
+void sk_screen_render(sketch_t *s)
+{
+    if (!s->ui.px) return;
+    menu_draw(s);
     s->want_full = 1;
 }
 
-void sk_compose_gray(sketch_t *s)
+/* ---- the pointer and the highlight: partial refreshes ---- */
+
+static int menu_pointer(const sketch_t *s) { return s->ui.px && (s->mode == SK_GALLERY || s->mode == SK_ACTIONS || s->mode == SK_CONFIRM || s->mode == SK_RESULT); }
+
+void sk_menu_cursor(sketch_t *s)
 {
-    if (!s->gfb || !s->ui.px) return;
-    gal_gray_from_mono(s->gfb, &s->ui);
-    for (int i = 0; i < s->blit_n; i++) {
-        const uint8_t *t = gal_find(&s->cache, s->blit[i].num);
-        if (t) gal_gray_blit(s->gfb, s->fb.w, s->fb.h, s->orient, t, s->blit[i].x, s->blit[i].y);
+    if (!s->hover_valid || !menu_pointer(s)) return;
+    int ux, uy;
+    gal_from_fb(s->orient, s->fb.w, s->fb.h, s->hover_x, s->hover_y, &ux, &uy);
+    ui_arrow(&s->fb, s->orient, ux, uy, &s->cur_box);
+    rs_add(&s->pend, &s->cur_box, s->fb.w, s->fb.h);
+    s->cursor = 1;
+}
+
+/* The framebuffer box of the highlight of the selected item (empty: none) */
+static void sel_box(sketch_t *s, int sel, box_t *b)
+{
+    gfx_t g;
+    int x0, y0, x1, y1;
+    box_clear(b);
+    ui_g(s, &g);
+    if (s->mode == SK_GALLERY) {
+        int x, y, slot = sel - (s->sel / s->L.per) * s->L.per;
+        gal_tile_xy(&s->L, slot, &x, &y);
+        x0 = x - 10, y0 = y - 10, x1 = x + s->L.tw + 9, y1 = y + s->L.th + GAL_LABEL;
+    } else if (s->mode == SK_ACTIONS || s->mode == SK_CONFIRM) {
+        ui_list_row(&s->lg, sel, &x0, &y0, &x1, &y1);
+    } else {
+        return;
     }
+    ui_fb_box(&g, x0, y0, x1, y1, b);
+    box_clip(b, s->fb.w, s->fb.h);
+}
+
+static void note_box(sketch_t *s, box_t *b)
+{
+    gfx_t g;
+    ui_g(s, &g);
+    ui_fb_box(&g, s->L.ax0, s->L.ay1 - 50, s->L.ax1, s->L.ay1 + 10, b);
+    box_clip(b, s->fb.w, s->fb.h);
+}
+
+/* Redraws the screen into `ui` and brings only the boxes a and b (and c) to the framebuffer; the pointer is lifted
+   first and put back after, so none of it is left behind */
+static void redraw_boxes(sketch_t *s, const box_t *a, const box_t *b, const box_t *c)
+{
+    sk_cursor_hide(s);
+    menu_draw(s);
+    const box_t *bx[3] = { a, b, c };
+    for (int i = 0; i < 3; i++)
+        if (bx[i] && !box_empty(bx[i])) {
+            cv_copy_box(&s->fb, &s->ui, bx[i]);
+            rs_add(&s->pend, bx[i], s->fb.w, s->fb.h);
+        }
+    sk_menu_cursor(s);
+}
+
+/* The selection (a gallery tile or a list row) becomes v: only the old and the new highlight are refreshed, unless the
+   gallery turns to another screen of tiles */
+static void sel_set(sketch_t *s, int v)
+{
+    int gal = s->mode == SK_GALLERY, *f = gal ? &s->sel : &s->act_sel;
+    if (v == *f) return;
+    box_t a, b, n;
+    int page = s->L.per ? s->sel / s->L.per : 0, had_note = gal && s->gnote[0];
+    sel_box(s, *f, &a);
+    *f = v;
+    if (gal) s->gnote[0] = 0;
+    if (s->want_full || (gal && v / s->L.per != page)) return sk_screen_render(s);
+    sel_box(s, v, &b);
+    box_clear(&n);
+    if (had_note) note_box(s, &n);
+    redraw_boxes(s, &a, &b, &n);
 }
 
 void sk_to_gallery(sketch_t *s, uint32_t now)
@@ -167,6 +235,7 @@ void sk_to_gallery(sketch_t *s, uint32_t now)
 
 static void to_draw(sketch_t *s)
 {
+    s->cursor = 0; /* the page comes back whole */
     free(s->ui.px);
     s->ui.px = 0;
     gal_cache_free(&s->cache);
@@ -180,8 +249,11 @@ static void gal_activate(sketch_t *s, uint32_t now)
     int num = gnum(s, s->sel);
     if (num == 0) {
         if (sk_is_blank(&s->page)) { /* no run of empty pages (owner 2026-11-01) */
+            box_t n;
             sk_cpy(s->gnote, sizeof(s->gnote), "This page is still empty");
-            return sk_screen_render(s);
+            if (s->want_full) return sk_screen_render(s);
+            note_box(s, &n);
+            return redraw_boxes(s, &n, 0, 0);
         }
         to_draw(s);
         return sk_make_page(s, now);
@@ -210,7 +282,9 @@ static void list_select(sketch_t *s, uint32_t now)
             }
             sk_screen_render(s);
             break;
-        case 2: case 3: /* the phone page: the files (download the drawings) or the settings form (the printer's address) */
+        case 2: case 3:
+            sk_cursor_hide(s);
+            /* the phone page: the files (download the drawings) or the settings form (the printer's address) */
             s->mode = SK_SHARE;
             s->share_req = s->act_sel == 2 ? 1 : 2;
             s->share_kind = s->share_req;
@@ -235,19 +309,11 @@ static void list_select(sketch_t *s, uint32_t now)
 
 static void menu_move(sketch_t *s, int dir)
 {
-    if (s->mode == SK_GALLERY) {
-        int v = s->sel + dir;
-        if (v < 0 || v >= gcount(s)) return;
-        s->sel = v;
-        s->gnote[0] = 0;
-    } else if (s->mode == SK_ACTIONS || s->mode == SK_CONFIRM) {
-        int v = s->act_sel + dir;
-        if (v < 0 || v >= s->list_n) return;
-        s->act_sel = v;
-    } else {
-        return;
-    }
-    sk_screen_render(s);
+    int v, n;
+    if (s->mode == SK_GALLERY) v = s->sel + dir, n = gcount(s);
+    else if (s->mode == SK_ACTIONS || s->mode == SK_CONFIRM) v = s->act_sel + dir, n = s->list_n;
+    else return;
+    if (v >= 0 && v < n) sel_set(s, v);
 }
 
 void sk_menu_touch(sketch_t *s, int zone, int gesture, uint32_t now)
@@ -259,9 +325,7 @@ void sk_menu_touch(sketch_t *s, int zone, int gesture, uint32_t now)
     }
     if (s->mode == SK_GALLERY && (gesture == APP_GESTURE_SWIPE_LEFT || gesture == APP_GESTURE_SWIPE_RIGHT)) {
         int v = s->sel + (gesture == APP_GESTURE_SWIPE_LEFT ? 1 : -1) * s->L.per;
-        s->sel = v < 0 ? 0 : v >= gcount(s) ? gcount(s) - 1 : v;
-        s->gnote[0] = 0;
-        return sk_screen_render(s);
+        return sel_set(s, v < 0 ? 0 : v >= gcount(s) ? gcount(s) - 1 : v);
     }
     if (gesture != APP_GESTURE_TAP) return;
     if (zone == APP_TOUCH_LEFT) menu_move(s, -1);
@@ -281,12 +345,29 @@ static int item_at(const sketch_t *s, int ux, int uy)
     }
     if (s->mode == SK_ACTIONS || s->mode == SK_CONFIRM) {
         for (int i = 0; i < s->list_n; i++) {
-            int b = s->list_y0 + i * 110;
-            if (ux >= s->list_x - 100 && ux < s->L.ax1 && uy >= b - 80 && uy < b + 30) return i;
+            int b = s->lg.y0 + i * LIST_PITCH;
+            if (ux >= s->lg.x - 100 && ux < s->L.ax1 && uy >= b - 80 && uy < b + 30) return i;
         }
         return -1;
     }
     return s->mode == SK_RESULT || s->mode == SK_SHARE ? 0 : -1;
+}
+
+/* The pen or mouse over the screen: the pointer follows it, and the item under it becomes the selection (the same one
+   the touch bar moves) */
+static void menu_hover(sketch_t *s, int over, int fx, int fy, int ux, int uy)
+{
+    if (!menu_pointer(s)) return;
+    if (!over) {
+        s->hover_valid = 0;
+        return sk_cursor_hide(s);
+    }
+    if (s->hover_valid && s->cursor && (fx - s->hover_x) * (fx - s->hover_x) + (fy - s->hover_y) * (fy - s->hover_y) < 9) return;
+    s->hover_valid = 1, s->hover_x = fx, s->hover_y = fy;
+    int it = s->mode == SK_RESULT ? -1 : item_at(s, ux, uy);
+    if (it >= 0 && it != (s->mode == SK_GALLERY ? s->sel : s->act_sel)) return sel_set(s, it); /* puts the pointer back too */
+    sk_cursor_hide(s);
+    sk_menu_cursor(s);
 }
 
 /* A press and release on the same item with little movement opens it; a drag across items does nothing. Never ink. */
@@ -294,6 +375,7 @@ void sk_menu_pen(sketch_t *s, unsigned flags, int fx, int fy, int inside, uint32
 {
     int tip = (flags & APP_PEN_TIP) != 0, ux, uy;
     gal_from_fb(s->orient, s->fb.w, s->fb.h, fx, fy, &ux, &uy);
+    menu_hover(s, (flags & (APP_PEN_TIP | APP_PEN_IN_RANGE)) != 0 && inside, fx, fy, ux, uy);
     if (tip && inside) {
         if (!s->ptr_down) s->ptr_down = 1, s->ptr_moved = 0, s->ptr_item = item_at(s, ux, uy), s->ptr_x = ux, s->ptr_y = uy;
         else if ((ux - s->ptr_x) * (ux - s->ptr_x) + (uy - s->ptr_y) * (uy - s->ptr_y) > 40 * 40) s->ptr_moved = 1;
@@ -311,6 +393,7 @@ void sk_menu_pen(sketch_t *s, unsigned flags, int fx, int fy, int inside, uint32
 void sk_run_print(sketch_t *s)
 {
     s->print_req = 0;
+    s->cursor = 0;
     gal_cache_free(&s->cache); /* memory for the job */
     free(s->ui.px);
     s->ui.px = 0;

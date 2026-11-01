@@ -78,6 +78,15 @@ const uint8_t *gal_find(gal_cache_t *c, int num)
     return 0;
 }
 
+/* The area average of thumbnail cell (tx, ty) of src: 0 black .. 255 white */
+static int cell_avg(const canvas_t *src, int tx, int ty)
+{
+    int y0 = ty * src->h / GAL_TH, y1 = (ty + 1) * src->h / GAL_TH, x0 = tx * src->w / GAL_TW, x1 = (tx + 1) * src->w / GAL_TW, white = 0, n = 0;
+    for (int y = y0; y < y1; y++)
+        for (int x = x0; x < x1; x++) white += (src->px[y * src->stride + (x >> 3)] >> (7 - (x & 7))) & 1, n++;
+    return n ? (white * 255 + n / 2) / n : 255;
+}
+
 const uint8_t *gal_make(gal_cache_t *c, int num, const canvas_t *src)
 {
     gal_thumb_t *slot = 0;
@@ -88,51 +97,53 @@ const uint8_t *gal_make(gal_cache_t *c, int num, const canvas_t *src)
         for (int i = 1; i < GAL_CACHE; i++)
             if (c->t[i].used < slot->used) slot = &c->t[i];
     }
-    if (!slot->px) slot->px = malloc((size_t)GAL_TW * GAL_TH / 2);
-    if (!slot->px) return 0;
+    if (!slot->px) slot->px = malloc(GAL_BYTES);
+    int *err = malloc(sizeof(int) * 2 * (GAL_TW + 2));
+    if (!slot->px || !err) return free(err), (const uint8_t *)0;
+    memset(err, 0, sizeof(int) * 2 * (GAL_TW + 2));
+    memset(slot->px, 0, GAL_BYTES);
+    int *cur = err + 1, *nxt = err + GAL_TW + 3;
     for (int ty = 0; ty < GAL_TH; ty++) {
-        int y0 = ty * src->h / GAL_TH, y1 = (ty + 1) * src->h / GAL_TH;
         for (int tx = 0; tx < GAL_TW; tx++) {
-            int x0 = tx * src->w / GAL_TW, x1 = (tx + 1) * src->w / GAL_TW, white = 0, n = 0;
-            for (int y = y0; y < y1; y++)
-                for (int x = x0; x < x1; x++) white += (src->px[y * src->stride + (x >> 3)] >> (7 - (x & 7))) & 1, n++;
-            int v = n ? (white * 15 + n / 2) / n : 15;
-            uint8_t *b = &slot->px[(ty * GAL_TW + tx) / 2];
-            *b = (tx & 1) ? (uint8_t)((*b & 0xf0) | v) : (uint8_t)((*b & 0x0f) | (v << 4));
+            int v = cell_avg(src, tx, ty), white;
+            v += cur[tx]; /* Floyd-Steinberg: looked at against an ordered 8 x 8 matrix, which printed a dot grid on paper */
+            white = v >= 128;
+            int e = v - (white ? 255 : 0);
+            cur[tx + 1] += e * 7 / 16;
+            nxt[tx - 1] += e * 3 / 16;
+            nxt[tx] += e * 5 / 16;
+            nxt[tx + 1] += e / 16;
+            if (white) slot->px[ty * GAL_ROW + (tx >> 3)] |= (uint8_t)(0x80 >> (tx & 7));
         }
+        memcpy(cur - 1, nxt - 1, sizeof(int) * (GAL_TW + 2));
+        memset(nxt - 1, 0, sizeof(int) * (GAL_TW + 2));
     }
+    free(err);
     slot->num = num;
     slot->used = ++c->tick;
     c->made++;
     return slot->px;
 }
 
-/* ---- the gray screen ---- */
+/* ---- onto the screen ---- */
 
-void gal_gray_from_mono(uint8_t *gray, const canvas_t *mono)
-{
-    static const uint8_t two[4] = { 0x00, 0x0f, 0xf0, 0xff }; /* two mono bits (first = high) to a gray byte */
-    for (int y = 0; y < mono->h; y++) {
-        const uint8_t *s = mono->px + (size_t)y * (size_t)mono->stride;
-        uint8_t *d = gray + (size_t)y * (size_t)(mono->w / 2);
-        for (int x = 0; x < mono->w / 2; x++) d[x] = two[(s[x >> 2] >> (6 - 2 * (x & 3))) & 3];
-    }
-}
-
-void gal_gray_blit(uint8_t *gray, int fw, int fh, int orient, const uint8_t *t, int x, int y)
+void gal_blit(canvas_t *dst, int orient, const uint8_t *t, int x, int y)
 {
     int tw = orient == APP_ORIENT_BAR_LEFT || orient == APP_ORIENT_BAR_RIGHT ? GAL_TH : GAL_TW;
     int th = orient == APP_ORIENT_BAR_LEFT || orient == APP_ORIENT_BAR_RIGHT ? GAL_TW : GAL_TH;
     int ax, ay, bx, by;
-    app_orient_to_fb(orient, fw, fh, x, y, &ax, &ay);
-    app_orient_to_fb(orient, fw, fh, x + tw - 1, y + th - 1, &bx, &by);
+    app_orient_to_fb(orient, dst->w, dst->h, x, y, &ax, &ay);
+    app_orient_to_fb(orient, dst->w, dst->h, x + tw - 1, y + th - 1, &bx, &by);
     int f0x = ax < bx ? ax : bx, f0y = ay < by ? ay : by;
-    for (int ty = 0; ty < GAL_TH; ty++)
+    for (int ty = 0; ty < GAL_TH; ty++) {
+        int fy = f0y + ty;
+        if (fy < 0 || fy >= dst->h) continue;
         for (int tx = 0; tx < GAL_TW; tx++) {
-            int fx = f0x + tx, fy = f0y + ty;
-            if (fx < 0 || fy < 0 || fx >= fw || fy >= fh) continue;
-            uint8_t *d = &gray[(size_t)fy * (size_t)(fw / 2) + (size_t)(fx >> 1)];
-            int v = gal_px(t, tx, ty);
-            *d = (fx & 1) ? (uint8_t)((*d & 0xf0) | v) : (uint8_t)((*d & 0x0f) | (v << 4));
+            int fx = f0x + tx;
+            if (fx < 0 || fx >= dst->w) continue;
+            uint8_t *d = &dst->px[fy * dst->stride + (fx >> 3)], m = (uint8_t)(0x80 >> (fx & 7));
+            if (gal_bit(t, tx, ty)) *d |= m;
+            else *d &= (uint8_t)~m;
         }
+    }
 }

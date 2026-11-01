@@ -5,7 +5,6 @@
 #include "util.h"
 
 int png_write(const char *path, const gfx_t *g);
-int png_write_gray(const char *path, const uint8_t *gray, int fw, int fh, int orient);
 
 static int bad;
 static void brush_shots(const char *dir);
@@ -58,10 +57,7 @@ static void gshot(rig_t *r, const char *dir, const char *name)
 {
     rect_t out[SK_MAX_RECTS];
     rig_frame(r, out);
-    char path[256];
-    snprintf(path, sizeof(path), "%s/%s.png", dir, name);
-    if (png_write_gray(path, r->gray, TW, TH, r->s.orient)) fprintf(stderr, "cannot write %s\n", path), bad = 1;
-    printf("%s\n", path);
+    save(r, dir, name);
 }
 
 /* eight drawings, then the gallery, the action list and the print screens, in two positions */
@@ -83,9 +79,19 @@ static void gallery_shots(const char *dir)
         sk_touch(&r.s, APP_TOUCH_RIGHT, APP_GESTURE_TAP, r.now += 50);
         sk_touch(&r.s, APP_TOUCH_RIGHT, APP_GESTURE_TAP, r.now += 50);
         gshot(&r, dir, o ? "c-gallery-portrait" : "b-gallery-landscape");
+        { /* the pen hovers over a tile: its frame is thick and the arrow stands on it */
+            int tx, ty;
+            gal_tile_xy(&r.s.L, 2, &tx, &ty);
+            rig_pen_user(&r, tx + r.s.L.tw / 2 + 40, ty + r.s.L.th / 2 - 20, APP_PEN_IN_RANGE, 0);
+            r.now += 200;
+            gshot(&r, dir, o ? "cp-gallery-portrait-pointer" : "bp-gallery-landscape-pointer");
+        }
         sk_touch(&r.s, APP_TOUCH_MIDDLE, APP_GESTURE_TAP, r.now += 50);
         sk_touch(&r.s, APP_TOUCH_RIGHT, APP_GESTURE_TAP, r.now += 50);
         gshot(&r, dir, o ? "e-actions-portrait" : "d-actions-landscape");
+        rig_pen_user(&r, r.s.lg.x + 120, r.s.lg.y0 + 2 * LIST_PITCH - 30, APP_PEN_IN_RANGE, 0); /* a row under the pen */
+        r.now += 200;
+        gshot(&r, dir, o ? "e2-actions-portrait-hover" : "d2-actions-landscape-hover");
         if (!o) {
             sk_touch(&r.s, APP_TOUCH_MIDDLE, APP_GESTURE_TAP, r.now += 50);
             gshot(&r, dir, "f-print-confirm");

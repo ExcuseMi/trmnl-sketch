@@ -85,7 +85,7 @@ static int thumb_sum(const uint8_t *t)
 {
     int sum = 0;
     for (int y = 0; y < GAL_TH; y++)
-        for (int x = 0; x < GAL_TW; x++) sum += gal_px(t, x, y);
+        for (int x = 0; x < GAL_TW; x++) sum += gal_bit(t, x, y);
     return sum;
 }
 
@@ -100,11 +100,7 @@ static void test_thumbnails_cache_and_edit(void)
     const uint8_t *t = gal_find(&r.s.cache, r.s.cur);
     CHECK(t != 0);
     int before = thumb_sum(t);
-    CHECK(before < GAL_TW * GAL_TH * 15); /* ink makes it darker than white */
-    int mid = 0; /* box filtering gives grays, not only black and white */
-    for (int y = 0; y < GAL_TH; y++)
-        for (int x = 0; x < GAL_TW; x++) mid += gal_px(t, x, y) > 0 && gal_px(t, x, y) < 15;
-    CHECK(mid > 50);
+    CHECK(before < GAL_TW * GAL_TH); /* ink makes it darker than white */
     /* back and forth without an edit: nothing is made again */
     tap(&r, APP_TOUCH_MIDDLE); /* actions */
     tap(&r, APP_TOUCH_MIDDLE); /* open */
@@ -129,7 +125,15 @@ static void test_thumbnails_cache_and_edit(void)
     rig_end(&r);
 }
 
-static void test_full_refresh_on_every_change(void)
+/* The panel as the glue keeps it: a full refresh takes the whole framebuffer, a partial one only its rectangles */
+static void panel_push(uint8_t *panel, const rig_t *r, const rect_t *out, int n)
+{
+    if (n == SK_FULL) return (void)memcpy(panel, r->fb, (size_t)TS * TH);
+    for (int i = 0; i < n; i++)
+        for (int y = out[i].y; y < out[i].y + out[i].h; y++) memcpy(panel + y * TS + out[i].x / 8, r->fb + y * TS + out[i].x / 8, (size_t)out[i].w / 8);
+}
+
+static void test_full_refresh_only_when_a_screen_opens_or_closes(void)
 {
     static rig_t r;
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
@@ -138,35 +142,43 @@ static void test_full_refresh_on_every_change(void)
     rig_frame(&r, out);
     int f = r.fulls;
     tap(&r, APP_TOUCH_MIDDLE); /* open the gallery */
-    CHECK(rig_frame(&r, out) == SK_FULL && r.fulls == f + 1 && r.gray_mode);
-    tap(&r, APP_TOUCH_RIGHT); /* move */
-    CHECK(rig_frame(&r, out) == SK_FULL && r.fulls == f + 2);
+    CHECK(rig_frame(&r, out) == SK_FULL && r.fulls == f + 1);
+    r.now += 1000;
+    tap(&r, APP_TOUCH_RIGHT); /* move: only the old and the new highlight */
+    int n = rig_frame(&r, out);
+    CHECK(n > 0 && r.fulls == f + 1);
     tap(&r, APP_TOUCH_MIDDLE); /* a drawing tile: its action list */
-    CHECK(rig_frame(&r, out) == SK_FULL && r.fulls == f + 3);
+    CHECK(rig_frame(&r, out) == SK_FULL && r.fulls == f + 2);
+    r.now += 1000;
+    tap(&r, APP_TOUCH_RIGHT); /* a row of the list */
+    CHECK(rig_frame(&r, out) > 0 && r.fulls == f + 2);
+    tap(&r, APP_TOUCH_LEFT);
     tap(&r, APP_TOUCH_MIDDLE); /* Open: back to drawing */
-    CHECK(rig_frame(&r, out) == SK_FULL && r.fulls == f + 4 && !r.gray_mode && r.s.mode == SK_DRAW);
+    CHECK(rig_frame(&r, out) == SK_FULL && r.fulls == f + 3 && r.s.mode == SK_DRAW);
     sk_pen_key(&r.s, 1u << 6, 1u << 6, r.now += 50); /* previous page */
     sk_pen_key(&r.s, 0, 1u << 6, r.now);
-    CHECK(rig_frame(&r, out) == SK_FULL && r.fulls == f + 5); /* a page change flashes */
+    CHECK(rig_frame(&r, out) == SK_FULL && r.fulls == f + 4); /* a page change flashes */
     int parts = r.parts;
     rig_line(&r, 200, 600, 900, 700, 40000, 0);
-    int n = rig_frame(&r, out);
-    CHECK(n > 0 && r.fulls == f + 5 && r.parts > parts); /* ink stays a partial refresh */
+    n = rig_frame(&r, out);
+    CHECK(n > 0 && r.fulls == f + 4 && r.parts > parts); /* ink stays a partial refresh */
     rig_end(&r);
 }
 
-static void gray_has_midtones(const rig_t *r, int *mid, int *black)
+/* black pixels of the framebuffer inside the user-frame rectangle of tile `slot` */
+static int tile_black(const rig_t *r, int slot, int *whites)
 {
-    *mid = *black = 0;
-    for (int i = 0; i < TW * TH / 2; i++)
-        for (int k = 0; k < 2; k++) {
-            int v = k ? r->gray[i] & 15 : r->gray[i] >> 4;
-            *mid += v > 2 && v < 13;
-            *black += v == 0;
-        }
+    int x, y, black = 0;
+    gal_tile_xy(&r->s.L, slot, &x, &y);
+    gfx_t g;
+    gfx_init(&g, r->fb, TW, TH, TS, r->s.orient);
+    *whites = 0;
+    for (int dy = 0; dy < r->s.L.th; dy++)
+        for (int dx = 0; dx < r->s.L.tw; dx++) gfx_get(&g, x + dx, y + dy) ? ++*whites : ++black;
+    return black;
 }
 
-static void test_gray_screen_has_thumbnails(void)
+static void test_screen_has_thumbnails(void)
 {
     static rig_t r;
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
@@ -174,9 +186,8 @@ static void test_gray_screen_has_thumbnails(void)
     tap(&r, APP_TOUCH_MIDDLE);
     rect_t out[SK_MAX_RECTS];
     CHECK(rig_frame(&r, out) == SK_FULL);
-    int mid, black;
-    gray_has_midtones(&r, &mid, &black);
-    CHECK(mid > 500 && black > 500); /* thumbnails in grays, frames and text in black */
+    int w, b = tile_black(&r, 1, &w);
+    CHECK(b > 50 && w > 5000); /* the newest page: its line in black dots on paper */
     rig_end(&r);
 }
 
@@ -278,7 +289,7 @@ static void test_pen_in_the_menus(void)
     rig_pen(&r, (x + x2) / 2, y, APP_PEN_TIP | APP_PEN_IN_RANGE, 20000);
     rig_pen(&r, x2, y2, APP_PEN_TIP | APP_PEN_IN_RANGE, 20000);
     rig_pen(&r, x2, y2, APP_PEN_IN_RANGE, 0);
-    CHECK(r.s.mode == SK_GALLERY && r.s.sel == 1);
+    CHECK(r.s.mode == SK_GALLERY && r.s.sel == 3); /* the pen over a tile selects it, as the touch bar does */
     /* out and back to the same tile is a drag too */
     rig_pen(&r, x, y, APP_PEN_TIP | APP_PEN_IN_RANGE, 20000);
     rig_pen(&r, x + 150, y, APP_PEN_TIP | APP_PEN_IN_RANGE, 20000);
@@ -295,7 +306,7 @@ static void test_pen_in_the_menus(void)
     rig_pen(&r, x + 3, y + 2, APP_PEN_IN_RANGE, 0);
     CHECK(r.s.mode == SK_ACTIONS && r.s.act_num == r.s.pg.nums[r.s.pg.n - 2]);
     /* in the list: a tap on "Back" returns to the gallery; the page took no ink from all of this */
-    int ix = r.s.list_x + 50, iy = r.s.list_y0 + 4 * 110 - 30; /* Back is the fifth row since Settings */
+    int ix = r.s.lg.x + 50, iy = r.s.lg.y0 + 4 * LIST_PITCH - 30; /* Back is the fifth row since Settings */
     rig_pen(&r, ix, iy, APP_PEN_TIP | APP_PEN_IN_RANGE, 20000);
     rig_pen(&r, ix, iy, APP_PEN_IN_RANGE, 0);
     CHECK(r.s.mode == SK_GALLERY);
@@ -328,9 +339,8 @@ static void test_orientations_render(void)
         tap(&r, APP_TOUCH_MIDDLE);
         rect_t out[SK_MAX_RECTS];
         CHECK(rig_frame(&r, out) == SK_FULL);
-        int mid, black;
-        gray_has_midtones(&r, &mid, &black);
-        CHECK(mid > 300 && black > 300);
+        int w, b = tile_black(&r, 1, &w);
+        CHECK(b > 50 && w > 3000);
         sk_set_orient(&r.s, (o + 1) % 4, &r.s.bar); /* turned while the gallery is up: drawn again */
         CHECK(r.s.want_full && r.s.mode == SK_GALLERY);
         rig_end(&r);
@@ -354,7 +364,7 @@ static void test_actions_frame_and_settings(void)
         CHECK(!gfx_get(&g, px + r.s.L.tw / 2, py - 9) && !gfx_get(&g, px + r.s.L.tw / 2, py + r.s.L.th + 8)); /* top and bottom */
         CHECK(gfx_get(&g, px + r.s.L.tw / 2, py + r.s.L.th / 2)); /* inside it is paper, the thumbnail goes there */
         CHECK(px + r.s.L.tw + 12 <= r.s.L.ax1 + 12 && py >= r.s.L.ay0 && py + r.s.L.th <= r.s.L.ay1); /* on the screen, level with the list */
-        CHECK(py + r.s.L.th / 2 > r.s.list_y0 && py + r.s.L.th / 2 < r.s.list_y0 + 4 * 110);
+        CHECK(py + r.s.L.th / 2 > r.s.lg.y0 && py + r.s.L.th / 2 < r.s.lg.y0 + 4 * LIST_PITCH);
         rig_end(&r);
     }
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
@@ -384,13 +394,183 @@ static void test_actions_frame_and_settings(void)
     rig_end(&r);
 }
 
+/* The dithered thumbnail keeps the area average of the page: per 24 x 24 block of thumbnail pixels within 3 % */
+static void test_dither_keeps_the_average(void)
+{
+    static uint8_t px[TS * TH];
+    canvas_t c = { px, TW, TH, TS };
+    uint32_t seed = 12345;
+    for (int y = 0; y < TH; y++)
+        for (int x = 0; x < TW; x++) {
+            seed = seed * 1664525u + 1013904223u;
+            int dens = x * 256 / TW + (y > TH / 2 ? 0 : 0); /* black density rises left to right */
+            int white = y < TH / 4 ? 1 : y < TH / 2 ? (int)((seed >> 16) & 255) >= dens : y < 3 * TH / 4 ? ((x / 3 + y / 3) & 1) : x > TW / 2;
+            if (white) px[y * TS + (x >> 3)] |= (uint8_t)(0x80 >> (x & 7));
+            else px[y * TS + (x >> 3)] &= (uint8_t)~(0x80 >> (x & 7));
+        }
+    gal_cache_t cache;
+    memset(&cache, 0, sizeof(cache));
+    const uint8_t *t = gal_make(&cache, 1, &c);
+    CHECK(t != 0);
+    double worst = 0;
+    for (int by = 0; by + 24 <= GAL_TH; by += 24)
+        for (int bx = 0; bx + 24 <= GAL_TW; bx += 24) {
+            int dw = 0, sw = 0, sn = 0;
+            for (int y = by; y < by + 24; y++)
+                for (int x = bx; x < bx + 24; x++) dw += gal_bit(t, x, y);
+            for (int y = by * TH / GAL_TH; y < (by + 24) * TH / GAL_TH; y++)
+                for (int x = bx * TW / GAL_TW; x < (bx + 24) * TW / GAL_TW; x++) sw += cv_get(&c, x, y), sn++;
+            double d = (double)dw / 576.0 - (double)sw / (double)sn;
+            if (d < 0) d = -d;
+            if (d > worst) worst = d;
+        }
+    printf("  dither: worst block error %.4f\n", worst);
+    CHECK(worst < 0.03);
+    gal_cache_free(&cache);
+}
+
+/* The hover pointer on the gallery: drawn and lifted with partial refreshes only, and the panel (full refresh plus the
+   pushed rectangles) shows the clean screen once it is gone */
+static void test_pointer_leaves_no_marks(void)
+{
+    static rig_t r;
+    static uint8_t panel[TS * TH];
+    rect_t out[SK_MAX_RECTS];
+    rig_new(&r, APP_ORIENT_BAR_BOTTOM);
+    make_pages(&r, 8);
+    rig_pen(&r, 10, 10, 0, 0); /* the pen leaves the tablet */
+    tap(&r, APP_TOUCH_MIDDLE);
+    panel_push(panel, &r, out, rig_frame(&r, out));
+    int f = r.fulls;
+    CHECK(!memcmp(panel, r.s.ui.px, sizeof(panel))); /* the screen is the clean one */
+    uint32_t seed = 7;
+    for (int i = 0; i < 40; i++) { /* the pen wanders over tiles, labels, gaps and the bar's strip */
+        seed = seed * 1664525u + 1013904223u;
+        int x = (int)((seed >> 8) % TW), y = (int)((seed >> 4) % TH);
+        rig_pen(&r, x, y, APP_PEN_IN_RANGE, 0);
+        r.now += 200;
+        panel_push(panel, &r, out, rig_frame(&r, out));
+        CHECK(r.fulls == f); /* never a full refresh while hovering */
+        if (r.s.cursor) CHECK(box_empty(&r.s.cur_box) || memcmp(r.fb, r.s.ui.px, sizeof(panel)) != 0);
+        CHECK(!memcmp(panel, r.fb, sizeof(panel))); /* everything drawn was pushed */
+    }
+    rig_pen(&r, 900, 700, APP_PEN_IN_RANGE, 0);
+    r.now += 200;
+    panel_push(panel, &r, out, rig_frame(&r, out));
+    CHECK(r.s.cursor && memcmp(r.fb, r.s.ui.px, sizeof(panel)) != 0); /* the arrow is there */
+    rig_pen(&r, 900, 700, 0, 0); /* the pen leaves the tablet */
+    r.now += 200;
+    panel_push(panel, &r, out, rig_frame(&r, out));
+    CHECK(!r.s.cursor && r.fulls == f);
+    /* the clean screen, except the highlight the pen left on the tile it last pointed at: ui has that too */
+    CHECK(!memcmp(panel, r.s.ui.px, sizeof(panel)));
+    rig_end(&r);
+}
+
+static int sel_slot_rect(const rig_t *r, int sel, box_t *b)
+{
+    gfx_t g;
+    int x, y, slot = sel % r->s.L.per;
+    gfx_init(&g, r->s.ui.px, TW, TH, TS, r->s.orient);
+    gal_tile_xy(&r->s.L, slot, &x, &y);
+    ui_fb_box(&g, x - 10, y - 10, x + r->s.L.tw + 9, y + r->s.L.th + GAL_LABEL, b);
+    return 1;
+}
+
+/* Hovering a tile or a row selects it (the touch bar's selection); the partial rectangles cover the old and the new
+   highlight and nothing else of size */
+static void test_hover_moves_the_highlight(void)
+{
+    static rig_t r;
+    static uint8_t panel[TS * TH];
+    rect_t out[SK_MAX_RECTS];
+    rig_new(&r, APP_ORIENT_BAR_BOTTOM);
+    make_pages(&r, 8);
+    rig_pen(&r, 10, 10, 0, 0); /* the pen leaves the tablet */
+    tap(&r, APP_TOUCH_MIDDLE);
+    panel_push(panel, &r, out, rig_frame(&r, out));
+    int x, y, old = r.s.sel;
+    tile_center(&r, 4, &x, &y);
+    rig_pen(&r, x, y, APP_PEN_IN_RANGE, 0);
+    r.now += 200;
+    int n = rig_frame(&r, out);
+    CHECK(r.s.sel == 4 && n > 0 && n != SK_FULL);
+    box_t a, b;
+    sel_slot_rect(&r, old, &a);
+    sel_slot_rect(&r, 4, &b);
+    long area = 0;
+    for (int i = 0; i < n; i++) {
+        area += (long)out[i].w * out[i].h;
+        /* every pushed rectangle lies inside the old tile, the new tile or the arrow's own box */
+        int in_a = out[i].x + out[i].w > a.x0 && out[i].x <= a.x1 + 8 && out[i].y + out[i].h > a.y0 && out[i].y <= a.y1;
+        int in_b = out[i].x + out[i].w > b.x0 && out[i].x <= b.x1 + 8 && out[i].y + out[i].h > b.y0 && out[i].y <= b.y1;
+        CHECK(in_a || in_b);
+    }
+    CHECK(area < 3L * (long)(r.s.L.tw + 40) * (r.s.L.th + GAL_LABEL + 40)); /* two tiles and a pointer, not the screen */
+    panel_push(panel, &r, out, n);
+    CHECK(!memcmp(panel, r.fb, sizeof(panel)));
+    /* the same selection from the touch bar: a partial refresh too, and the pointer stays */
+    r.now += 1000;
+    tap(&r, APP_TOUCH_RIGHT);
+    n = rig_frame(&r, out);
+    CHECK(r.s.sel == 5 && n > 0 && n != SK_FULL && r.s.cursor);
+    panel_push(panel, &r, out, n);
+    CHECK(!memcmp(panel, r.fb, sizeof(panel)));
+    /* a list row */
+    tap(&r, APP_TOUCH_MIDDLE);
+    panel_push(panel, &r, out, rig_frame(&r, out));
+    CHECK(r.s.mode == SK_ACTIONS);
+    int f = r.fulls;
+    rig_pen(&r, r.s.lg.x + 100, r.s.lg.y0 + 2 * LIST_PITCH - 25, APP_PEN_IN_RANGE, 0);
+    r.now += 200;
+    n = rig_frame(&r, out);
+    CHECK(r.s.act_sel == 2 && n > 0 && n != SK_FULL && r.fulls == f);
+    panel_push(panel, &r, out, n);
+    CHECK(!memcmp(panel, r.fb, sizeof(panel)));
+    rig_end(&r);
+}
+
+/* The pointer in the four positions of the X: hovering a row of the action list selects it and the glass matches */
+static void test_pointer_in_every_position(void)
+{
+    static rig_t r;
+    static uint8_t panel[TS * TH];
+    rect_t out[SK_MAX_RECTS];
+    for (int o = 0; o < 4; o++) {
+        rig_new(&r, o);
+        make_pages(&r, 3);
+        rig_pen(&r, 10, 10, 0, 0);
+        tap(&r, APP_TOUCH_MIDDLE);
+        panel_push(panel, &r, out, rig_frame(&r, out));
+        int f = r.fulls;
+        int ux, uy, tx, ty;
+        gal_tile_xy(&r.s.L, 2, &tx, &ty);
+        ux = tx + r.s.L.tw / 2, uy = ty + r.s.L.th / 2;
+        rig_pen_user(&r, ux, uy, APP_PEN_IN_RANGE, 0);
+        r.now += 200;
+        int n = rig_frame(&r, out);
+        CHECK(r.s.sel == 2 && n > 0 && n != SK_FULL && r.s.cursor && r.fulls == f);
+        panel_push(panel, &r, out, n);
+        CHECK(!memcmp(panel, r.fb, sizeof(panel)));
+        sk_pen(&r.s, 0, 0, 0, 0, r.now += 5); /* out of range */
+        r.now += 200;
+        panel_push(panel, &r, out, rig_frame(&r, out));
+        CHECK(!r.s.cursor && !memcmp(panel, r.s.ui.px, sizeof(panel)));
+        rig_end(&r);
+    }
+}
+
 int main(void)
 {
     test_layout_four_positions();
     test_selection_and_paging();
     test_thumbnails_cache_and_edit();
-    test_full_refresh_on_every_change();
-    test_gray_screen_has_thumbnails();
+    test_full_refresh_only_when_a_screen_opens_or_closes();
+    test_screen_has_thumbnails();
+    test_dither_keeps_the_average();
+    test_pointer_leaves_no_marks();
+    test_hover_moves_the_highlight();
+    test_pointer_in_every_position();
     test_print_from_the_action_list();
     test_print_errors();
     test_pen_in_the_menus();

@@ -13,9 +13,15 @@ enum { PILL_NONE, PILL_UP, PILL_DOWN };
 void ui_pill(gfx_t *g, const app_touchbar_t *bar, int zone, const char *label, int icon);
 /* The three pills of a menu: Up, Select (label given), Down */
 void ui_menu_pills(gfx_t *g, const app_touchbar_t *bar, const char *select);
-/* A list as the firmware's menus: a title, the items (bold) with an arrow before the selected one. The text column
-   starts a third into the area `L`. Returns the x where the text starts and the first item's baseline. */
-void ui_list(gfx_t *g, const gal_layout_t *L, const char *title, const char *const *items, int n, int sel, int *text_x, int *first_y);
+#define LIST_PITCH 110
+typedef struct {
+    int x, y0, x1; /* the text column, the first item's baseline, the right edge of a row */
+} list_geom_t;
+/* A list as the firmware's menus: a title and the items (bold), the selected one inverted. The text column starts a
+   third into the area `L`. */
+void ui_list(gfx_t *g, const gal_layout_t *L, const char *title, const char *const *items, int n, int sel, list_geom_t *geo);
+/* The user-frame box (inclusive) of row i as drawn (the inverted bar; also what the pen hits) */
+void ui_list_row(const list_geom_t *geo, int i, int *x0, int *y0, int *x1, int *y1);
 /* The gallery: tile 0 is "New page", the others pages. nums[slot] is the page number (0 = the new-page tile) for the
    `count` tiles of this screen; sel the selected slot (-1 none); cur the page on the flash (marked). Draws the frames and
    captions; the thumbnails are blitted over the inside of each tile (gallery.h). */

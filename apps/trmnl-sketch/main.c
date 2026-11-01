@@ -84,7 +84,7 @@ static void read_tablet(void)
 static void push(int n, const rect_t *out)
 {
     if (n == SK_FULL) {
-        api->screen_refresh(0, APP_REFRESH_FULL); /* page change, clear or a request: clean */
+        api->screen_refresh(0, APP_REFRESH_FULL); /* a page or a menu screen opens or closes, clear: clean */
         return;
     }
     for (int i = 0; i < n; i++) {
@@ -113,19 +113,9 @@ int app_main(const app_api_t *a)
     read_tablet();
     int sharing = 0, share_rc = 0;
     uint32_t sec = 0, pen_check = api->millis();
-    int gray = 0;
     for (;;) {
         uint32_t now = api->millis();
         rect_t out[SK_MAX_RECTS];
-        if (sk_screen_gray(&sk) != gray) { /* the gallery and menus are 4-bit; drawing is 1-bit (fast partial refresh) */
-            gray = sk_screen_gray(&sk);
-            uint8_t *p = api->screen_set_mode(gray ? APP_SCREEN_GRAY4 : APP_SCREEN_1BIT);
-            if (!p) {
-                api->log("sketch: screen mode switch failed");
-                break;
-            }
-            sk_set_screens(&sk, gray ? 0 : p, gray ? p : 0);
-        }
         push(sk_flush(&sk, now, out), out);
         if (sk.print_req) sk_run_print(&sk); /* "Printing..." is on the glass; blocks while the job goes out */
         sk_tick(&sk, now);

@@ -55,18 +55,24 @@ void ui_menu_pills(gfx_t *g, const app_touchbar_t *bar, const char *select)
     ui_pill(g, bar, APP_TOUCH_RIGHT, "Down", PILL_DOWN);
 }
 
-void ui_list(gfx_t *g, const gal_layout_t *L, const char *title, const char *const *items, int n, int sel, int *text_x, int *first_y)
+void ui_list(gfx_t *g, const gal_layout_t *L, const char *title, const char *const *items, int n, int sel, list_geom_t *geo)
 {
     const font_face_t *big = mface(1, 64);
     mtext(g, big, L->ax0, L->ay0 + 110, title, MBLK);
-    int spacing = 110, x = L->ax0 + (L->ax1 - L->ax0) / 3, mid = (L->ay0 + L->ay1) / 2;
-    int y0 = mid - (n - 1) * spacing / 2;
+    int x = L->ax0 + (L->ax1 - L->ax0) / 3, mid = (L->ay0 + L->ay1) / 2, w = 0;
+    for (int i = 0; i < n; i++)
+        if (mtext_w(big, items[i]) > w) w = mtext_w(big, items[i]);
+    geo->x = x, geo->y0 = mid - (n - 1) * LIST_PITCH / 2, geo->x1 = x + w + 30;
     for (int i = 0; i < n; i++) {
-        mtext(g, big, x, y0 + i * spacing, items[i], MBLK);
-        if (i == sel) tri(g, (float)x - 40 - 10, (float)y0 + (float)i * (float)spacing - (float)big->digit_h / 2, 40, PILL_NONE);
+        int y = geo->y0 + i * LIST_PITCH;
+        if (i == sel) gfx_rrect(g, x - 30, y - 74, geo->x1, y + 28, 14, 0, MBLK, MBLK); /* the selected row is inverted */
+        mtext(g, big, x, y, items[i], i == sel ? MWHT : MBLK);
     }
-    if (text_x) *text_x = x;
-    if (first_y) *first_y = y0;
+}
+
+void ui_list_row(const list_geom_t *geo, int i, int *x0, int *y0, int *x1, int *y1)
+{
+    *x0 = geo->x - 30, *x1 = geo->x1, *y0 = geo->y0 + i * LIST_PITCH - 74, *y1 = geo->y0 + i * LIST_PITCH + 28;
 }
 
 void ui_gallery(gfx_t *g, const gal_layout_t *L, const int *nums, int count, int sel, int cur, int page, int pages, const char *note)

@@ -59,6 +59,29 @@ void ui_cursor(canvas_t *fb, int cx, int cy, int brush, int size, box_t *out)
     box_clip(out, fb->w, fb->h);
 }
 
+/* The pointer of the menus: the classic arrow, tip at the point */
+static int arrow_in(int x, int y)
+{
+    static const int px[7] = { 0, 0, 7, 12, 17, 12, 21 }, py[7] = { 0, 31, 24, 36, 34, 22, 22 };
+    int in = 0;
+    for (int i = 0, j = 6; i < 7; j = i++)
+        if ((py[i] > y) != (py[j] > y) && x < (px[j] - px[i]) * (y - py[i]) / (py[j] - py[i]) + px[i]) in = !in;
+    return in;
+}
+
+void ui_arrow(canvas_t *fb, int orient, int ux, int uy, box_t *out)
+{
+    box_clear(out);
+    for (int dy = 0; dy < ARROW_H; dy++)
+        for (int dx = 0; dx < ARROW_W; dx++) {
+            int fx, fy;
+            app_orient_to_fb(orient, fb->w, fb->h, ux + dx, uy + dy, &fx, &fy);
+            if (fx < 0 || fy < 0 || fx >= fb->w || fy >= fb->h) continue;
+            box_add(out, fx, fy);
+            if (arrow_in(dx, dy)) cv_flip(fb, fx, fy);
+        }
+}
+
 static void put(char *dst, size_t cap, const char *s)
 {
     size_t n = strlen(dst);

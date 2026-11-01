@@ -26,7 +26,7 @@ typedef struct {
     pj_net_t net;        /* the printer connection (post == NULL: this firmware cannot print) */
 } sk_env_t;
 
-enum { SK_DRAW, SK_SHARE, SK_GALLERY, SK_ACTIONS, SK_CONFIRM, SK_BUSY, SK_RESULT }; /* from SK_GALLERY on: gray screens */
+enum { SK_DRAW, SK_SHARE, SK_GALLERY, SK_ACTIONS, SK_CONFIRM, SK_BUSY, SK_RESULT }; /* from SK_GALLERY on: menu screens drawn from `ui` */
 #define SK_PRINTER_DEFAULT "192.0.2.40"
 #define SK_BLITS 40
 enum { SK_NONE = 0, SK_FULL = -1 }; /* sk_flush: nothing due / a full refresh */
@@ -65,19 +65,19 @@ typedef struct {
     int want_full, share_req, share_kind; /* share_req: 1 start the files page, 2 the settings page, -1 stop; share_kind: which one is on screen */
     share_view_t share, share_shown;
     int share_rc;
-    /* gallery and menus (gray screens, drawn from `ui`) */
-    canvas_t ui;         /* the 1-bit chrome of the gray screens; px NULL outside them */
-    uint8_t *gfb;        /* the panel's 4-bit framebuffer while a gray screen is up */
-    int fb_stale;        /* the 1-bit framebuffer was handed over again: show the page */
+    /* gallery and menus (1-bit like the page, so the pointer and the highlight need only partial refreshes) */
+    canvas_t ui;         /* the clean screen of a menu (chrome and thumbnails); px NULL outside them */
+    box_t cur_box;       /* the menus' arrow pointer on screen (cursor set), in the framebuffer */
     gal_layout_t L;
     gal_cache_t cache;
     int sel, act_sel;    /* selected gallery tile (0 new page, 1 newest page ...), selected list item */
     int act_num;         /* the page the action list and Print are about */
-    int list_x, list_y0, list_n; /* the list as drawn, for the pen */
+    list_geom_t lg;      /* the list as drawn, for the pen */
+    int list_n;
     char gnote[64];
     int print_req;
     pj_result_t pres;
-    struct { int num, x, y; } blit[SK_BLITS];
+    struct { int num, x, y; } blit[SK_BLITS]; /* thumbnails to lay over `ui` */
     int blit_n;
     int ptr_down, ptr_moved, ptr_item, ptr_x, ptr_y; /* a pen or mouse press on a menu */
     uint32_t pushed_px;  /* statistics: pixels and rectangles handed out by sk_flush */
@@ -106,10 +106,6 @@ void sk_share_update(sketch_t *s, int start_rc, const app_webshare_status_t *st)
 void sk_tick(sketch_t *s, uint32_t now);
 /* The pages saved now (the app ends or is told to) */
 void sk_save_now(sketch_t *s);
-/* 1 while the screen must be in the panel's 4-bit mode (gallery, lists, print screens), else 0 (1-bit). The app
-   switches the mode when this changes, then hands over the framebuffers: fb1 (1-bit) in mode 0, gray in mode 1 */
-int sk_screen_gray(const sketch_t *s);
-void sk_set_screens(sketch_t *s, uint8_t *fb1, uint8_t *gray);
 /* After sk_flush showed the "Printing" screen (print_req): sends the page, sets the result screen */
 void sk_run_print(sketch_t *s);
 /* Sends page `num`'s saved file to the printer; 0 or < 0 with s->pres.msg set (skprint.c) */
@@ -134,8 +130,8 @@ void sk_make_page(sketch_t *s, uint32_t now);
 void sk_open_page(sketch_t *s, int num, uint32_t now);
 int sk_is_blank(const canvas_t *c);
 void sk_show_page(sketch_t *s);
-void sk_screen_render(sketch_t *s);
-void sk_compose_gray(sketch_t *s);
+void sk_screen_render(sketch_t *s); /* draws the menu screen of the mode into `ui` and asks for a full refresh */
+void sk_menu_cursor(sketch_t *s); /* draws the pointer on the framebuffer at the hover place, when a menu shows one */
 void sk_to_gallery(sketch_t *s, uint32_t now);
 void sk_menu_touch(sketch_t *s, int zone, int gesture, uint32_t now);
 void sk_menu_pen(sketch_t *s, unsigned flags, int fx, int fy, int inside, uint32_t now);

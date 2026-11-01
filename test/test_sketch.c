@@ -290,7 +290,7 @@ static void test_menu_and_share(void)
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
     rig_line(&r, 200, 300, 1000, 500, 50000, 0);
     touch(&r, APP_TOUCH_MIDDLE, APP_GESTURE_TAP);
-    CHECK(r.s.mode == SK_GALLERY && sk_screen_gray(&r.s));
+    CHECK(r.s.mode == SK_GALLERY);
     rig_pen(&r, 800, 800, APP_PEN_TIP | APP_PEN_IN_RANGE, 30000); /* the pen draws nothing in the menu */
     rig_pen(&r, 900, 900, 0, 0);
     touch(&r, APP_TOUCH_MIDDLE, APP_GESTURE_TAP); /* the page on the flash: its action list */
@@ -303,7 +303,7 @@ static void test_menu_and_share(void)
     strcpy(st.code, "123456"), strcpy(st.network, "Writer"), strcpy(st.address, "http://4.3.2.1"), strcpy(st.ip, "4.3.2.1");
     sk_share_update(&r.s, 0, &st);
     rect_t out[SK_MAX_RECTS];
-    CHECK(rig_frame(&r, out) == SK_FULL && r.gray_mode == 0);
+    CHECK(rig_frame(&r, out) == SK_FULL);
     CHECK(fb_black(&r) > 0); /* the page drawn after the mode switch cleared the panel */
     sk_share_update(&r.s, 0, &st);
     CHECK(!r.s.want_full); /* the same status: no redraw */
@@ -315,7 +315,7 @@ static void test_menu_and_share(void)
     touch(&r, APP_TOUCH_MIDDLE, APP_GESTURE_TAP);
     touch(&r, APP_TOUCH_MIDDLE, APP_GESTURE_TAP); /* Open */
     CHECK(r.s.mode == SK_DRAW && same_page_and_fb(&r)); /* back to the page */
-    CHECK(rig_frame(&r, out) == SK_FULL && same_page_and_fb(&r) && !r.gray_mode);
+    CHECK(rig_frame(&r, out) == SK_FULL && same_page_and_fb(&r));
     share_view_t v;
     share_view(&v, APP_ENONET, &st);
     CHECK(strstr(v.note, "No network") && !v.address[0]); /* a start that failed says so */
