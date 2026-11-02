@@ -59,6 +59,7 @@ static void test_measured(void)
     static rig_t r;
     for (int batch = 16; batch <= 40; batch += 12) {
         rig_new(&r, APP_ORIENT_BAR_BOTTOM);
+        sk_set_brush(&r.s, BR_MARKER, r.now += 50); /* (the Pen adds a tapering tail) */
         r.s.batch_ms = batch;
         uint32_t t = 5000, first = 0;
         int expect[SK_LAT_N], ne = 0;
@@ -136,6 +137,7 @@ static void test_batching_covers(void)
     static uint8_t panel[TS * TH];
     for (int batch = 0; batch <= 40; batch += 8) {
         rig_new(&r, APP_ORIENT_BAR_BOTTOM);
+        sk_set_brush(&r.s, BR_MARKER, r.now += 50); /* (the Pen adds a tapering tail) */
         r.s.batch_ms = batch;
         memset(panel, 0xff, sizeof(panel));
         memset(panel, 0, sizeof(panel)); /* the glass is unknown until the start's full refresh */

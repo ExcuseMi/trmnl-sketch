@@ -1,5 +1,5 @@
-/* The toolbar's glyphs: each brush as the tool drawing apps show for it (fine-tip pen, paintbrush, pencil, chisel
-   marker, fountain-pen nib, spray can, block eraser), undo and redo as curved arrows, clear as a trash can. All
+/* The toolbar's glyphs: each brush as the tool drawing apps show for it (paintbrush for the Pen, pencil, chisel
+   marker, spray can, block eraser, paint bucket), the mirror, the colour swatches and the size dots. All
    in a 64 x 64 box at (x, y), bold 1-bit line art: `ink` for the strokes, `bg` for what the box is filled with.
    SPDX-License-Identifier: MIT */
 #ifndef TBICONS_H
@@ -11,13 +11,7 @@
 void tbi_brush(gfx_t *g, int brush, int x, int y, int ink, int bg);
 /* The symmetry mode (MR_*) drawn: two halves about the axis, or a star of axes */
 void tbi_mirror(gfx_t *g, int mode, int x, int y, int ink, int bg);
-void tbi_undo(gfx_t *g, int x, int y, int ink, int bg);
-void tbi_redo(gfx_t *g, int x, int y, int ink, int bg);
-void tbi_clear(gfx_t *g, int x, int y, int ink, int bg);
-/* The shape and text tools (TL_LINE .. TL_TEXT): a diagonal line with its end dots, a box, an oval, a letter T with a caret */
-void tbi_tool(gfx_t *g, int tool, int x, int y, int ink, int bg);
-/* A Recent slot (toolbar.h): a swatch of the tone with a dot of the size, the brush's glyph tiny in the lower right corner; e NULL: an empty slot */
-void tbi_recent(gfx_t *g, const bstyle_t *e, int x, int y, int ink, int bg);
-/* The stabiliser: a hand-drawn zigzag that calms to a smooth curve as the level (0..10) rises */
-void tbi_smooth(gfx_t *g, int level, int x, int y, int ink, int bg);
+/* A colour swatch of the shade (black, grey, white) and a size button's dot (class 0 small .. 2 big) */
+void tbi_colour(gfx_t *g, int shade, int x, int y, int ink, int bg);
+void tbi_size(gfx_t *g, int cls, int x, int y, int ink, int bg);
 #endif

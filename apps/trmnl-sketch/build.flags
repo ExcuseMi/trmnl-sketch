@@ -26,7 +26,6 @@
 ../../../trmnl-print/src/printer.c
 ../../../trmnl-print/src/printjob.c
 ../../src/skcfg.c
-../../src/sksize.c
 ../../src/skflash.c
 ../../src/fill.c
 ../../src/skfill.c
@@ -34,18 +33,12 @@
 ../../src/skmirror.c
 ../../src/sketch.c
 ../../src/skpage.c
-../../src/skshape.c
-../../src/sktext.c
-../../src/skrecent.c
 ../../src/skstab.c
-../../src/skpress.c
 ../../src/sktilt.c
 ../../src/sklat.c
 ../../src/sklatency.c
-../../src/skcursor.c
 ../../src/sktbimg.c
 ../../src/skplvis.c
-../../src/textdraw.c
 ../../src/paper.c
 ../../src/skpaper.c
 ../../src/font.c

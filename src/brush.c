@@ -5,15 +5,30 @@
 #include "penmap.h"
 #include "sk_cfg.h"
 
-static const char *const names[BR_N] = { "Fineliner", "Brush pen", "Pencil", "Marker", "Calligraphy", "Spray", "Eraser", "Fill" };
-static const char *const shades[SH_N + 1] = { "Black", "Tone 15/16", "Tone 14/16", "Tone 12/16", "Tone 10/16", "Tone 8/16", "Tone 6/16", "Tone 4/16", "Tone 2/16", "White" };
+static const char *const names[BR_N] = { "Pen", "Pencil", "Marker", "Spray", "Eraser", "Fill" };
 
 const char *brush_name(int b) { return names[b < 0 || b >= BR_N ? 0 : b]; }
-const char *shade_name(int sh) { return shades[sh < 0 || sh > SH_WHITE ? 0 : sh]; }
+const char *shade_name(int sh) { return sh == SH_BLACK ? "Black" : sh == SH_WHITE ? "White" : "Grey"; }
 int brush_next(int b) { return (b + 1) % BR_N; }
 int brush_is_eraser(int b) { return b == BR_ERASER; }
 int brush_is_fill(int b) { return b == BR_FILL; }
-int brush_tail(int b) { return b == BR_BRUSHPEN; }
+int brush_tail(int b) { return b == BR_PEN; }
+
+/* Small, Medium, Big per brush (pen size = the diameter in px; the eraser's is its side). Fill has no size: it shares the pen's row so the buttons keep their pick */
+static const uint8_t sizes[BR_N][BR_SIZES] = { { 5, 9, 17 }, { 5, 9, 17 }, { 6, 10, 18 }, { 8, 14, 26 }, { 14, 27, 44 }, { 5, 9, 17 } };
+int brush_size(int b, int cls) { return sizes[b < 0 || b >= BR_N ? 0 : b][cls < 0 ? 0 : cls >= BR_SIZES ? BR_SIZES - 1 : cls]; }
+int brush_size_cls(int b, int size)
+{
+    for (int c = 0; c < BR_SIZES; c++)
+        if (brush_size(b, c) == size) return c;
+    return -1;
+}
+/* Settings of the earlier table: 0 fineliner and 1 brush pen are the Pen, 4 calligraphy the Pen, the rest keep their tool */
+int brush_from_old(int o)
+{
+    static const uint8_t map[8] = { BR_PEN, BR_PEN, BR_PENCIL, BR_MARKER, BR_PEN, BR_SPRAY, BR_ERASER, BR_FILL };
+    return o >= 0 && o < 8 ? map[o] : BR_PEN;
+}
 
 static int sz(int size) { return size < SK_SIZE_MIN ? SK_SIZE_MIN : size > SK_SIZE_MAX ? SK_SIZE_MAX : size; }
 #define LZ(size, a, b, c, cap) pen_lerp(size, a, b, c, 1, cap) /* the brush's measure at a pen size (src/penmap.h) */
@@ -40,16 +55,15 @@ int brush_param(int b, int size, unsigned pressure)
     size = sz(size);
     if (pressure > 65535) pressure = 65535;
     switch (b) {
-    case BR_BRUSHPEN: { /* swells with the pressure, linear: a light touch is a hairline */
+    case BR_PEN: { /* swells with the pressure, linear: a light touch is a hairline */
         unsigned long long q = pressure * 5ull / 4;
         if (q > 65535) q = 65535;
         return 1 + (int)((unsigned long long)(LZ(size, 8, 15, 26, 60) - 1) * q / 65535);
     }
     case BR_PENCIL: case BR_SPRAY: return p8(pressure);
     case BR_MARKER: return LZ(size, 8, 14, 24, 90);
-    case BR_CALLIGRAPHY: return LZ(size, 12, 20, 32, 124) * 3 / 4 + (int)((unsigned long long)(LZ(size, 12, 20, 32, 124) / 4) * pressure / 65535);
     case BR_ERASER: return pen_erase_d(size);
-    default: return pen_diam(size, pressure);
+    default: return 1; /* the bucket draws no stroke */
     }
 }
 
@@ -98,14 +112,7 @@ static void px(const bctx_t *k, int x, int y)
     cv_px_s(k->c, X, Y, k->colour, k->shade);
 }
 
-/* discs and squares keep their own axis-aligned shape: only their centre is mapped */
-static void stamp_disc(const bctx_t *k, int x, int y, int p)
-{
-    int X, Y;
-    mp(k, x, y, &X, &Y);
-    cv_disc_s(k->c, X, Y, p < 1 ? 1 : p, k->colour, k->shade, k->dirty);
-}
-
+/* squares keep their own axis-aligned shape: only their centre is mapped */
 static void stamp_square(const bctx_t *k, int x, int y, int p) /* marker, eraser: a square of side p */
 {
     int w = p < 1 ? 1 : p, X, Y;
@@ -141,19 +148,11 @@ static void stamp_pencil(const bctx_t *k, int x, int y, int p) /* grain: a page-
     add_box(k, x - R, y - R, x + R, y + R);
 }
 
-static void stamp_brushpen(const bctx_t *k, int x, int y, int p) /* the swelling disc; a tilted pen lays a little more down */
+static void stamp_pen(const bctx_t *k, int x, int y, int p) /* the swelling disc; a tilted pen lays a little more down */
 {
-    stamp_disc(k, x, y, p + p * tilt_m(k) / 160);
-}
-
-static void stamp_nib(const bctx_t *k, int x, int y, int p) /* a flat nib slanted 45 degrees: a thin line along "/" */
-{
-    int e = p * 181 / 512;
-    for (int t = -e; t <= e; t++) {
-        px(k, x + t, y - t);
-        px(k, x + t + 1, y - t);
-    }
-    add_box(k, x - e, y - e, x + e + 1, y + e);
+    int X, Y, d = p + p * tilt_m(k) / 160;
+    mp(k, x, y, &X, &Y);
+    cv_disc_s(k->c, X, Y, d < 1 ? 1 : d, k->colour, k->shade, k->dirty);
 }
 
 static void stamp_spray(const bctx_t *k, int x, int y, int p) /* dots about the point, as many as the pressure says */
@@ -169,7 +168,7 @@ static void stamp_spray(const bctx_t *k, int x, int y, int p) /* dots about the 
 
 static void stamp_none(const bctx_t *k, int x, int y, int p) { (void)k, (void)x, (void)y, (void)p; } /* the bucket draws no stroke */
 
-static const stamp_fn stamps[BR_N] = { stamp_disc, stamp_brushpen, stamp_pencil, stamp_square, stamp_nib, stamp_spray, stamp_square, stamp_none };
+static const stamp_fn stamps[BR_N] = { stamp_pen, stamp_pencil, stamp_square, stamp_spray, stamp_square, stamp_none };
 
 static void seg_img(const bstyle_t *st, int img, int colour, canvas_t *c, int x0, int y0, int p0, int t0, int x1, int y1, int p1, int t1, box_t *dirty);
 
@@ -212,10 +211,9 @@ int brush_shape_r(int b, int size)
 {
     size = sz(size);
     switch (b) {
-    case BR_BRUSHPEN: return LZ(size, 3, 5, 8, 15) * 3 + 2;
+    case BR_PEN: return LZ(size, 3, 5, 8, 15) * 3 + 2;
     case BR_PENCIL: return LZ(size, 14, 20, 28, 58) * 3 / 4 + 3;
     case BR_MARKER: return LZ(size, 8, 14, 24, 90) / 2 + 2;
-    case BR_CALLIGRAPHY: return LZ(size, 12, 20, 32, 124) * 181 / 512 + 3;
     case BR_SPRAY: return LZ(size, 10, 18, 30, 46);
     case BR_ERASER: return pen_erase_d(size) / 2 + 1;
     case BR_FILL: return 40;
@@ -252,7 +250,7 @@ int brush_shape_px(int b, int size, int dx, int dy)
     size = sz(size);
     int ax = dx < 0 ? -dx : dx, ay = dy < 0 ? -dy : dy, m = ax > ay ? ax : ay;
     switch (b) {
-    case BR_BRUSHPEN: {
+    case BR_PEN: {
         int rr = LZ(size, 3, 5, 8, 15);
         return in_drop(rr, dx, dy) && !(in_drop(rr, dx - 1, dy) && in_drop(rr, dx + 1, dy) && in_drop(rr, dx, dy - 1) && in_drop(rr, dx, dy + 1));
     }
@@ -266,10 +264,6 @@ int brush_shape_px(int b, int size, int dx, int dy)
         int h = LZ(size, 8, 14, 24, 90) / 2;
         return (m <= h && m >= h - 1) || (dx == 0 && dy == 0);
     }
-    case BR_CALLIGRAPHY: {
-        int e = LZ(size, 12, 20, 32, 124) * 181 / 512;
-        return dx + dy >= 0 && dx + dy <= 1 && ax <= e + 1;
-    }
     case BR_SPRAY: { /* a dotted ring */
         int r = LZ(size, 10, 18, 30, 46), d2 = dx * dx + dy * dy;
         if (dx == 0 && dy == 0) return 1;
@@ -280,10 +274,7 @@ int brush_shape_px(int b, int size, int dx, int dy)
         return m == h;
     }
     case BR_FILL: return in_bucket(dx, dy) && !(in_bucket(dx - 1, dy) && in_bucket(dx + 1, dy) && in_bucket(dx, dy - 1) && in_bucket(dx, dy + 1));
-    default: {
-        int r = LZ(size, 6, 8, 12, 46), d2 = dx * dx + dy * dy;
-        return (d2 <= r * r && d2 >= (r - 1) * (r - 1)) || (dx == 0 && dy == 0);
-    }
+    default: return dx == 0 && dy == 0;
     }
 }
 
@@ -292,13 +283,11 @@ int brush_shape_px(int b, int size, int dx, int dy)
 #define CUR_MIN 16
 int brush_cursor_r(int b, int size)
 {
-    if (b >= BR_N) return tc_r(b, size);
     int r = brush_shape_r(b, size) + 1;
     return r < CUR_MIN ? CUR_MIN : r;
 }
 int brush_cursor_px(int b, int size, int dx, int dy)
 {
-    if (b >= BR_N) return tc_px(b, size, dx, dy);
     int ax = dx < 0 ? -dx : dx, ay = dy < 0 ? -dy : dy, s = brush_shape_r(b, size);
     if (s + 1 < CUR_MIN && ((ax <= 1 && ay <= CUR_MIN) || (ay <= 1 && ax <= CUR_MIN))) return 1;
     if (ax > s + 1 || ay > s + 1) return 0;

@@ -8,14 +8,18 @@
 #include "canvas.h"
 
 /* The order is the toolbar's order and the cycle order */
-enum { BR_FINELINER, BR_BRUSHPEN, BR_PENCIL, BR_MARKER, BR_CALLIGRAPHY, BR_SPRAY, BR_ERASER, BR_FILL, BR_N };
+enum { BR_PEN, BR_PENCIL, BR_MARKER, BR_SPRAY, BR_ERASER, BR_FILL, BR_N };
+/* The three size buttons (Small, Medium, Big): brush_size gives the pen size (1..48) of a button for a brush; brush_size_cls the button a size belongs to, or -1 */
+#define BR_SIZES 3
+int brush_size(int brush, int cls);
+int brush_size_cls(int brush, int size);
+/* A brush id of the earlier ten-brush table (fineliner, brush pen, pencil, marker, calligraphy, spray, eraser, fill) as it is now */
+int brush_from_old(int old);
 
 typedef struct {
     uint8_t brush, shade, size; /* BR_*, SH_*, the pen size 1..48 */
     uint8_t mirror;             /* MR_* (mirror.h): the stroke is repeated through that symmetry; 0 off */
-    uint8_t tool;               /* TL_*: what the pen does with this brush (the toolbar shows it picked) */
 } bstyle_t;
-enum { TL_DRAW, TL_LINE, TL_RECT, TL_OVAL, TL_TEXT };
 
 const char *brush_name(int brush);
 const char *shade_name(int shade);
@@ -42,10 +46,6 @@ int brush_shape_px(int brush, int size, int dx, int dy);
    inside a square of half side brush_cursor_r. brush_cursor_px says whether the pixel at (dx, dy) is black; a white
    outline BR_CUR_OUT px wide goes around it (ui_cursor) so it shows on black ink too */
 #define BR_CUR_OUT 2
-/* Tool cursors are the ids BR_N + TL_LINE .. BR_N + TL_TEXT (skcursor.c): the shape crosshair with the glyph and a ring of the
-   line width, the text I-beam as tall as the text size */
-int tc_r(int tc, int size);
-int tc_px(int tc, int size, int dx, int dy);
 int brush_cursor_r(int brush, int size);
 int brush_cursor_px(int brush, int size, int dx, int dy);
 #endif

@@ -60,7 +60,7 @@ void sk_fill_at(sketch_t *s, int x, int y, uint32_t now)
     }
     s->bk_ask_until = now;
     uint32_t n = bf_runs(&r);
-    bstyle_t st = { BR_FILL, s->sty.shade, 1, s->sty.mirror, 0 };
+    bstyle_t st = { BR_FILL, s->sty.shade, 1, s->sty.mirror };
     hpt_t *slots = hist_fill_begin(&s->hist, n, &st);
     if (!slots) {
         bf_free(&r);

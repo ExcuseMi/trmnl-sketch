@@ -1,5 +1,5 @@
-/* White as an ink colour (shade SH_WHITE, the far left of the tone slider): every brush draws it in its own shape over
-   black, undo and redo give back the exact pixels, Recent and the settings keep it, the bucket and the text use it.
+/* White as an ink colour (shade SH_WHITE, the toolbar's White swatch): every brush draws it in its own shape over
+   black, undo and redo give back the exact pixels, the settings keep it, the bucket uses it.
    SPDX-License-Identifier: MIT */
 #include "check.h"
 #include <stdio.h>
@@ -7,7 +7,7 @@
 
 #define DOWN (APP_PEN_TIP | APP_PEN_IN_RANGE)
 
-static const int inks[] = { BR_FINELINER, BR_BRUSHPEN, BR_PENCIL, BR_MARKER, BR_CALLIGRAPHY, BR_SPRAY };
+static const int inks[] = { BR_PEN, BR_PENCIL, BR_MARKER, BR_SPRAY };
 
 static void black_page(rig_t *r)
 {
@@ -37,7 +37,7 @@ static void test_each_brush(void)
         rig_t a, b;
         rig_new(&a, APP_ORIENT_BAR_BOTTOM);
         sk_set_brush(&a.s, br, a.now += 50);
-        sk_set_size(&a.s, 20, a.now += 50);
+        sk_set_size(&a.s, 2, a.now += 50);
         sk_set_shade(&a.s, SH_BLACK, a.now += 50);
         stroke(&a);
         memcpy(blk, a.s.page.px, sizeof(blk));
@@ -46,7 +46,7 @@ static void test_each_brush(void)
         rig_new(&b, APP_ORIENT_BAR_BOTTOM);
         black_page(&b);
         sk_set_brush(&b.s, br, b.now += 50);
-        sk_set_size(&b.s, 20, b.now += 50);
+        sk_set_size(&b.s, 2, b.now += 50);
         sk_set_shade(&b.s, SH_WHITE, b.now += 50);
         CHECK(b.s.sty.shade == SH_WHITE);
         stroke(&b);
@@ -66,50 +66,33 @@ static void test_each_brush(void)
     }
 }
 
-static void test_recent_and_settings(void)
+static void test_swatch_and_settings(void)
 {
     rig_t r;
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
-    sk_set_shade(&r.s, SH_WHITE, r.now += 50);
-    CHECK(r.s.note_on && !strcmp(shade_name(SH_WHITE), "White"));
-    sk_set_brush(&r.s, BR_PENCIL, r.now += 50);
-    sk_set_size(&r.s, 14, r.now += 50);
-    stroke(&r);
-    CHECK(r.s.rc_n == 1 && r.s.rc[0].shade == SH_WHITE && r.s.rc[0].brush == BR_PENCIL);
-    sk_set_shade(&r.s, SH_BLACK, r.now += 50);
     sk_toolbar(&r.s, r.now);
-    int x = r.s.tb.cx[TI_RECENT] + r.s.tb.cell / 2, y = r.s.tb.cyi[TI_RECENT] + r.s.tb.cell / 2;
+    int x = r.s.tb.cx[TI_WHITE] + r.s.tb.cell / 2, y = r.s.tb.cyi[TI_WHITE] + r.s.tb.cell / 2;
     rig_pen_user(&r, x, y, APP_PEN_IN_RANGE, 0);
     rig_pen_user(&r, x, y, DOWN, 30000);
     rig_pen_user(&r, x, y, APP_PEN_IN_RANGE, 0);
-    CHECK(r.s.sty.shade == SH_WHITE); /* a tap on the slot gives white back */
-    rig_start(&r, APP_ORIENT_BAR_BOTTOM); /* a restart keeps the colour and the Recent slot */
-    CHECK(r.s.sty.shade == SH_WHITE && r.s.rc_n == 1 && r.s.rc[0].shade == SH_WHITE);
+    CHECK(r.s.sty.shade == SH_WHITE && r.s.note_on && !strcmp(shade_name(SH_WHITE), "White") && !strcmp(shade_name(SH_GREY), "Grey"));
+    sk_set_shade(&r.s, SH_WHITE + 1, r.now += 50); /* not a swatch: refused */
+    sk_set_shade(&r.s, 2, r.now += 50);
+    CHECK(r.s.sty.shade == SH_WHITE);
+    rig_start(&r, APP_ORIENT_BAR_BOTTOM); /* a restart keeps the colour */
+    CHECK(r.s.sty.shade == SH_WHITE);
     rig_end(&r);
 }
 
-static void test_slider(void)
-{
-    rig_t r;
-    rig_new(&r, APP_ORIENT_BAR_BOTTOM);
-    sk_toolbar(&r.s, r.now);
-    tb_layout_t *L = &r.s.tb;
-    CHECK(tb_tone_of(L, L->tn_x0) == SH_WHITE && tb_tone_of(L, L->tn_x1) == SH_BLACK);
-    for (int sh = 0; sh <= SH_WHITE; sh++) CHECK(tb_tone_of(L, tb_tone_x(L, sh)) == sh);
-    sk_set_shade(&r.s, SH_WHITE + 1, r.now); /* not a tone: refused */
-    CHECK(r.s.sty.shade != SH_WHITE + 1);
-    rig_end(&r);
-}
-
-static void test_fill_and_text(void)
+static void test_fill(void)
 {
     rig_t r;
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
     black_page(&r);
     /* a white ring on black, the bucket in white inside it turns the black disc white */
     sk_set_shade(&r.s, SH_WHITE, r.now += 50);
-    sk_set_brush(&r.s, BR_FINELINER, r.now += 50);
-    sk_set_size(&r.s, 6, r.now += 50);
+    sk_set_brush(&r.s, BR_PEN, r.now += 50);
+    sk_set_size(&r.s, 0, r.now += 50);
     int ring[2 * 13];
     for (int k = 0; k < 13; k++) ring[2 * k] = 800 + (int)(200 * __builtin_cos(k * 6.2831853 / 12)), ring[2 * k + 1] = 800 + (int)(200 * __builtin_sin(k * 6.2831853 / 12));
     rig_stroke(&r, ring, 13, 40000, 0);
@@ -126,33 +109,13 @@ static void test_fill_and_text(void)
     CHECK(cv_get(&r.s.page, 800, 800) == 0);
     sk_redo(&r.s, r.now += 50);
     CHECK(!memcmp(done, r.s.page.px, sizeof(done)));
-    /* text in white over black */
-    static uint8_t pre[TS * TH];
-    memcpy(pre, r.s.page.px, sizeof(pre));
-    sk_set_brush(&r.s, BR_FINELINER, r.now += 50);
-    sk_keyboard(&r.s, APP_KBD_USB, r.now);
-    sk_set_tool(&r.s, TL_TEXT, r.now);
-    rig_pen(&r, 200, 300, APP_PEN_IN_RANGE, 0);
-    rig_pen(&r, 200, 300, DOWN, 30000);
-    rig_pen(&r, 201, 300, DOWN, 30000);
-    rig_pen(&r, 201, 300, APP_PEN_IN_RANGE, 0);
-    r.now += 20;
-    sk_key(&r.s, 1, APP_KEY_CHAR, 0, 0x04, "H", r.now);
-    sk_key(&r.s, 0, APP_KEY_CHAR, 0, 0x04, "H", r.now);
-    sk_key(&r.s, 1, APP_KEY_ESCAPE, 0, 0, "", r.now += 20);
-    sk_key(&r.s, 0, APP_KEY_ESCAPE, 0, 0, "", r.now);
-    int w = 0;
-    for (int yy = 0; yy < TH; yy++)
-        for (int xx = 0; xx < TW; xx++) w += cv_get(&r.s.page, xx, yy) && !(pre[yy * TS + (xx >> 3)] >> (7 - (xx & 7)) & 1);
-    CHECK(w > 100);
     rig_end(&r);
 }
 
 int main(void)
 {
     test_each_brush();
-    test_recent_and_settings();
-    test_slider();
-    test_fill_and_text();
+    test_swatch_and_settings();
+    test_fill();
     return CHECK_DONE("test_white");
 }

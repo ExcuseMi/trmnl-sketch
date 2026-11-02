@@ -10,6 +10,10 @@
 #include "tbfw.h"
 #include "printjob.h"
 
+/* Tones the shade machinery still draws (the toolbar offers only black, grey and white): tests use them where two different tones are needed */
+#define SH_DARK 3
+#define SH_LIGHT 6
+
 #define TW 1872
 #define TH 1404
 #define TS (TW / 8)
@@ -35,7 +39,8 @@ typedef struct {
     uint8_t *fb;
     uint32_t now;
     int started;
-    char cfg_cur[8], cfg_size[8], cfg_esize[8], cfg_brush[8], cfg_shade[8], cfg_tone[8], cfg_pen_area[8], cfg_cleanup[8], cfg_paper[8], cfg_papsp[8], cfg_smooth[8], cfg_pcurve[8], cfg_use_tilt[8], cfg_rc[5][12];
+    struct { char k[16], v[16]; } cfg[24]; /* the settings the app stored (cfg_set); a test may pre-set any key with rig_cfg */
+    int keep_smooth;    /* a test that wants the app's own stabiliser level (SK_SMOOTH_DEF) sets this before rig_start */
     int log_n, log_ev_med, log_ev_p95, log_push_med, log_push_p95, log_samples; /* the latency lines sketch handed to its log */
     int inverted;       /* inverted halves seen (rig_flush) */
     int bare_fulls;     /* full refreshes handed out without their inverted half first: the flash helper was bypassed */
@@ -76,27 +81,36 @@ static int rig_printer(void *u, pj_printer_t *out)
 static int rig_get(void *u, const char *k, char *b, int cap)
 {
     rig_t *r = u;
-    if (k[0] == 'r' && k[1] == 'c' && k[2] >= '0' && k[2] < '5') {
-        const char *w = r->cfg_rc[k[2] - '0'];
-        int n = (int)strlen(w);
+    for (int i = 0; i < 24; i++) {
+        if (strcmp(r->cfg[i].k, k)) continue;
+        int n = (int)strlen(r->cfg[i].v);
         if (n > cap) n = cap;
-        memcpy(b, w, (size_t)n);
+        memcpy(b, r->cfg[i].v, (size_t)n);
         return n ? n : -1;
     }
-    const char *v = !strcmp(k, "cur") ? r->cfg_cur : !strcmp(k, "size") ? r->cfg_size : !strcmp(k, "esize") ? r->cfg_esize : !strcmp(k, "brush") ? r->cfg_brush : !strcmp(k, "shade") ? r->cfg_shade : !strcmp(k, "tone") ? r->cfg_tone : !strcmp(k, "pen_area") ? r->cfg_pen_area : !strcmp(k, "cleanup_s") ? r->cfg_cleanup : !strcmp(k, "paper") ? r->cfg_paper : !strcmp(k, "paper_sp") ? r->cfg_papsp : !strcmp(k, "smooth") ? r->cfg_smooth : !strcmp(k, "pressure_curve") ? r->cfg_pcurve : !strcmp(k, "use_tilt") ? r->cfg_use_tilt : "";
-    int n = (int)strlen(v);
-    if (n > cap) n = cap;
-    memcpy(b, v, (size_t)n);
-    return n ? n : -1;
+    return -1;
 }
 static int rig_set(void *u, const char *k, const char *v, int n)
 {
     rig_t *r = u;
-    char *d = k[0] == 'r' && k[1] == 'c' && k[2] >= '0' && k[2] < '5' ? r->cfg_rc[k[2] - '0'] : !strcmp(k, "cur") ? r->cfg_cur : !strcmp(k, "paper") ? r->cfg_paper : !strcmp(k, "paper_sp") ? r->cfg_papsp : !strcmp(k, "smooth") ? r->cfg_smooth : !strcmp(k, "brush") ? r->cfg_brush : !strcmp(k, "shade") ? r->cfg_shade : !strcmp(k, "tone") ? r->cfg_tone : !strcmp(k, "esize") ? r->cfg_esize : r->cfg_size;
-    memcpy(d, v, (size_t)n);
-    d[n] = 0;
+    int at = -1;
+    for (int i = 0; i < 24 && at < 0; i++)
+        if (!strcmp(r->cfg[i].k, k) || !r->cfg[i].k[0]) at = i;
+    if (at < 0 || n > 15) return -1;
+    strcpy(r->cfg[at].k, k);
+    memcpy(r->cfg[at].v, v, (size_t)n);
+    r->cfg[at].v[n] = 0;
     return 0;
 }
+/* The value the app stored for a setting, or "" */
+static inline const char *rig_cfgv(const rig_t *r, const char *k)
+{
+    for (int i = 0; i < 24; i++)
+        if (!strcmp(r->cfg[i].k, k)) return r->cfg[i].v;
+    return "";
+}
+/* A setting as an earlier or a later session left it (read at the next rig_start) */
+static inline void rig_cfg(rig_t *r, const char *k, const char *v) { rig_set(r, k, v, (int)strlen(v)); }
 
 /* (Re)starts the app on the rig's file system: a restart keeps the files and settings, as the X does */
 static inline void rig_start(rig_t *r, int orient)
@@ -108,6 +122,7 @@ static inline void rig_start(rig_t *r, int orient)
     tbfw_layout(orient, &bar);
     sk_env_t env = { &r->fs.fs, r, rig_get, rig_set, { PJ_PWG, fake_post, &r->pr }, rig_log, rig_printer };
     if (sk_init(&r->s, &env, r->fb, TW, TH, TS, orient, &bar)) abort();
+    if (!r->keep_smooth) r->s.smooth = 0; /* the stabiliser is off in the tests (the app's is SK_SMOOTH_DEF): the points are exactly the pen's */
     sk_set_tablet(&r->s, UM_W, UM_H, 1);
     r->started = 1;
 }
@@ -115,7 +130,6 @@ static inline void rig_new(rig_t *r, int orient)
 {
     memset(r, 0, sizeof(*r));
     memfs_init(&r->fs);
-    strcpy(r->cfg_smooth, "0"); /* the stabiliser is off in the tests (the default is 3): the points are exactly the pen's */
     r->now = 1000;
     r->pr.status = 200;
     memset(&r->prn, 0, sizeof(r->prn));

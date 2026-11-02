@@ -38,7 +38,7 @@ void ui_toast(gfx_t *g, const char *s, int y, box_t *out)
 void ui_legend(gfx_t *g, box_t *out)
 {
     static const char *const lines[] = { "Tablet buttons: 1 undo, 2 redo, 3 eraser, 4 toolbar,", "5 clear, 6 new page, 7 and 8 page menu.",
-        "Pen button: eraser while held. Toolbar: brushes, shades, sizes.", "Menu: print, send, new page, gallery, exit.", "Tools and Menu: tap with the pen." };
+        "Pen button: eraser while held. Toolbar: tools, colours, sizes.", "Menu: print, send, new page, gallery, exit.", "Tools and Menu: tap with the pen." };
     const font_face_t *f = face(0, 34);
     int w = 0;
     for (int i = 0; i < 5; i++)

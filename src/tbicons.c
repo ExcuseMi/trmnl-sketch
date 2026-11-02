@@ -45,16 +45,7 @@ static void tbi_across(const tbi_tool_t *t, float u, float v0, float v1, int w, 
     gfx_line(t->g, ax, ay, bx, by, w, c);
 }
 
-static void tbi_fineliner(const tbi_tool_t *t)
-{
-    const float tip[] = { 0, 0, 12, -4, 12, 4 }, body[] = { 12, -6, 54, -6, 54, 6, 12, 6 }, grip[] = { 12, -6, 24, -6, 24, 6, 12, 6 };
-    tbi_shape(t, body, 4, t->bg, 1);
-    tbi_shape(t, grip, 4, t->ink, 0);
-    tbi_shape(t, tip, 3, t->ink, 0);
-    tbi_across(t, 48, -6, 6, 3, t->ink);
-}
-
-static void tbi_brushpen(const tbi_tool_t *t)
+static void tbi_pen(const tbi_tool_t *t)
 {
     const float bristle[] = { 0, 0, 5, -5, 12, -8, 20, -7, 20, 7, 12, 8, 5, 5 }, ferrule[] = { 20, -7, 32, -7, 32, 7, 20, 7 },
         handle[] = { 32, -4, 60, -7, 60, 7, 32, 4 };
@@ -82,18 +73,6 @@ static void tbi_marker(const tbi_tool_t *t)
     tbi_shape(t, label, 4, t->ink, 0);
     tbi_shape(t, nib, 4, t->ink, 0);
     tbi_across(t, 56, -6, 6, 3, t->ink);
-}
-
-static void tbi_nib(const tbi_tool_t *t)
-{
-    const float blade[] = { 0, 0, 8, -6, 18, -13, 30, -12, 30, 12, 18, 13, 8, 6 }, collar[] = { 30, -11, 38, -11, 38, 11, 30, 11 };
-    tbi_shape(t, blade, 7, t->ink, 0);
-    tbi_bar(t, 0, 22, 0, 2, t->bg); /* the slit */
-    float hx, hy;
-    tbi_tp(t, 25, 0, &hx, &hy);
-    gfx_ellipse(t->g, hx - 3, hy - 3, hx + 3, hy + 3, 0, t->bg, t->bg); /* the breather hole */
-    tbi_shape(t, collar, 4, t->bg, 1);
-    tbi_bar(t, 38, 58, 0, 7, t->ink);
 }
 
 static void tbi_spray(const tbi_tool_t *t, int x, int y)
@@ -141,57 +120,13 @@ void tbi_brush(gfx_t *g, int brush, int x, int y, int ink, int bg)
 {
     tbi_tool_t t = { g, (float)x + 8, (float)y + 56, ink, bg };
     switch (brush) {
-    case BR_FINELINER: tbi_fineliner(&t); break;
-    case BR_BRUSHPEN: tbi_brushpen(&t); break;
+    case BR_PEN: tbi_pen(&t); break;
     case BR_PENCIL: tbi_pencil(&t); break;
     case BR_MARKER: tbi_marker(&t); break;
-    case BR_CALLIGRAPHY: tbi_nib(&t); break;
     case BR_SPRAY: tbi_spray(&t, x, y); break;
     case BR_FILL: tbi_bucket(g, x, y, ink, bg); break;
     default: tbi_eraser(&t); break;
     }
-}
-
-/* A curved arrow: an arc over the top with the head at its end; mx 1 undo (head on the left), -1 redo (mirrored) */
-static void tbi_curved(gfx_t *g, int x, int y, int mx, int ink)
-{
-    const float cx = (float)x + 32, cy = (float)y + 38, r = 19, m = (float)mx;
-    const float a0 = 35, a1 = 205;
-    float px = 0, py = 0;
-    for (int i = 0; i <= 12; i++) {
-        float th = (a0 + (a1 - a0) * (float)i / 12) * FM_PI / 180;
-        float qx = cx + m * r * fm_cos(th), qy = cy - r * fm_sin(th);
-        if (i) gfx_line(g, px, py, qx, qy, 7, ink);
-        px = qx, py = qy;
-    }
-    float th = a1 * FM_PI / 180, dx = m * -fm_sin(th), dy = -fm_cos(th); /* direction of travel at the end */
-    float p[6] = { px + dx * 14, py + dy * 14, px - dy * 13 - dx * 3, py + dx * 13 - dy * 3, px + dy * 13 - dx * 3, py - dx * 13 - dy * 3 };
-    gfx_poly(g, p, 3, ink);
-}
-
-void tbi_smooth(gfx_t *g, int level, int x, int y, int ink, int bg)
-{
-    (void)bg;
-    float amp = 16.0f * (float)(10 - (level > 10 ? 10 : level)) / 10.0f, px = 0, py = 0;
-    for (int i = 0; i <= 8; i++) {
-        float u = (float)i / 8, qx = (float)x + 6 + 52 * u, qy = (float)y + 34 - 14 * fm_sin(u * 2 * FM_PI) + ((i & 1) ? amp : -amp) * (i && i < 8 ? 1.0f : 0.0f);
-        if (i) gfx_line(g, px, py, qx, qy, 6, ink);
-        px = qx, py = qy;
-    }
-}
-
-void tbi_undo(gfx_t *g, int x, int y, int ink, int bg) { (void)bg, tbi_curved(g, x, y, 1, ink); }
-void tbi_redo(gfx_t *g, int x, int y, int ink, int bg) { (void)bg, tbi_curved(g, x, y, -1, ink); }
-
-void tbi_clear(gfx_t *g, int x, int y, int ink, int bg)
-{
-    float X = (float)x, Y = (float)y;
-    gfx_fill_rect(g, X + 11, Y + 14, X + 53, Y + 19, ink); /* the lid */
-    gfx_rrect(g, X + 24, Y + 6, X + 40, Y + 16, 2, 3, bg, ink); /* its handle */
-    float body[8] = { X + 16, Y + 22, X + 48, Y + 22, X + 44, Y + 60, X + 20, Y + 60 };
-    gfx_poly(g, body, 4, bg);
-    gfx_poly_outline(g, body, 4, 4, ink);
-    for (int i = 0; i < 3; i++) gfx_line(g, X + 25 + (float)i * 7, Y + 30, X + 25 + (float)i * 7, Y + 52, 3, ink);
 }
 
 /* Mirror: a small wing on each side of a dashed axis (off: one wing and no axis), the 4-way with both axes, the
@@ -230,64 +165,24 @@ void tbi_mirror(gfx_t *g, int mode, int ix, int iy, int ink, int bg)
     gfx_ellipse(g, X + 28, Y + 28, X + 36, Y + 36, 0, bg, bg);
 }
 
-void tbi_tool(gfx_t *g, int tool, int x, int y, int ink, int bg)
+
+/* A colour swatch (the toolbar's Black, Grey, White): the shade as it will be inked, in a white-ringed frame so black shows on a picked (black) cell */
+void tbi_colour(gfx_t *g, int shade, int x, int y, int ink, int bg)
 {
+    int q = 40, sx = x + (TBI_SIZE - q) / 2, sy = y + (TBI_SIZE - q) / 2;
     (void)bg;
-    float X = (float)x, Y = (float)y;
-    if (tool == TL_LINE) {
-        gfx_line(g, X + 10, Y + 54, X + 54, Y + 10, 5, ink);
-        gfx_ellipse(g, X + 4, Y + 48, X + 16, Y + 60, 0, ink, ink);
-        gfx_ellipse(g, X + 48, Y + 4, X + 60, Y + 16, 0, ink, ink);
-    } else if (tool == TL_RECT) {
-        gfx_rrect(g, X + 8, Y + 14, X + 56, Y + 50, 0, 5, bg, ink);
-    } else if (tool == TL_OVAL) {
-        gfx_ellipse(g, X + 6, Y + 12, X + 58, Y + 52, 5, bg, ink);
-    } else {
-        gfx_fill_rect(g, X + 10, Y + 12, X + 46, Y + 18, ink);
-        gfx_fill_rect(g, X + 25, Y + 12, X + 31, Y + 54, ink);
-        gfx_fill_rect(g, X + 52, Y + 26, X + 54, Y + 56, ink); /* the caret */
-    }
-}
-
-/* The brush's 64 px glyph shrunk to 28 px: drawn in a scratch bitmap, a pixel is black when any of its 2 x 2 (or 3 x 3) are */
-static void tbi_mini(gfx_t *g, int brush, int x, int y, int ink)
-{
-    uint8_t buf[8 * 64];
-    gfx_t t;
-    memset(buf, 0xff, sizeof(buf));
-    gfx_init(&t, buf, 64, 64, 8, 0);
-    tbi_brush(&t, brush, 0, 0, GFX_BLACK, GFX_WHITE);
-    for (int py = 0; py < 28; py++)
-        for (int px = 0; px < 28; px++) {
-            int black = 0;
-            for (int dy = 0; dy < 3 && !black; dy++)
-                for (int dx = 0; dx < 3; dx++) {
-                    int sx = px * 64 / 28 + dx, sy = py * 64 / 28 + dy;
-                    if (sx < 64 && sy < 64 && !gfx_get(&t, sx, sy)) {
-                        black = 1;
-                        break;
-                    }
-                }
-            if (black) gfx_px(g, x + px, y + py, ink);
-        }
-}
-
-void tbi_recent(gfx_t *g, const bstyle_t *e, int x, int y, int ink, int bg)
-{
-    int q = 48, sx = x + 4, sy = y + 4;
-    if (!e) { /* an empty slot: a dotted frame */
-        for (int k = 0; k < q; k += 4) {
-            gfx_px(g, sx + k, sy, ink), gfx_px(g, sx + k, sy + q - 1, ink), gfx_px(g, sx, sy + k, ink), gfx_px(g, sx + q - 1, sy + k, ink);
-        }
-        return;
-    }
-    gfx_rrect(g, (float)(sx - 3), (float)(sy - 3), (float)(sx + q + 2), (float)(sy + q + 2), 3, 3, bg, ink);
+    gfx_rrect(g, (float)(sx - 8), (float)(sy - 8), (float)(sx + q + 7), (float)(sy + q + 7), 6, 0, GFX_WHITE, GFX_WHITE);
+    gfx_rrect(g, (float)(sx - 4), (float)(sy - 4), (float)(sx + q + 3), (float)(sy + q + 3), 4, 4, GFX_WHITE, GFX_BLACK);
     for (int py = 0; py < q; py++)
-        for (int px = 0; px < q; px++) gfx_px(g, sx + px, sy + py, cv_shade_black(e->shade, sx + px, sy + py) ? ink : bg);
-    int d = 6 + e->size * 16 / SK_SIZE_MAX; /* the pen size as a dot, 6 .. 22 px, with a ring so it shows on any tone */
-    float cx = (float)(sx + 16), cy = (float)(sy + 16), r = (float)d / 2;
-    gfx_ellipse(g, cx - r - 2, cy - r - 2, cx + r + 2, cy + r + 2, 0, bg, bg);
+        for (int px = 0; px < q; px++) gfx_px(g, sx + px, sy + py, shade != SH_WHITE && cv_shade_black(shade, sx + px, sy + py) ? GFX_BLACK : GFX_WHITE);
+    (void)ink;
+}
+
+/* A size button: a dot of the pen size class, small, medium or big */
+void tbi_size(gfx_t *g, int cls, int x, int y, int ink, int bg)
+{
+    static const int d[BR_SIZES] = { 12, 28, 52 };
+    float cx = (float)x + 32, cy = (float)y + 32, r = (float)d[cls < 0 ? 0 : cls >= BR_SIZES ? BR_SIZES - 1 : cls] / 2;
+    (void)bg;
     gfx_ellipse(g, cx - r, cy - r, cx + r, cy + r, 0, ink, ink);
-    gfx_fill_rect(g, (float)(sx + q - 30), (float)(sy + q - 30), (float)(sx + q + 1), (float)(sy + q + 1), bg);
-    tbi_mini(g, e->brush, sx + q - 30, sy + q - 30, ink);
 }

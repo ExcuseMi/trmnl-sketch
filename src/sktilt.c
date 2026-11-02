@@ -18,5 +18,5 @@ int sk_tilt_code(const penmap_t *m, int tx, int ty)
 
 void sk_pen_tilt(sketch_t *s, int tilt_x, int tilt_y)
 {
-    s->tilt = s->use_tilt ? sk_tilt_code(&s->map, tilt_x, tilt_y) : 0;
+    s->tilt = sk_tilt_code(&s->map, tilt_x, tilt_y);
 }

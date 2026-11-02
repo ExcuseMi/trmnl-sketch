@@ -137,7 +137,7 @@ static void test_start_cleanup(void)
     plant(&r, 4, 0);
     const uint8_t junk[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9 }; /* does not decode */
     memfs_put(&r.fs, "sketch/sk0005.png", junk, sizeof(junk));
-    snprintf(r.cfg_cur, sizeof(r.cfg_cur), "4"); /* the saved current page is one of the blank ones */
+    rig_cfg(&r, "cur", "4"); /* the saved current page is one of the blank ones */
     rig_start(&r, APP_ORIENT_BAR_BOTTOM);
     CHECK(!memfs_find(&r.fs, "sketch/sk0002.png") && !memfs_find(&r.fs, "sketch/sk0004.png")); /* blank, decoded: removed */
     CHECK(memfs_find(&r.fs, "sketch/sk0001.png") && memfs_find(&r.fs, "sketch/sk0003.png")); /* inked: kept */

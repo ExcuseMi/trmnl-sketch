@@ -20,6 +20,6 @@ void sk_pills_follow(sketch_t *s, int tip, int range, int inside, int ux, int uy
     if (s->pl_hold) return;
     const pills_t *p = &s->pl;
     int near = inside && ux >= p->x0[0] - PL_REVEAL && ux <= p->x1[1] + PL_REVEAL && uy >= p->y0 - PL_REVEAL && uy <= p->y1 + PL_REVEAL;
-    if (tip) sk_pills_show(s, s->pl_on && !s->stroke && !s->tb_hold && !s->tb_drag && pl_hit(p, ux, uy) != PL_NONE); /* a press on a shown pill */
+    if (tip) sk_pills_show(s, s->pl_on && !s->stroke && !s->tb_hold && pl_hit(p, ux, uy) != PL_NONE); /* a press on a shown pill */
     else if (range) sk_pills_show(s, near);
 }

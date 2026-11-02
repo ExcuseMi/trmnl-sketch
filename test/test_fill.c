@@ -176,7 +176,7 @@ static int fill_in(hist_t *h, int x, int y, int shade)
     bf_t r;
     if (bf_plan(&r, h->page, x, y, shade, 3, 0) != BF_OK) return 0;
     uint32_t n = bf_runs(&r);
-    bstyle_t st = { BR_FILL, (uint8_t)shade, 1, 0, 0 };
+    bstyle_t st = { BR_FILL, (uint8_t)shade, 1, 0 };
     hpt_t *slots = hist_fill_begin(h, n, &st);
     if (!slots) return bf_free(&r), -1;
     bf_emit(&r, slots);
@@ -272,7 +272,7 @@ static void test_app(void)
     static uint8_t before[TS * TH], after[TS * TH];
     memcpy(before, r.s.page.px, sizeof(before));
     sk_set_brush(&r.s, BR_FILL, r.now += 50);
-    sk_set_shade(&r.s, SH_DARK, r.now += 50);
+    sk_set_shade(&r.s, SH_GREY, r.now += 50);
     settle(&r);
     r.now += 3000;
     sk_tick(&r.s, r.now);
@@ -293,8 +293,8 @@ static void test_app(void)
     CHECK(n == 1 && o[0].x >= 400 - 8 && o[0].x + o[0].w <= 900 + 8 && o[0].y >= 300 && o[0].y + o[0].h <= 701); /* one push of the filled box */
     CHECK(r.parts == parts0 + 1 && same_page_and_fb(&r));
     settle(&r);
-    for (int y = 305; y < 696; y++)
-        for (int x = 405; x < 896; x++) CHECK(cv_get(&r.s.page, x, y) == !cv_shade_black(SH_DARK, x, y));
+    for (int y = 308; y < 693; y++) /* (the rows touching the outline keep its dots: a refill never eats a line) */
+        for (int x = 408; x < 893; x++) CHECK(cv_get(&r.s.page, x, y) == !cv_shade_black(SH_GREY, x, y));
     /* undo, redo, again, and a restart: the same pixels */
     sk_undo(&r.s, r.now += 50);
     CHECK(!memcmp(before, r.s.page.px, sizeof(before)));
@@ -388,17 +388,17 @@ static void test_toolbar_item(void)
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
     sk_pen_key(&r.s, 1u << 3, 1u << 3, r.now += 50);
     sk_pen_key(&r.s, 0, 1u << 3, r.now);
-    CHECK(TI_LINE == BR_FILL + 1 && r.s.tb_on);
+    CHECK(TI_BLACK == BR_FILL + 1 && r.s.tb_on);
     rig_pen_user(&r, r.s.tb.cx[TI_BRUSH + BR_FILL] + 20, r.s.tb.cy + 20, APP_PEN_TIP | APP_PEN_IN_RANGE, 30000);
     rig_pen_user(&r, r.s.tb.cx[TI_BRUSH + BR_FILL] + 20, r.s.tb.cy + 20, APP_PEN_IN_RANGE, 0);
     CHECK(r.s.sty.brush == BR_FILL && r.s.note_on);
-    int tx = r.s.tb.cx[TI_BRUSH + BR_FILL] + r.s.tb.cell, nx = r.s.tb.cx[TI_LINE]; /* the cell fits before the next group */
+    int tx = r.s.tb.cx[TI_BRUSH + BR_FILL] + r.s.tb.cell, nx = r.s.tb.cx[TI_BLACK]; /* the cell fits before the next group */
     CHECK(tx <= nx);
     rig_end(&r);
     for (int o = 0; o < 2; o++) { /* the strip fits in both positions */
         tb_layout_t L;
         tb_layout(&L, o ? APP_ORIENT_BAR_TOP : APP_ORIENT_BAR_BOTTOM, 1404, 1872);
-        CHECK(L.cell >= 70 && L.cx[TI_N - 1] + L.cell <= 1404);
+        CHECK(L.cell >= 90 && L.cx[TI_N - 1] + L.cell <= 1404);
     }
 }
 

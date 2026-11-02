@@ -13,5 +13,4 @@
 #define pen_max_d(s) (pen_max_d)(SZ(s))
 #define pen_erase_d(s) (pen_erase_d)(SZ(s))
 #define pen_diam(s, p) (pen_diam)(SZ(s), (p))
-#define sk_set_size(s, n, t) (sk_set_size)((s), SZ(n), (t))
 #endif

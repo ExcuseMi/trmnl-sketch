@@ -41,20 +41,20 @@ static void flower(rig_t *r, int mode, const char *dir, const char *name, int *b
 {
     sk_set_mirror(&r->s, mode, r->now += 50);
     sk_set_shade(&r->s, SH_BLACK, r->now += 50);
-    sk_set_brush(&r->s, BR_BRUSHPEN, r->now += 50);
-    sk_set_size(&r->s, 14, r->now += 50);
+    sk_set_brush(&r->s, BR_PEN, r->now += 50);
+    sk_set_size(&r->s, 2, r->now += 50);
     int cx = TW / 2, cy = TH / 2;
     curve(r, cx, cy, -1.5f, -0.2f, 260, 560, 24);
-    sk_set_brush(&r->s, BR_FINELINER, r->now += 50);
-    sk_set_size(&r->s, 6, r->now += 50);
+    sk_set_brush(&r->s, BR_PEN, r->now += 50);
+    sk_set_size(&r->s, 0, r->now += 50);
     curve(r, cx, cy, -1.2f, 0.3f, 120, 300, 12);
     sk_set_brush(&r->s, BR_MARKER, r->now += 50);
-    sk_set_shade(&r->s, SH_DARK, r->now += 50);
-    sk_set_size(&r->s, 18, r->now += 50);
+    sk_set_shade(&r->s, SH_GREY, r->now += 50);
+    sk_set_size(&r->s, 2, r->now += 50);
     curve(r, cx, cy, -2.4f, -2.0f, 420, 520, 0);
     sk_set_brush(&r->s, BR_SPRAY, r->now += 50);
     sk_set_shade(&r->s, SH_BLACK, r->now += 50);
-    sk_set_size(&r->s, 30, r->now += 50);
+    sk_set_size(&r->s, 2, r->now += 50);
     curve(r, cx, cy, -0.8f, -0.7f, 600, 640, 0);
     frames(r);
     put(r, dir, name, bad);

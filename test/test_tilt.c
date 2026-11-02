@@ -28,7 +28,7 @@ static fp_t stamp(int brush, int size, int tx, int ty, int shade)
     static uint8_t px[200 * 25];
     canvas_t c = { px, 200, 200, 25 };
     cv_fill(&c, 1);
-    bstyle_t st = { (uint8_t)brush, (uint8_t)shade, (uint8_t)size, 0, 0 };
+    bstyle_t st = { (uint8_t)brush, (uint8_t)shade, (uint8_t)size, 0 };
     brush_segt(&st, 0, &c, 100, 100, brush == BR_PENCIL || brush == BR_SPRAY ? 200 : 14, bt_code(tx, ty), 100, 100, brush == BR_PENCIL || brush == BR_SPRAY ? 200 : 14, bt_code(tx, ty), 0);
     int x0 = 999, x1 = -1, y0 = 999, y1 = -1, n = 0;
     for (int y = 0; y < 200; y++)
@@ -52,13 +52,13 @@ static void test_pencil(void)
 
 static void test_others(void)
 {
-    static const int ignore[] = { BR_FINELINER, BR_MARKER, BR_CALLIGRAPHY, BR_SPRAY, BR_ERASER };
+    static const int ignore[] = { BR_MARKER, BR_SPRAY, BR_ERASER };
     for (unsigned k = 0; k < sizeof(ignore) / sizeof(ignore[0]); k++)
         for (int tx = -42; tx <= 42; tx += 42) {
             fp_t a = stamp(ignore[k], 20, 0, 0, 3), b = stamp(ignore[k], 20, tx, 30, 3);
             CHECK(a.w == b.w && a.h == b.h && a.n == b.n);
         }
-    fp_t up = stamp(BR_BRUSHPEN, 20, 0, 0, 0), t = stamp(BR_BRUSHPEN, 20, 42, 0, 0);
+    fp_t up = stamp(BR_PEN, 20, 0, 0, 0), t = stamp(BR_PEN, 20, 42, 0, 0);
     CHECK(t.w > up.w && t.w <= up.w * 3 / 2); /* lightly wider */
 }
 
@@ -69,12 +69,11 @@ static unsigned page_hash(const rig_t *r)
     return h;
 }
 
-static unsigned draw(int brush, int tilt_x, int tilt_y, const char *use, rig_t *r)
+static unsigned draw(int brush, int tilt_x, int tilt_y, rig_t *r)
 {
     rig_new(r, APP_ORIENT_BAR_BOTTOM);
-    strcpy(r->cfg_use_tilt, use);
-    sk_cfg_reload(&r->s);
-    r->s.sty.brush = (uint8_t)brush, r->s.sty.size = 24, r->s.ink_size = 24;
+    sk_set_size(&r->s, 2, r->now += 50);
+    sk_set_brush(&r->s, brush, r->now += 50);
     for (int i = 0; i < 30; i++) {
         sk_pen_tilt(&r->s, tilt_x * i / 29, tilt_y);
         rig_pen(r, 300 + i * 20, 500 + (i % 3) * 4, APP_PEN_TIP | APP_PEN_IN_RANGE, 30000);
@@ -86,22 +85,20 @@ static unsigned draw(int brush, int tilt_x, int tilt_y, const char *use, rig_t *
 
 static void test_in_the_app(void)
 {
-    static rig_t r, r2;
-    unsigned up = draw(BR_PENCIL, 0, 0, "on", &r);
+    static rig_t r;
+    unsigned up = draw(BR_PENCIL, 0, 0, &r);
     rig_end(&r);
-    unsigned tilted = draw(BR_PENCIL, 45, 20, "on", &r);
+    unsigned tilted = draw(BR_PENCIL, 45, 20, &r);
     CHECK(tilted != up);
-    CHECK(draw(BR_PENCIL, 45, 20, "off", &r2) == up); /* use_tilt off: as upright */
-    rig_end(&r2);
     /* undo and redo replay the tilt: the same pixels */
     box_t b;
     CHECK(hist_undo(&r.s.hist, &b) && page_hash(&r) != tilted);
     CHECK(hist_redo(&r.s.hist, &b) && page_hash(&r) == tilted);
-    /* a restart's reload of the log is not needed: the page is the pixels. The fineliner ignores the tilt through the app too */
+    /* a restart's reload of the log is not needed: the page is the pixels. The marker ignores the tilt through the app too */
     rig_end(&r);
-    unsigned f0 = draw(BR_FINELINER, 0, 0, "on", &r);
+    unsigned f0 = draw(BR_MARKER, 0, 0, &r);
     rig_end(&r);
-    CHECK(draw(BR_FINELINER, 45, 20, "on", &r) == f0);
+    CHECK(draw(BR_MARKER, 45, 20, &r) == f0);
     rig_end(&r);
 }
 

@@ -17,7 +17,7 @@ static void set_mirror(rig_t *r, int mode)
 static void brush(rig_t *r, int b, int shade, int size)
 {
     sk_set_brush(&r->s, b, r->now += 50);
-    sk_set_shade(&r->s, shade, r->now += 50);
+    r->s.sty.shade = (uint8_t)shade; /* any tone the machinery draws, not only the toolbar's three */
     sk_set_size(&r->s, size, r->now += 50);
     r->now += 3000;
     sk_tick(&r->s, r->now);
@@ -85,13 +85,13 @@ static void test_maps(void)
 static void test_images_exact(void)
 {
     static const int modes[3] = { MR_LR, MR_TB, MR_4 };
-    static const int bs[] = { BR_FINELINER, BR_BRUSHPEN, BR_PENCIL, BR_MARKER, BR_CALLIGRAPHY, BR_SPRAY };
-    for (int bi = 0; bi < 6; bi++)
+    static const int bs[] = { BR_PEN, BR_PENCIL, BR_MARKER, BR_SPRAY };
+    for (int bi = 0; bi < 4; bi++)
         for (int mi = 0; mi < 3; mi++) {
             rig_t r, one;
             rig_new(&r, APP_ORIENT_BAR_BOTTOM);
             rig_new(&one, APP_ORIENT_BAR_BOTTOM);
-            brush(&r, bs[bi], SH_BLACK, 12), brush(&one, bs[bi], SH_BLACK, 12);
+            brush(&r, bs[bi], SH_BLACK, 2), brush(&one, bs[bi], SH_BLACK, 2);
             set_mirror(&r, modes[mi]);
             stroke(&r);
             stroke(&one); /* the same stroke with no mirror: the expected page is its images */
@@ -121,7 +121,7 @@ static void test_k8_and_shades(void)
     for (int sh = 0; sh < SH_N; sh++) {
         rig_t r;
         rig_new(&r, APP_ORIENT_BAR_BOTTOM);
-        brush(&r, BR_FINELINER, sh, 10);
+        brush(&r, BR_PEN, sh, 1);
         set_mirror(&r, MR_K8);
         stroke(&r);
         /* the pen's own points and their 15 images are all inked (the dither only thins it: look about each) */
@@ -141,7 +141,7 @@ static void test_k8_and_shades(void)
     }
     rig_t r; /* the dither: the two halves of a left-right stroke carry about the same ink */
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
-    brush(&r, BR_MARKER, SH_DARK, 12);
+    brush(&r, BR_MARKER, SH_GREY, 2);
     set_mirror(&r, MR_LR);
     stroke(&r);
     int l = 0, rr = 0;
@@ -156,7 +156,7 @@ static void test_undo_replay_png(void)
     for (int m = MR_LR; m < MR_N; m++) {
         rig_t r;
         rig_new(&r, APP_ORIENT_BAR_BOTTOM);
-        brush(&r, BR_PENCIL, SH_LIGHT, 10);
+        brush(&r, BR_PENCIL, SH_GREY, 1);
         set_mirror(&r, m);
         static uint8_t before[TS * TH], after[TS * TH];
         memcpy(before, r.s.page.px, sizeof(before));
@@ -258,7 +258,7 @@ static void test_orientations(void)
     for (int o = 0; o < 4; o++) {
         rig_t r;
         rig_new(&r, os[o]);
-        brush(&r, BR_FINELINER, SH_BLACK, 12);
+        brush(&r, BR_PEN, SH_BLACK, 2);
         set_mirror(&r, MR_4);
         rig_pen_user(&r, 500, 400, APP_PEN_TIP | APP_PEN_IN_RANGE, 30000);
         for (int i = 1; i <= 20; i++) rig_pen_user(&r, 500 + i * 25, 400 + i * 12, APP_PEN_TIP | APP_PEN_IN_RANGE, 30000);
@@ -276,7 +276,7 @@ static void test_fill_mirrored(void)
 {
     rig_t r;
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
-    brush(&r, BR_FINELINER, SH_BLACK, 8);
+    brush(&r, BR_PEN, SH_BLACK, 1);
     set_mirror(&r, MR_LR);
     rig_line(&r, 300, 300, 700, 300, 60000, 0); /* a box on the left, its mirror on the right */
     rig_line(&r, 700, 300, 700, 600, 60000, 0);
@@ -309,11 +309,11 @@ static void test_cursor_and_toolbar(void)
     rig_pen_user(&r, r.s.tb.cx[TI_MIRROR] + 20, r.s.tb.cyi[TI_MIRROR] + 20, APP_PEN_TIP | APP_PEN_IN_RANGE, 30000);
     rig_pen_user(&r, r.s.tb.cx[TI_MIRROR] + 20, r.s.tb.cyi[TI_MIRROR] + 20, APP_PEN_IN_RANGE, 0);
     CHECK(r.s.sty.mirror == MR_LR && r.s.note_on); /* a tap cycles, a toast names it */
-    CHECK(TI_MIRROR == TI_SIZE + 3 && r.s.tb.cx[TI_MIRROR] + r.s.tb.cell <= r.s.tb.cx[TI_UNDO]);
+    CHECK(TI_MIRROR == TI_N - 1 && r.s.tb.cx[TI_MIRROR] > r.s.tb.cx[TI_BIG]); /* Mirror ends the row */
     for (int o = 0; o < 2; o++) {
         tb_layout_t L;
         tb_layout(&L, o ? APP_ORIENT_BAR_TOP : APP_ORIENT_BAR_BOTTOM, 1404, 1872);
-        CHECK(L.cell >= 68 && L.cx[TI_N - 1] + L.cell <= 1404);
+        CHECK(L.cell >= 90 && L.cx[TI_N - 1] + L.cell <= 1404);
     }
     rig_end(&r);
 }

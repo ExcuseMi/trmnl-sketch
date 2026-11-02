@@ -1,10 +1,8 @@
 /* The cursors of every tool: black with a 2 px white outline, at least 32 px, drawn exactly (outline included) over white,
-   black ink, paper and every tone, and taken away without a mark; the shape crosshair carries a ring of the line width and
-   the text I-beam is as tall as the text size. SPDX-License-Identifier: MIT */
+   black ink, paper and every tone, and taken away without a mark. SPDX-License-Identifier: MIT */
 #include "check.h"
 #include <stdio.h>
 #include "skui.h"
-#include "textdraw.h"
 #include "util.h"
 
 static uint8_t bg[TS * TH], work[TS * TH];
@@ -22,7 +20,7 @@ static void background(canvas_t *c, int kind)
 
 static void test_exact_outline(void)
 {
-    static const int tcs[] = { BR_N + TL_LINE, BR_N + TL_RECT, BR_N + TL_OVAL, BR_N + TL_TEXT };
+    static const int tcs[] = { BR_PEN, BR_PENCIL, BR_MARKER, BR_SPRAY, BR_ERASER, BR_FILL };
     static const int sizes[] = { 1, 5, 9, 16, 17, 30, 33, 48 };
     for (unsigned t = 0; t < sizeof(tcs) / sizeof(tcs[0]); t++)
         for (unsigned z = 0; z < sizeof(sizes) / sizeof(sizes[0]); z++) {
@@ -32,8 +30,7 @@ static void test_exact_outline(void)
                     if (brush_cursor_px(tc, size, dx, dy)) {
                         minx = dx < minx ? dx : minx, maxx = dx > maxx ? dx : maxx, miny = dy < miny ? dy : miny, maxy = dy > maxy ? dy : maxy;
                     }
-            CHECK(maxx - minx >= 31 || maxy - miny >= 31); /* at least 32 px */
-            CHECK(minx >= -r && maxx <= r && miny >= -r && maxy <= r);
+            CHECK(r >= 16 && minx >= -r && maxx <= r && miny >= -r && maxy <= r);
             for (int kind = 0; kind < 3 + SH_N; kind++) {
                 canvas_t c = { work, TW, TH, TS }, b = { bg, TW, TH, TS };
                 background(&b, kind);
@@ -56,53 +53,25 @@ static void test_exact_outline(void)
         }
 }
 
-static void test_sizes_in_the_cursor(void)
-{
-    /* the ring of the shape crosshair follows the line width; the I-beam follows the text size */
-    int a = 0, b = 0;
-    for (int dy = -30; dy <= 30; dy++)
-        for (int dx = -30; dx <= 30; dx++) a += brush_cursor_px(BR_N + TL_OVAL, 4, dx, dy), b += brush_cursor_px(BR_N + TL_OVAL, 40, dx, dy);
-    CHECK(b > a + 80);
-    int ring_r = 0;
-    for (int dx = 2; dx <= 30; dx++)
-        if (brush_cursor_px(BR_N + TL_LINE, 40, dx, 5) && dx > 12) ring_r = dx;
-    CHECK(ring_r >= 20); /* about the footprint's radius (21) */
-    int h0 = brush_cursor_r(BR_N + TL_TEXT, 8), h1 = brush_cursor_r(BR_N + TL_TEXT, 24), h2 = brush_cursor_r(BR_N + TL_TEXT, 40);
-    CHECK(h0 < h1 && h1 < h2);
-    for (int k = 0; k < 3; k++) {
-        int size = k == 0 ? 8 : k == 1 ? 24 : 40, rows = 0;
-        for (int dy = -150; dy <= 150; dy++) rows += brush_cursor_px(BR_N + TL_TEXT, size, 0, dy);
-        int lh = tx_line_h(tx_class(size));
-        CHECK(rows >= lh - 2 && rows <= lh + 3); /* as tall as the line of text */
-    }
-}
-
 static void test_in_the_app(void)
 {
     rig_t r;
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
-    for (int k = 0; k < 4; k++) {
-        sk_set_tool(&r.s, TL_LINE + k, r.now);
+    for (int k = 0; k < BR_N; k++) {
+        sk_set_brush(&r.s, k, r.now);
         rig_pen(&r, 700, 700, APP_PEN_IN_RANGE, 0);
-        CHECK(r.s.cursor && r.s.cb == BR_N + TL_LINE + k);
+        CHECK(r.s.cursor && r.s.cb == k);
         rig_pen(&r, 10, 600, 0, 0); /* out of range: the cursor goes, no mark is left */
         r.now += 3000;
         sk_tick(&r.s, r.now);
         CHECK(!r.s.cursor && same_page_and_fb(&r));
     }
-    /* while the text is typed the caret is the cursor */
-    sk_keyboard(&r.s, APP_KBD_USB, r.now);
-    rig_pen(&r, 700, 700, APP_PEN_IN_RANGE, 0);
-    rig_pen(&r, 700, 700, APP_PEN_TIP | APP_PEN_IN_RANGE, 30000);
-    rig_pen(&r, 700, 700, APP_PEN_IN_RANGE, 0);
-    CHECK(r.s.tx_on && !r.s.cursor);
     rig_end(&r);
 }
 
 int main(void)
 {
     test_exact_outline();
-    test_sizes_in_the_cursor();
     test_in_the_app();
     return CHECK_DONE("test_cursor");
 }

@@ -21,8 +21,8 @@ static void seg(rig_t *r, int x0, int y0, int x1, int y1) { rig_line(r, x0, y0, 
 
 static void house(rig_t *r)
 {
-    sk_set_brush(&r->s, BR_FINELINER, r->now += 50);
-    sk_set_size(&r->s, 14, r->now += 50);
+    sk_set_brush(&r->s, BR_PEN, r->now += 50);
+    sk_set_size(&r->s, 2, r->now += 50);
     seg(r, 700, 700, 1100, 700), seg(r, 1100, 700, 1100, 1100), seg(r, 1100, 1100, 700, 1100), seg(r, 700, 1100, 700, 700); /* the wall */
     seg(r, 650, 700, 900, 450), seg(r, 900, 450, 1150, 700), seg(r, 1150, 700, 650, 700);                                    /* the roof */
     seg(r, 860, 1100, 860, 950), seg(r, 860, 950, 940, 950), seg(r, 940, 950, 940, 1100);                                    /* the door */
@@ -66,9 +66,9 @@ static void colour(rig_t *r, int roof, int wall, int door, int sun, int win)
 void fill_shots(const char *dir, int *bad)
 {
     static rig_t r;
-    static const char *const names[3] = { "f1-fill-house-black", "f2-fill-house-dark", "f3-fill-house-light" };
-    static const int tones[3] = { SH_BLACK, SH_DARK, SH_LIGHT };
-    for (int k = 0; k < 3; k++) {
+    static const char *const names[2] = { "f1-fill-house-black", "f2-fill-house-grey" };
+    static const int tones[2] = { SH_BLACK, SH_GREY };
+    for (int k = 0; k < 2; k++) {
         int sh = tones[k];
         rig_new(&r, APP_ORIENT_BAR_BOTTOM);
         house(&r);
@@ -78,7 +78,7 @@ void fill_shots(const char *dir, int *bad)
     }
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
     house(&r);
-    colour(&r, SH_BLACK, SH_DARK, SH_LIGHT, SH_LIGHT, SH_DARK);
+    colour(&r, SH_BLACK, SH_GREY, SH_BLACK, SH_GREY, SH_BLACK);
     put(&r, dir, "f4-fill-house-mixed", bad);
     sk_pen_key(&r.s, 1u << 3, 1u << 3, r.now += 50); /* the toolbar with Fill picked */
     sk_pen_key(&r.s, 0, 1u << 3, r.now);
@@ -95,8 +95,8 @@ void fill_shots(const char *dir, int *bad)
     const int sx[4] = { 250, 600, 950, 1300 };
     box_t bx;
     ui_cursor(&r.s.fb, 150, 1230, BR_FILL, 0, &bx); /* over white */
-    ui_cursor(&r.s.fb, 740, 1000, BR_FILL, 0, &bx); /* over the dark wall */
-    ui_cursor(&r.s.fb, 1500, 400, BR_FILL, 0, &bx);  /* over the light sun */
+    ui_cursor(&r.s.fb, 740, 1000, BR_FILL, 0, &bx); /* over the grey wall */
+    ui_cursor(&r.s.fb, 1500, 400, BR_FILL, 0, &bx);  /* over the grey sun */
     ui_cursor(&r.s.fb, 900, 450, BR_FILL, 0, &bx);   /* over black: the roof's tip */
     (void)sx;
     put(&r, dir, "f6-bucket-cursor", bad);

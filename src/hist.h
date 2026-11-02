@@ -8,12 +8,12 @@
 #include "brush.h"
 #include "canvas.h"
 
-enum { HK_INK, HK_ERASE, HK_CLEAR, HK_FILL, HK_TEXT }; /* HK_FILL: the points are runs of a bucket fill (fill.h); HK_TEXT: point 0 is the origin and the size class, the others are code points in x (textdraw.h) */
+enum { HK_INK, HK_ERASE, HK_CLEAR, HK_FILL }; /* HK_FILL: the points are runs of a bucket fill (fill.h) */
 
 typedef struct {
     int16_t x, y;
     uint8_t d; /* the brush's byte for this point (brush.h): a diameter, a side or a pressure */
-    uint8_t t; /* the pen's tilt at this point (brush.h bt_code); 0 upright. Fill runs and text leave it 0 */
+    uint8_t t; /* the pen's tilt at this point (brush.h bt_code); 0 upright. Fill runs leave it 0 */
 } hpt_t;
 
 typedef struct {
@@ -37,7 +37,7 @@ typedef struct {
 void hist_init(hist_t *h, canvas_t *page, uint8_t *base_px, hpt_t *pts, uint32_t pt_cap, hstroke_t *st, int st_cap);
 /* The page was replaced (loaded): no undo into the old one */
 void hist_reset(hist_t *h);
-void hist_begin(hist_t *h, int kind); /* the fineliner in black (HK_ERASE: a round eraser) */
+void hist_begin(hist_t *h, int kind); /* the pen in black (HK_ERASE: a round eraser) */
 void hist_begin_style(hist_t *h, int kind, const bstyle_t *style);
 /* A point of the open stroke: draws it on the page and adds the touched box to *dirty */
 void hist_add(hist_t *h, int x, int y, int d, box_t *dirty);
@@ -52,8 +52,6 @@ void hist_clear(hist_t *h, box_t *changed);
    NULL when n alone does not fit), the caller writes them (bf_emit); hist_fill_end paints them with the style's shade */
 hpt_t *hist_fill_begin(hist_t *h, uint32_t n, const bstyle_t *style);
 void hist_fill_end(hist_t *h, uint32_t n, const box_t *bb);
-/* A text as a stroke of its own: room for n points (origin, then the code points); the caller writes them and ends with hist_fill_end */
-hpt_t *hist_text_begin(hist_t *h, uint32_t n, const bstyle_t *style);
 int hist_can_undo(const hist_t *h);
 int hist_can_redo(const hist_t *h);
 #endif

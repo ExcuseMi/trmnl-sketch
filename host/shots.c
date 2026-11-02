@@ -4,10 +4,6 @@
 #include <stdio.h>
 #include "util.h"
 
-/* the old calls name three pens by index: thin 5 px, medium 9, thick 17 (the slider now takes any size 1..48) */
-#define SZ(i) ((i) == 0 ? 5 : (i) == 1 ? 9 : 17)
-#define sk_set_size(s, n, t) (sk_set_size)((s), SZ(n), (t))
-
 int png_write(const char *path, const gfx_t *g);
 void fill_shots(const char *dir, int *bad);
 void mirror_shots(const char *dir, int *bad);
@@ -185,14 +181,14 @@ static void brush_page(rig_t *r, const char *dir, const char *name, int shade)
 static void brush_shots(const char *dir)
 {
     static rig_t r;
-    const char *const names[3] = { "b1-brushes-black", "b2-brushes-dark", "b3-brushes-light" };
-    static const int tones[3] = { SH_BLACK, SH_DARK, SH_LIGHT };
-    for (int k = 0; k < 3; k++) {
+    const char *const names[2] = { "b1-brushes-black", "b2-brushes-grey" };
+    static const int tones[2] = { SH_BLACK, SH_GREY };
+    for (int k = 0; k < 2; k++) {
         int sh = tones[k];
         rig_new(&r, APP_ORIENT_BAR_BOTTOM);
         brush_page(&r, dir, names[k], sh);
         if (k == 0) { /* the toolbar over this drawing (landscape), then the same page with it hidden again */
-            sk_set_brush(&r.s, BR_BRUSHPEN, r.now += 50);
+            sk_set_brush(&r.s, BR_PEN, r.now += 50);
             sk_pen_key(&r.s, 1u << 3, 1u << 3, r.now += 50);
             sk_pen_key(&r.s, 0, 1u << 3, r.now);
             r.now += 3000;
@@ -203,11 +199,8 @@ static void brush_shots(const char *dir)
             rect_t o[SK_MAX_RECTS];
             rig_frame(&r, o);
             save(&r, dir, "t3-toolbar-pointer");
-            rig_pen_user(&r, tb_slider_x(&r.s.tb, 30), r.s.tb.sl_y, APP_PEN_TIP | APP_PEN_IN_RANGE, 30000); /* the knob picked up: size 30 and the footprint */
-            r.now += 200;
-            rig_frame(&r, o);
-            save(&r, dir, "t4-slider-dragging");
-            rig_pen_user(&r, tb_slider_x(&r.s.tb, 30), r.s.tb.sl_y, APP_PEN_IN_RANGE, 0);
+            rect_t o2[SK_MAX_RECTS];
+            (void)o2;
             rig_pen_user(&r, 900, 800, APP_PEN_IN_RANGE, 0); /* the pen over the page: the pills are hidden (skplvis.c) */
             r.now += 200;
             rig_frame(&r, o);
@@ -305,10 +298,6 @@ int main(int argc, char **argv)
     sk_pen_key(&r.s, 0, 1u << 3, r.now);
     sk_set_brush(&r.s, BR_PENCIL, r.now += 50);
     save(&r, dir, "t2-toolbar-portrait");
-    rig_pen_user(&r, tb_slider_x(&r.s.tb, 24), r.s.tb.sl_y, APP_PEN_TIP | APP_PEN_IN_RANGE, 30000);
-    r.now += 200;
-    save(&r, dir, "t5-slider-portrait");
-    rig_pen_user(&r, tb_slider_x(&r.s.tb, 24), r.s.tb.sl_y, APP_PEN_IN_RANGE, 0);
     rig_end(&r);
     brush_shots(dir);
     fill_shots(dir, &bad);

@@ -4,7 +4,8 @@
 #ifndef SKSTAB_H
 #define SKSTAB_H
 
-#define SK_SMOOTH_MAX 10 /* setting smooth: 0 off .. 10 */
+#define SK_SMOOTH_MAX 10 /* the filter level 0 off .. 10 */
+#define SK_SMOOTH_DEF 3  /* what Sketch uses (no setting, no toolbar cell) */
 
 typedef struct {
     float x, y, rx, ry, vx, vy; /* the filtered point, the last raw one, the filtered velocity (px per event) */

@@ -59,15 +59,15 @@ static void test_pressure_and_size(void)
     rig_line(&r, 200, 500, 600, 500, 65000, 0);
     int light = col_thickness(&r, 400, 280, 320), hard = col_thickness(&r, 400, 480, 520);
     CHECK(light >= 1 && hard > light * 2); /* a harder press, a thicker line */
-    sk_set_size(&r.s, 2, r.now += 50); /* size: medium -> thick (the toolbar's thick; tablet button 4 is the toolbar now) */
+    sk_set_size(&r.s, 2, r.now += 50); /* size: Big */
     rig_line(&r, 200, 700, 600, 700, 65000, 0);
     int thick = col_thickness(&r, 400, 680, 720);
     CHECK(thick > hard);
-    sk_set_size(&r.s, 0, r.now += 50); /* thick -> thin */
+    sk_set_size(&r.s, 0, r.now += 50); /* Big -> Small */
     rig_line(&r, 200, 900, 600, 900, 65000, 0);
     int thin = col_thickness(&r, 400, 880, 920);
     CHECK(thin < hard && thin >= 1);
-    CHECK(!strcmp(r.cfg_size, "5")); /* the size is kept (the thin pen, 5 px) */
+    CHECK(!strcmp(rig_cfgv(&r, "size_cls"), "0")); /* the size button is kept */
     rig_end(&r);
 }
 
@@ -105,7 +105,7 @@ static void test_hover_cursor(void)
     rig_pen(&r, 700, 500, APP_PEN_IN_RANGE | APP_PEN_BARREL, 0); /* the eraser's cursor is bigger */
     int cb1 = r.s.cb;
     rig_pen(&r, 710, 500, APP_PEN_IN_RANGE, 0);
-    CHECK(cb1 == BR_ERASER && r.s.cb != BR_ERASER && brush_shape_r(cb1, r.s.sty.size) > brush_shape_r(r.s.cb, r.s.sty.size)); /* both cursors are at least 32 px; the eraser's outline is the bigger */
+    CHECK(cb1 == BR_ERASER && r.s.cb != BR_ERASER && (brush_shape_r)(cb1, brush_size(cb1, r.s.size_cls)) > (brush_shape_r)(r.s.cb, brush_size(r.s.cb, r.s.size_cls))); /* both cursors are at least 32 px; the eraser's outline is the bigger */
     rig_pen(&r, 1400, 900, 0, 0); /* the pen leaves the tablet */
     CHECK(!r.s.cursor && same_page_and_fb(&r)); /* no mark is left */
     for (int i = 0; i < 40; i++) rig_pen(&r, 300 + i * 30, 500, APP_PEN_IN_RANGE, 0);

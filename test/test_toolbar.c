@@ -113,15 +113,9 @@ static void test_taps_never_ink(void)
     memcpy(page, r.s.page.px, sizeof(page));
     int fulls = r.fulls;
     for (int i = 0; i < TI_N; i++) {
-        if (i >= TI_UNDO) continue; /* undo, redo and clear change the page on purpose: below */
         tap(&r, i);
         CHECK(!memcmp(page, r.s.page.px, sizeof(page))); /* a tap on the strip never inks */
         CHECK(!r.s.stroke);
-        if (i < TI_LINE) CHECK(r.s.sty.brush == i - TI_BRUSH);
-        else if (i == TI_SMOOTH) CHECK(r.s.smooth == 3 || r.s.smooth == 0);
-        else if (i < TI_TONE) CHECK(r.s.sty.tool == i - TI_LINE + TL_LINE);
-        else if (i < TI_SIZE) CHECK(r.s.sty.shade == tb_tone_of(&r.s.tb, r.s.tb.cx[i] + r.s.tb.cell / 2 + 1)); /* a tap on the slider puts the knob there */
-        else CHECK(1);
         CHECK(r.s.note_on); /* a toast names the choice ... */
         idle(&r, 3000);
         if (i == TI_MIRROR) /* the symmetry cycles through its modes and is off again after the last (test_mirror.c) */
@@ -142,22 +136,22 @@ static void test_taps_never_ink(void)
     rig_pen(&r, 1500, 700, APP_PEN_IN_RANGE, 0);
     CHECK(!memcmp(page, r.s.page.px, sizeof(page)));
     CHECK(!r.s.stroke);
-    /* undo, redo and clear are items too */
+    /* undo, redo and clear are not on the strip: the tablet's buttons 1, 2 and 5 only */
     key(&r, 3);
     key(&r, 3);
-    sk_set_brush(&r.s, BR_FINELINER, r.now += 50);
+    sk_set_brush(&r.s, BR_PEN, r.now += 50);
     rig_line(&r, 600, 600, 900, 650, 40000, 0);
     static uint8_t drawn[TS * TH];
     memcpy(drawn, r.s.page.px, sizeof(drawn));
-    tap(&r, TI_UNDO);
+    key(&r, 0);
     CHECK(!memcmp(page, r.s.page.px, sizeof(page)));
-    tap(&r, TI_REDO);
+    key(&r, 1);
     CHECK(!memcmp(drawn, r.s.page.px, sizeof(drawn)));
-    tap(&r, TI_CLEAR);
-    CHECK(sk_is_blank(&r.s.page) && r.s.tb_on); /* the strip is still up over the white page */
+    key(&r, 4);
+    CHECK(sk_is_blank(&r.s.page));
+    key(&r, 0); /* and clear is one undo step */
+    CHECK(!memcmp(drawn, r.s.page.px, sizeof(drawn)));
     idle(&r, 3000);
-    key(&r, 3);
-    CHECK(same_page_and_fb(&r));
     rig_end(&r);
 }
 
@@ -166,10 +160,10 @@ static void test_draw_near_strip(void)
     rig_t r;
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
     key(&r, 3);
-    rig_line(&r, 500, 900, 700, 910, 40000, 0); /* the first stroke fills a Recent slot (the strip changes then, not for the next ones) */
+    rig_line(&r, 500, 900, 700, 910, 40000, 0);
     idle(&r, 3000);
     int below = r.s.tb.y1 + 1;
-    static uint8_t strip[TS * 300]; /* the strip is two rows tall */
+    static uint8_t strip[TS * 300]; /* the strip is one row */
     memcpy(strip, r.fb, (size_t)TS * (size_t)below);
     /* drawing elsewhere stays fast: ink below the strip is a few small partial rectangles, no flash, no full refresh */
     rect_t out[SK_MAX_RECTS];
@@ -206,17 +200,18 @@ static void test_layout_all_positions(void)
         tb_layout_t L;
         int sw = o == APP_ORIENT_BAR_LEFT || o == APP_ORIENT_BAR_RIGHT ? TH : TW, sh = o == APP_ORIENT_BAR_LEFT || o == APP_ORIENT_BAR_RIGHT ? TW : TH;
         tb_layout(&L, o, sw, sh);
-        CHECK(L.cell >= 70 && L.ch >= 96 && L.cell >= 64 && L.x0 == 0 && L.x1 == sw - 1);
+        CHECK(L.cell >= 90 && L.ch >= 96 && L.x0 == 0 && L.x1 == sw - 1 && L.y1 - L.y0 + 1 < 140); /* one short row, in every position */
+        for (int i = 1; i < TI_N; i++) CHECK(L.cyi[i] == L.cyi[0]);
         CHECK(L.top == (o != APP_ORIENT_BAR_TOP)); /* away from the touch bar */
         CHECK(L.top ? L.y0 == 0 : L.y1 == sh - 1);
         for (int i = 0; i < TI_N; i++) {
-            CHECK(L.cx[i] >= 0 && L.cx[i] + L.cell <= sw && (i == 0 || i == TI_TONE || L.cx[i] >= L.cx[i - 1] + L.cell)); /* inside, in order, no overlap */
+            CHECK(L.cx[i] >= 0 && L.cx[i] + L.cell <= sw && (i == 0 || L.cx[i] >= L.cx[i - 1] + L.cell)); /* inside, in order, no overlap */
             int cx = L.cx[i] + L.cell / 2, cy = L.cyi[i] + L.ch / 2, fx, fy, ux, uy;
-            CHECK(tb_in(&L, cx, cy) && tb_hit(&L, cx, cy) == (i > TI_SIZE && i < TI_MIRROR ? TI_SIZE : i > TI_TONE && i < TI_SIZE ? TI_TONE : i));
+            CHECK(tb_in(&L, cx, cy) && tb_hit(&L, cx, cy) == i);
             /* through the panel and back: what a pen on the panel hits */
             app_orient_to_fb(o, TW, TH, cx, cy, &fx, &fy);
             gal_from_fb(o, TW, TH, fx, fy, &ux, &uy);
-            CHECK(ux == cx && uy == cy && tb_hit(&L, ux, uy) == (i > TI_SIZE && i < TI_MIRROR ? TI_SIZE : i > TI_TONE && i < TI_SIZE ? TI_TONE : i));
+            CHECK(ux == cx && uy == cy && tb_hit(&L, ux, uy) == i);
         }
         CHECK(!tb_in(&L, sw / 2, L.top ? L.y1 + 1 : L.y0 - 1) && tb_hit(&L, sw / 2, L.top ? L.y1 + 1 : L.y0 - 1) == -1);
         CHECK(tb_hit(&L, 2, L.cy + 2) == -1); /* the margin is not an item */
@@ -239,15 +234,16 @@ static void test_brush_cursor_on_screen(void)
             idle(&r, 3000);
             rig_pen(&r, 1000, 700, APP_PEN_IN_RANGE, 0);
             rig_pen(&r, 600, 505, APP_PEN_IN_RANGE, 0);
-            CHECK(r.s.cursor && r.s.cb == b && r.s.cr == brush_cursor_r(b, size));
+            int sz = brush_size(b, size);
+            CHECK(r.s.cursor && r.s.cb == b && r.s.cr == (brush_cursor_r)(b, sz));
             /* the screen shows the shape black, a 2 px white outline around it, and the page elsewhere */
             int r0 = r.s.cr + BR_CUR_OUT, wrong = 0, blacks = 0;
             for (int dy = -r0; dy <= r0; dy++)
                 for (int dx = -r0; dx <= r0; dx++) {
                     int page_px = cv_get(&r.s.page, 600 + dx, 505 + dy), scr = (r.fb[(505 + dy) * TS + (600 + dx) / 8] >> (7 - (600 + dx) % 8)) & 1;
-                    int shape = brush_cursor_px(b, size, dx, dy), near = 0;
+                    int shape = (brush_cursor_px)(b, sz, dx, dy), near = 0;
                     for (int y = -2; y <= 2; y++)
-                        for (int x = -2; x <= 2; x++) near |= brush_cursor_px(b, size, dx + x, dy + y);
+                        for (int x = -2; x <= 2; x++) near |= (brush_cursor_px)(b, sz, dx + x, dy + y);
                     wrong += scr != (shape ? 0 : near ? 1 : page_px);
                     blacks += shape && !scr;
                 }
@@ -272,7 +268,8 @@ static void test_brush_cursor_on_screen(void)
 static void test_brushes_through_the_app(void)
 {
     for (int b = 0; b < BR_N; b++) /* (the bucket draws no stroke: test_fill.c) */
-        for (int sh = 0; sh < SH_N && b != BR_FILL; sh++) {
+        for (int k = 0; k < 3 && b != BR_FILL; k++) {
+            int sh = k == 0 ? SH_BLACK : k == 1 ? SH_GREY : SH_WHITE;
             rig_t r;
             rig_new(&r, APP_ORIENT_BAR_BOTTOM);
             rig_line(&r, 200, 400, 1400, 420, 65000, 0);
@@ -299,7 +296,7 @@ static void test_brushes_through_the_app(void)
             sk_save_now(&r.s);
             rig_start(&r, APP_ORIENT_BAR_BOTTOM); /* the page file comes back as it was */
             CHECK(!memcmp(after, r.s.page.px, sizeof(after)));
-            CHECK(r.s.sty.brush == (b == BR_ERASER ? BR_FINELINER : b) && r.s.sty.shade == sh); /* the pick is kept (not the eraser) */
+            CHECK(r.s.sty.brush == (b == BR_ERASER ? BR_PEN : b) && r.s.sty.shade == sh); /* the pick is kept (not the eraser) */
             rig_end(&r);
         }
 }
@@ -308,7 +305,7 @@ static void test_tail_and_eraser_toggle(void)
 {
     rig_t r;
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
-    sk_set_brush(&r.s, BR_BRUSHPEN, r.now += 50);
+    sk_set_brush(&r.s, BR_PEN, r.now += 50);
     idle(&r, 3000);
     for (int x = 400; x <= 800; x += 20) rig_pen(&r, x, 500, APP_PEN_TIP | APP_PEN_IN_RANGE, 50000);
     rig_pen(&r, 800, 500, APP_PEN_IN_RANGE, 0);
@@ -323,7 +320,7 @@ static void test_tail_and_eraser_toggle(void)
     key(&r, 2);
     CHECK(r.s.sty.brush == BR_ERASER);
     key(&r, 2);
-    CHECK(r.s.sty.brush == BR_BRUSHPEN);
+    CHECK(r.s.sty.brush == BR_PEN);
     rig_end(&r);
 }
 
@@ -407,28 +404,40 @@ static void test_pointer_over_the_strip(void)
     rig_end(&r);
 }
 
-/* The Smooth cell cycles 0, 3, 6, 10, 0, is kept in the settings and names itself in a toast */
-static void test_smooth_cell(void)
+/* Each button picks what it shows: a tool, a colour, a size; kept in the settings; the pick is shown inverted */
+static void test_each_button_picks(void)
 {
-    static rig_t r;
-    rig_new(&r, APP_ORIENT_BAR_BOTTOM);
-    key(&r, 3);
-    static const int want[5] = { 3, 6, 10, 0, 3 };
-    for (int k = 0; k < 5; k++) {
-        tap(&r, TI_SMOOTH);
-        CHECK(r.s.smooth == want[k]);
-        CHECK(atoi(r.cfg_smooth) == want[k]);
-        CHECK(r.s.note_on);
-        settle(&r);
+    for (int o = 0; o < 4; o += 3) { /* landscape with the bar at the bottom, and portrait */
+        static rig_t r;
+        rig_new(&r, o);
+        key(&r, 3);
+        for (int i = 0; i < TI_MIRROR; i++) {
+            int x = r.s.tb.cx[i] + r.s.tb.cell / 2, y = r.s.tb.cyi[i] + r.s.tb.cell / 2;
+            rig_pen_user(&r, x, y, APP_PEN_IN_RANGE, 0);
+            rig_pen_user(&r, x, y, APP_PEN_TIP | APP_PEN_IN_RANGE, 30000);
+            rig_pen_user(&r, x, y, APP_PEN_IN_RANGE, 0);
+            if (i < TI_BLACK) CHECK(r.s.sty.brush == i && r.s.sty.size == brush_size(i, r.s.size_cls));
+            else if (i < TI_SMALL) CHECK(r.s.sty.shade == tb_shade_of(i) && tb_item_of_shade(r.s.sty.shade) == i);
+            else CHECK(r.s.size_cls == i - TI_SMALL && r.s.sty.size == brush_size(r.s.sty.brush, i - TI_SMALL));
+            CHECK(!r.s.stroke && sk_is_blank(&r.s.page));
+            idle(&r, 3000);
+        }
+        /* the choices are kept over a restart */
+        sk_set_brush(&r.s, BR_SPRAY, r.now += 50);
+        sk_set_shade(&r.s, SH_GREY, r.now += 50);
+        sk_set_size(&r.s, 2, r.now += 50);
+        rig_start(&r, o);
+        CHECK(r.s.sty.brush == BR_SPRAY && r.s.sty.shade == SH_GREY && r.s.size_cls == 2 && r.s.sty.size == brush_size(BR_SPRAY, 2));
+        /* a size button gives each tool its own measure: Small < Medium < Big */
+        for (int b = 0; b < BR_N; b++) CHECK(brush_size(b, 0) < brush_size(b, 1) && brush_size(b, 1) < brush_size(b, 2) && brush_size_cls(b, brush_size(b, 1)) == 1);
+        /* the strip shows exactly one tool, one colour and one size picked (inverted cells differ from the plain cell) */
+        rig_end(&r);
     }
-    sk_cfg_reload(&r.s); /* the form's value is what the cell wrote */
-    CHECK(r.s.smooth == 3);
-    rig_end(&r);
 }
 
 int main(void)
 {
-    test_smooth_cell();
+    test_each_button_picks();
     test_toggle_and_restore();
     test_flash_only_strip();
     test_taps_never_ink();

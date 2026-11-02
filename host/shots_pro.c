@@ -25,11 +25,7 @@ static void settle(rig_t *r)
     for (int i = 0; i < 8; i++) rig_frame(r, o);
 }
 
-static void smooth_to(rig_t *r, int level)
-{
-    r->cfg_smooth[0] = level >= 10 ? '1' : (char)('0' + level), r->cfg_smooth[1] = level >= 10 ? '0' : 0, r->cfg_smooth[2] = 0;
-    sk_cfg_reload(&r->s);
-}
+static void smooth_to(rig_t *r, int level) { r->s.smooth = level; }
 
 /* a hand that shakes: a slow diagonal line, about 2 px of tremor at 200 events a second */
 static void shaky(rig_t *r, int y0)
@@ -43,19 +39,19 @@ static void shaky(rig_t *r, int y0)
     rig_pen(r, 980, y0, APP_PEN_IN_RANGE, 0);
 }
 
-/* white ink: a black band, then each brush in white over it, and the toolbar with the tone slider at white */
+/* white ink: a black band, then each brush in white over it,  */
 static void white_shot(const char *dir, int *bad)
 {
     static rig_t r;
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
     sk_set_brush(&r.s, BR_MARKER, r.now += 50);
-    sk_set_size(&r.s, 48, r.now += 50);
+    sk_set_size(&r.s, 2, r.now += 50);
     for (int k = 0; k < 9; k++) rig_line(&r, 150, 280 + k * 45, 1550, 280 + k * 45, 40000, 0);
     sk_set_shade(&r.s, SH_WHITE, r.now += 50);
-    static const int br[6] = { BR_FINELINER, BR_BRUSHPEN, BR_PENCIL, BR_MARKER, BR_CALLIGRAPHY, BR_SPRAY };
-    for (int k = 0; k < 6; k++) {
+    static const int br[4] = { BR_PEN, BR_PENCIL, BR_MARKER, BR_SPRAY };
+    for (int k = 0; k < 4; k++) {
         sk_set_brush(&r.s, br[k], r.now += 50);
-        sk_set_size(&r.s, 14, r.now += 50);
+        sk_set_size(&r.s, 1, r.now += 50);
         for (int i = 0; i < 70; i++)
             rig_pen(&r, 250 + i * 18, 330 + k * 60 + (int)(14.0 * sin(i * 0.2)), APP_PEN_TIP | APP_PEN_IN_RANGE, 8000 + (unsigned)i * 500);
         rig_pen(&r, 1500, 330 + k * 60, APP_PEN_IN_RANGE, 0);
@@ -81,7 +77,8 @@ void pro_shots(const char *dir, int *bad)
     rig_end(&r);
 
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
-    r.s.sty.brush = BR_PENCIL, r.s.sty.size = 20, r.s.ink_size = 20, r.s.sty.shade = 0;
+    sk_set_brush(&r.s, BR_PENCIL, r.now += 50);
+    sk_set_size(&r.s, 2, r.now += 50);
     static const int tilt[3] = { 0, 25, 50 };
     for (int k = 0; k < 3; k++) {
         for (int i = 0; i < 90; i++) {
@@ -93,10 +90,5 @@ void pro_shots(const char *dir, int *bad)
     }
     settle(&r);
     put(&r, dir, "pro2-pencil-tilt-0-25-50-degrees", bad);
-    sk_pen_key(&r.s, 1u << 3, 1u << 3, r.now += 50); /* the toolbar with its Smooth cell */
-    sk_pen_key(&r.s, 0, 1u << 3, r.now);
-    sk_set_smooth(&r.s, 6, r.now += 50);
-    settle(&r);
-    put(&r, dir, "pro3-toolbar-smooth-cell", bad);
     rig_end(&r);
 }

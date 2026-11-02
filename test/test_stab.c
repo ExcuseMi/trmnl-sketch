@@ -1,4 +1,4 @@
-/* The stabiliser: smooths, lags a bounded distance, ends where the pen ended, leaves shapes alone. SPDX-License-Identifier: MIT */
+/* The stabiliser: smooths, lags a bounded distance, ends where the pen ended, is on by default. SPDX-License-Identifier: MIT */
 #include "check.h"
 #include <math.h>
 #include <stdlib.h>
@@ -66,11 +66,7 @@ static void test_lag(void)
         }
 }
 
-static void set_smooth(rig_t *r, int level)
-{
-    r->cfg_smooth[0] = level >= 10 ? '1' : (char)('0' + level), r->cfg_smooth[1] = level >= 10 ? '0' : 0, r->cfg_smooth[2] = 0;
-    sk_cfg_reload(&r->s);
-}
+static void set_smooth(rig_t *r, int level) { r->s.smooth = level; }
 
 static unsigned pt_x(const rig_t *r, int i) { return (unsigned)r->s.hist.pts[r->s.hist.st[r->s.hist.st_cur - 1].first + (unsigned)i].x; }
 
@@ -81,6 +77,7 @@ static void test_end_exact(void)
     for (int level = 1; level <= 10; level += 3) {
         rig_new(&r, APP_ORIENT_BAR_BOTTOM);
         set_smooth(&r, level);
+        sk_set_brush(&r.s, BR_MARKER, r.now += 50); /* (the Pen adds a tapering tail) */
         CHECK(r.s.smooth == level);
         int xs[80];
         for (int i = 0; i < 40; i++) shaky(i, &xs[2 * i], &xs[2 * i + 1]), xs[2 * i + 1] += 300;
@@ -97,33 +94,28 @@ static void test_end_exact(void)
     }
 }
 
-static unsigned page_sum(const rig_t *r)
-{
-    unsigned n = 0;
-    for (int i = 0; i < TS * TH; i++) n = n * 31 + r->s.page.px[i];
-    return n;
-}
-
-/* A shape tool is not smoothed: a line dragged with smooth 10 equals the one with smooth 0 */
-static unsigned shape_hash(int level)
+/* The app's own level is on (SK_SMOOTH_DEF, no setting): a shaky stroke is not the pen's raw points */
+static void test_on_by_default(void)
 {
     static rig_t r;
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
-    set_smooth(&r, level);
-    sk_set_tool(&r.s, TL_LINE, r.now += 5);
-    int p[6] = { 300, 600, 500, 640, 900, 700 };
-    rig_stroke(&r, p, 3, 30000, 0);
-    unsigned h = page_sum(&r);
+    r.keep_smooth = 1;
+    rig_start(&r, APP_ORIENT_BAR_BOTTOM);
+    CHECK(r.s.smooth == SK_SMOOTH_DEF && SK_SMOOTH_DEF > 0);
+    int xs[80], moved = 0;
+    for (int i = 0; i < 40; i++) shaky(i, &xs[2 * i], &xs[2 * i + 1]), xs[2 * i + 1] += 300;
+    rig_stroke(&r, xs, 40, 30000, 0);
+    const hstroke_t *s = &r.s.hist.st[r.s.hist.st_cur - 1];
+    for (uint32_t i = 1; i + 1 < s->n && i < 38; i++) moved += abs(r.s.hist.pts[s->first + i].y - xs[2 * i + 1]) > 0;
+    CHECK(moved > 5);
     rig_end(&r);
-    return h;
 }
-static void test_shapes_alone(void) { CHECK(shape_hash(0) == shape_hash(10)); }
 
 int main(void)
 {
     test_smooths();
     test_lag();
     test_end_exact();
-    test_shapes_alone();
+    test_on_by_default();
     return CHECK_DONE("stab");
 }

@@ -76,8 +76,6 @@ void sk_make_page(sketch_t *s, uint32_t now);
 
 int sk_save_page(sketch_t *s, uint32_t now) /* writes the page on screen if it changed: the menus work on its file; 0 when it could not */
 {
-    sk_text_end(s, now);
-    sk_shape_cancel(s);
     hist_end(&s->hist);
     s->stroke = 0;
     return !s->dirty || sk_is_blank(&s->page) || !sk_do_save(s, now);
@@ -85,8 +83,6 @@ int sk_save_page(sketch_t *s, uint32_t now) /* writes the page on screen if it c
 
 int sk_leave_page(sketch_t *s, uint32_t now) /* saves the page on screen first; 0 when it could not */
 {
-    sk_text_end(s, now);
-    sk_shape_cancel(s);
     hist_end(&s->hist);
     s->stroke = 0;
     if (sk_is_blank(&s->page)) { /* a blank page is not kept: at most one exists, the one on screen (owner 2026-11-01) */

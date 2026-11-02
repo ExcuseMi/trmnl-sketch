@@ -20,7 +20,6 @@
 #include "skpills.h"
 #include "sk_cfg.h"
 #include "sklat.h"
-#include "skpress.h"
 #include "skstab.h"
 #include "skui.h"
 #include "toolbar.h"
@@ -42,8 +41,8 @@ enum { SK_NONE = 0, SK_FULL = -1, SK_NOFLASH = -2 }; /* sk_flush: nothing due / 
 
 /* The inputs of a strip paint: the same key, the same pixels (sktbimg.c) */
 typedef struct {
-    bstyle_t sty, rc[SK_RECENT];
-    int hot, rc_n, smooth, orient;
+    bstyle_t sty;
+    int hot, orient;
     box_t box;
 } tb_key_t;
 
@@ -58,8 +57,7 @@ typedef struct {
     int cur;             /* page number on screen */
     bstyle_t sty;        /* the brush, shade and size picked (brush may be the eraser) */
     int last_ink;        /* the brush before the eraser was picked */
-    uint8_t ink_size, era_size; /* the size of the ink brushes and of the eraser (sty.size is the one of the brush picked) */
-    int tb_drag;         /* a press on a slider is still down (1 size, 2 tone): the knob follows the pen, no ink */
+    int size_cls;        /* the size button picked, 0 Small .. 2 Big (brush_size gives the pen size of it for each brush) */
     bstyle_t stk;        /* the open stroke's style */
     int tb_hot, tb_ptr;  /* the toolbar item the pen is over (-1 none); the arrow pointer is drawn over the strip */
     box_t tb_ptr_box;
@@ -87,20 +85,10 @@ typedef struct {
     lat_t lat_ev, lat_push; /* event to push issued, push duration (sklat.h) */
     int ink_pend, lat_new, dbg; /* ink waits to be pushed; samples since the last log line; the debug toast is on */
     uint32_t ink_t, lat_next, k8_down; /* when that ink began; when the next log line is due; when tablet button 8 went down */
-    int use_tilt, tilt;  /* setting use_tilt (default on); the tilt code of the pen's last event (sk_pen_tilt) */
-    int pcurve;          /* setting pressure_curve: PC_SOFT, PC_NORMAL (default), PC_FIRM (skpress.h) */
-    int smooth;          /* the stabiliser 0..10 (setting smooth, default 3; the toolbar's Smooth cell) */
+    int smooth;          /* the stabiliser level (SK_SMOOTH_DEF; the tests set 0 so the points are the pen's own) */
+    int tilt;            /* the tilt code of the pen's last event (sk_pen_tilt); tilt is always on */
     int rx, ry, stroke_pts; /* the pen's own last point of the open stroke, and how many points it has had */
-    int sh_on, sh_x0, sh_y0, sh_x1, sh_y1, sh_barrel; /* a shape is being dragged (skshape.c): start, end, constrain was on at the last preview */
     int paper, paper_sp, paper_def, paper_sp_def; /* the page on screen's paper (paper.h) and the settings' default for new pages */
-    box_t sh_box;        /* the rubber band on the screen (framebuffer only, never in the page) */
-    int tx_on, tx_x, tx_y, tx_n, tx_cls, tx_down, tx_moved, tx_dx, tx_dy; /* the text being typed (sktext.c): origin, length, size class, the tap */
-    uint16_t tx_cp[SK_TEXT_MAX];
-    box_t tx_box;        /* its drawing on the screen (framebuffer only until it ends) */
-    uint32_t kbd;        /* APP_KBD_* bits connected now */
-    int kbd_req;         /* the Text tool wants the glue to enable the keyboards (keyboard_enable) */
-    bstyle_t rc[SK_RECENT]; /* the last tone + brush + size combinations drawn with, most recent first (skrecent.c) */
-    int rc_n;
     unsigned mods;       /* keyboard modifiers held (APP_MOD_*) */
     int stroke_erase;    /* the open stroke erases */
     int hover_valid, hover_x, hover_y; /* the pen hovers over the page there */
@@ -163,16 +151,12 @@ void sk_set_orient(sketch_t *s, int orient, const app_touchbar_t *bar);
 /* Reads the settings the phone page can change (pen_area) again; the app calls it when that page closes */
 void sk_cfg_reload(sketch_t *s);
 
-/* Brush, shade and size (the toolbar and the settings call these; each toasts its name) */
+/* Brush, shade and size button (the toolbar calls these; each toasts its name) */
 void sk_set_brush(sketch_t *s, int brush, uint32_t now);
 void sk_set_shade(sketch_t *s, int shade, uint32_t now);
-void sk_set_size(sketch_t *s, int size, uint32_t now);
-/* The stabiliser 0..10 (the toolbar's Smooth cell cycles 0, 3, 6, 10; the setting `smooth` is its default) */
-void sk_set_smooth(sketch_t *s, int level, uint32_t now);
+void sk_set_size(sketch_t *s, int cls, uint32_t now); /* the size button 0 Small .. 2 Big */
 /* The symmetry (skmirror.c): off, left-right, top-bottom, 4-way, kaleidoscope; the guide is on the screen only */
 void sk_set_mirror(sketch_t *s, int mode, uint32_t now);
-/* The size slider (sksize.c): the knob follows the pen at user x `ux`; only the slider's cells are pushed */
-void sk_slider_drag(sketch_t *s, int ux);
 /* sketch.c's own, shared with sksize.c: a setting's number, a toast with the strip repainted, the strip repainted in the framebuffer */
 void sk_cfg_num(sketch_t *s, const char *key, int v);
 void sk_picked(sketch_t *s, const char *text, uint32_t now);
@@ -209,25 +193,8 @@ void sk_save_now(sketch_t *s);
 void sk_run_print(sketch_t *s);
 /* Sends page `num`'s saved file to the printer; 0 or < 0 with s->pres.msg set (skprint.c) */
 int sk_print_page(sketch_t *s, int num);
-/* The shape tools (skshape.c). sk_shape_end constrains the end point; sk_shape_pts gives the outline as a polyline (the
-   points of the stroke); sk_shape_pen takes the pen events of a shape tool (1: taken); the preview is on the screen only */
-#define SK_SHAPE_PTS 140
-void sk_shape_end(int tool, int x0, int y0, int *x1, int *y1, int constrain);
-int sk_shape_pts(int tool, int x0, int y0, int x1, int y1, int16_t (*pt)[2], int cap);
-int sk_shape_pen(sketch_t *s, int tip, int inside, int fx, int fy, uint32_t now);
-void sk_shape_cancel(sketch_t *s);
-void sk_set_tool(sketch_t *s, int tool, uint32_t now);
 void sk_fb_restore(sketch_t *s, const box_t *b); /* the page (and strip, pills) back on the screen in b, and pushed */
 void sk_mark(sketch_t *s, const box_t *b);       /* b is to be pushed */
-/* The Text tool (sktext.c). sk_key: a key event of a keyboard (down 0: released); sk_keyboard: the keyboards connected now */
-int sk_text_pen(sketch_t *s, int tip, int inside, int fx, int fy, uint32_t now);
-void sk_text_end(sketch_t *s, uint32_t now);
-void sk_keyboard(sketch_t *s, uint32_t bits, uint32_t now);
-void sk_key(sketch_t *s, int down, unsigned key, unsigned mods, unsigned hid, const char *utf8, uint32_t now);
-/* The Recent combinations (skrecent.c): sk_recent_add when a stroke ends (the eraser and the bucket never enter), sk_recent_pick restores slot i */
-void sk_recent_load(sketch_t *s);
-void sk_recent_add(sketch_t *s, const bstyle_t *st);
-void sk_recent_pick(sketch_t *s, int slot, uint32_t now);
 /* The paper (skpaper.c) */
 void sk_paper_new(sketch_t *s);               /* the default for a new page */
 void sk_paper_open(sketch_t *s, int num);     /* the paper of page num (Blank for a page saved before papers existed) */

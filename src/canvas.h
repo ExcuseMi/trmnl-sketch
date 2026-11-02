@@ -23,8 +23,8 @@ void box_clip(box_t *b, int w, int h);
    whatever stroke draws it, so erasing and redrawing, undo and redo give the same pattern). Only ink (colour 0) is
    shaded; the eraser and SH_WHITE ink are always solid white. */
 /* The tone: 9 steps, 0 black then lighter to 8, the 4 x 4 Bayer levels 16 (black), 15, 14, 12, 10, 8, 6, 4 and 2 of 16 dots.
-   SH_DARK and SH_LIGHT are what the earlier Dark gray (11 of 16) and Light gray (5 of 16) became (settings migrate: skcfg.c) */
-enum { SH_BLACK = 0, SH_DARK = 3, SH_LIGHT = 6, SH_N = 9 };
+   The settings of the earlier tone slider and three shades migrate to black, grey or white (sketch.c) */
+enum { SH_BLACK = 0, SH_GREY = 5, SH_N = 9 }; /* the toolbar's three swatches are SH_BLACK, SH_GREY (8 of 16 dots) and SH_WHITE */
 /* White as an ink colour: one more shade past the lightest tone (the slider's far left). Brushes, shape, text and the bucket draw it solid
    white in their own shape (over black or a tone); the eraser stays the eraser. Valid shades are 0 .. SH_WHITE */
 #define SH_WHITE SH_N

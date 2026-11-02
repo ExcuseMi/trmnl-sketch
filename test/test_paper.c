@@ -137,8 +137,8 @@ static void test_default_and_menu(void)
 {
     rig_t r;
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
-    strcpy(r.cfg_paper, "grid");
-    strcpy(r.cfg_papsp, "32");
+    rig_cfg(&r, "paper", "grid");
+    rig_cfg(&r, "paper_sp", "32");
     rig_start(&r, APP_ORIENT_BAR_BOTTOM);
     CHECK(r.s.paper == PP_GRID && r.s.paper_sp == 32); /* a new page takes the settings' default */
     rig_line(&r, 300, 500, 900, 520, 50000, 0);

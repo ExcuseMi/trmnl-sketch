@@ -11,8 +11,7 @@ static void key_of(const sketch_t *s, tb_key_t *k)
 {
     memset(k, 0, sizeof(*k)); /* the padding too: the keys are compared with memcmp */
     k->sty = s->sty;
-    for (int i = 0; i < s->rc_n && i < SK_RECENT; i++) k->rc[i] = s->rc[i];
-    k->hot = s->tb_hot, k->rc_n = s->rc_n, k->smooth = s->smooth, k->orient = s->orient, k->box = s->tb_box;
+    k->hot = s->tb_hot, k->orient = s->orient, k->box = s->tb_box;
 }
 
 static int img_row(const sketch_t *s) { return ((s->tb_box.x1 >> 3) - (s->tb_box.x0 >> 3)) + 1; }
@@ -77,7 +76,7 @@ void sk_tb_paint(sketch_t *s)
     if (img_fresh(s)) return img_put(s, &s->tb_px);
     gfx_t g;
     gfx_init(&g, s->fb.px, s->fb.w, s->fb.h, s->fb.stride, s->orient);
-    tb_draw(&g, &s->tb, &s->sty, s->tb_hot, s->rc, s->rc_n, s->smooth);
+    tb_draw(&g, &s->tb, &s->sty, s->tb_hot);
     s->tb_paints++;
     img_save(s);
 }

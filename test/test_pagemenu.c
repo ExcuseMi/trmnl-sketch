@@ -321,7 +321,7 @@ static void test_damaged_page(void)
     int n = read_all(&r, "sketch/sk0002.png", file, SK_FILE_MAX);
     CHECK(n == (int)sizeof(junk) && !memcmp(file, junk, sizeof(junk))); /* never deleted, never changed */
     /* the app starts on the damaged page (its setting): it draws on another page and leaves the file alone */
-    strcpy(r.cfg_cur, "2");
+    rig_cfg(&r, "cur", "2");
     rig_start(&r, APP_ORIENT_BAR_BOTTOM);
     CHECK(r.s.cur != 2 && r.s.cur == 3);
     rig_line(&r, 300, 800, 1200, 900, 40000, 0);

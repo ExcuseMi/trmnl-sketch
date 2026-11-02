@@ -39,7 +39,7 @@ static int col_black(int x)
 }
 static void line(int brush, int shade, int size, int x0, int y0, int x1, int y1, unsigned pressure)
 {
-    bstyle_t st = { (uint8_t)brush, (uint8_t)shade, (uint8_t)SZ(size), 0, 0 };
+    bstyle_t st = { (uint8_t)brush, (uint8_t)shade, (uint8_t)SZ(size), 0 };
     int p = brush_param(brush, size, pressure);
     brush_seg(&st, brush_is_eraser(brush), &page, x0, y0, p, x1, y1, p, 0);
 }
@@ -54,8 +54,8 @@ static void test_table(void)
         b = brush_next(b);
     }
     CHECK(b == 0);
-    CHECK(BR_N == 8 && brush_is_eraser(BR_ERASER) && !brush_is_eraser(BR_PENCIL) && brush_is_fill(BR_FILL) && !brush_is_fill(BR_ERASER) && !strcmp(brush_name(BR_FILL), "Fill"));
-    CHECK(!strcmp(brush_name(BR_FINELINER), "Fineliner") && !strcmp(brush_name(BR_ERASER), "Eraser"));
+    CHECK(BR_N == 6 && brush_is_eraser(BR_ERASER) && !brush_is_eraser(BR_PENCIL) && brush_is_fill(BR_FILL) && !brush_is_fill(BR_ERASER) && !strcmp(brush_name(BR_FILL), "Fill"));
+    CHECK(!strcmp(brush_name(BR_PEN), "Pen") && !strcmp(brush_name(BR_ERASER), "Eraser"));
 }
 
 static void test_shades(void)
@@ -71,45 +71,35 @@ static void test_shades(void)
         CHECK(cv_get(&page, 19, 40) && cv_get(&page, 84, 40) && cv_get(&page, 40, 19) && cv_get(&page, 40, 84)); /* nothing outside */
     }
     CHECK(cnt[SH_BLACK] == 64 * 64);
-    CHECK(cnt[SH_DARK] == 64 * 64 * 12 / 16);
-    CHECK(cnt[SH_LIGHT] == 64 * 64 * 6 / 16);
+    CHECK(cnt[SH_GREY] == 64 * 64 * 8 / 16);
     /* the pattern is fixed to the page: the same square drawn by another brush, or twice, or after an eraser, is the same */
     blank();
-    line(BR_MARKER, SH_DARK, 1, 100, 100, 160, 100, 30000);
+    line(BR_MARKER, SH_GREY, 1, 100, 100, 160, 100, 30000);
     uint8_t once[sizeof(page_px)];
     memcpy(once, page_px, sizeof(once));
-    line(BR_MARKER, SH_DARK, 1, 100, 100, 160, 100, 30000);
+    line(BR_MARKER, SH_GREY, 1, 100, 100, 160, 100, 30000);
     CHECK(!memcmp(once, page_px, sizeof(once))); /* twice: idempotent, no build-up */
-    line(BR_ERASER, SH_DARK, 1, 100, 100, 160, 100, 30000);
+    line(BR_ERASER, SH_GREY, 1, 100, 100, 160, 100, 30000);
     CHECK(black() == 0);
-    line(BR_MARKER, SH_DARK, 1, 100, 100, 160, 100, 30000);
+    line(BR_MARKER, SH_GREY, 1, 100, 100, 160, 100, 30000);
     CHECK(!memcmp(once, page_px, sizeof(once))); /* erased and drawn again: the same dots */
     /* a shade only blackens; the eraser ignores the shade */
     blank();
     line(BR_MARKER, SH_BLACK, 1, 100, 100, 160, 100, 0);
     int solid = black();
-    line(BR_MARKER, SH_LIGHT, 1, 100, 100, 160, 100, 0);
+    line(BR_MARKER, SH_GREY, 1, 100, 100, 160, 100, 0);
     CHECK(black() == solid);
-    line(BR_ERASER, SH_LIGHT, 2, 130, 100, 130, 100, 0);
+    line(BR_ERASER, SH_GREY, 2, 130, 100, 130, 100, 0);
     CHECK(black() < solid && cv_get(&page, 130, 100));
 }
 
 static void test_footprints(void)
 {
-    /* fineliner: wider with pressure */
-    blank();
-    line(BR_FINELINER, 0, 1, 50, 100, 300, 100, 3000);
-    line(BR_FINELINER, 0, 1, 50, 200, 300, 200, 65000);
-    CHECK(col_black(150) >= 1 && col_black(150) > 0);
-    int thin = 0, thick = 0;
-    for (int y = 90; y < 110; y++) thin += !cv_get(&page, 150, y);
-    for (int y = 190; y < 210; y++) thick += !cv_get(&page, 150, y);
-    CHECK(thin >= 1 && thick > thin * 2);
-    /* brush pen: a hairline at a light touch, swelling, always more than the fineliner's range at full pressure */
-    int w_lo = brush_param(BR_BRUSHPEN, 1, 2000), w_hi = brush_param(BR_BRUSHPEN, 1, 65000);
+    /* brush pen: a hairline at a light touch, swelling, swelling a long way */
+    int w_lo = brush_param(BR_PEN, 1, 2000), w_hi = brush_param(BR_PEN, 1, 65000);
     CHECK(w_lo <= 2 && w_hi >= 12 && w_hi > w_lo * 4);
     for (unsigned p = 0, prev = 0; p <= 65535; p += 257) {
-        unsigned v = (unsigned)brush_param(BR_BRUSHPEN, 1, p);
+        unsigned v = (unsigned)brush_param(BR_PEN, 1, p);
         CHECK(v >= prev);
         prev = v;
     }
@@ -119,18 +109,6 @@ static void test_footprints(void)
     line(BR_MARKER, 0, 1, 50, 100, 300, 100, 20000);
     int side = brush_param(BR_MARKER, 1, 0);
     CHECK(col_black(150) == side && row_black(100) >= 250 && black() == (250 + side) * side);
-    /* calligraphy: the width depends on the direction of the stroke */
-    blank();
-    line(BR_CALLIGRAPHY, 0, 1, 100, 250, 250, 100, 40000); /* along "/" (up right): thin */
-    int thin_row = row_black(175);
-    blank();
-    line(BR_CALLIGRAPHY, 0, 1, 100, 100, 250, 250, 40000); /* along "\" (down right): broad */
-    int broad_row = row_black(175);
-    CHECK(thin_row >= 2 && thin_row <= 4 && broad_row > thin_row * 4);
-    blank();
-    line(BR_CALLIGRAPHY, 0, 1, 50, 100, 250, 100, 40000); /* horizontal and vertical both have body */
-    line(BR_CALLIGRAPHY, 0, 1, 300, 50, 300, 250, 40000);
-    CHECK(col_black(150) > 8 && row_black(150) > 8);
     /* pencil: grainy, lighter at a light touch, the same grain every time */
     blank();
     line(BR_PENCIL, 0, 2, 50, 100, 300, 100, 5000);
@@ -217,10 +195,7 @@ static void test_cursors(void)
     for (int dy = -h + 1; dy < h; dy++)
         for (int dx = -h + 1; dx < h; dx++) inner += brush_shape_px(BR_ERASER, 1, dx, dy);
     CHECK(inner == 0 && brush_shape_px(BR_ERASER, 1, h, 0) && brush_shape_px(BR_ERASER, 1, 0, -h) && !brush_shape_px(BR_ERASER, 1, 0, 0)); /* hollow square */
-    CHECK(brush_shape_px(BR_FINELINER, 1, 0, 0)); /* a ring with a dot: the hot spot */
-    r = brush_shape_r(BR_FINELINER, 1);
-    CHECK(brush_shape_px(BR_FINELINER, 1, r, 0) && brush_shape_px(BR_FINELINER, 1, 0, r) && !brush_shape_px(BR_FINELINER, 1, r - 3, 0));
-    CHECK(shape(BR_SPRAY, 1, 0) < shape(BR_FINELINER, 1, 0) * 3 && shape(BR_SPRAY, 1, 0) > 10); /* dotted: gaps in the ring */
+    CHECK(shape(BR_SPRAY, 1, 0) < shape(BR_MARKER, 1, 0) * 3 && shape(BR_SPRAY, 1, 0) > 10); /* dotted: gaps in the ring */
     int gaps = 0; /* the spray ring is not closed */
     r = brush_shape_r(BR_SPRAY, 1);
     for (int dy = -r; dy <= r; dy++)
@@ -229,11 +204,9 @@ static void test_cursors(void)
             gaps += d2 <= r * r && d2 >= (r - 1) * (r - 1) && !brush_shape_px(BR_SPRAY, 1, dx, dy);
         }
     CHECK(gaps > 10);
-    /* calligraphy: a bar slanted like "/" */
-    CHECK(brush_shape_px(BR_CALLIGRAPHY, 1, 3, -3) && brush_shape_px(BR_CALLIGRAPHY, 1, -3, 3) && !brush_shape_px(BR_CALLIGRAPHY, 1, 3, 3));
     /* brush pen: a drop, pointed to the upper right; pencil: a tip with the body to the upper right */
     int ext_ur = -99, ext_ll = -99;
-    for (int br = BR_BRUSHPEN; br <= BR_PENCIL; br++) {
+    for (int br = BR_PEN; br <= BR_PENCIL; br++) { /* (ids 0 and 1) */
         ext_ur = ext_ll = -99;
         r = brush_shape_r(br, 1);
         for (int dy = -r; dy <= r; dy++)
@@ -261,7 +234,7 @@ static void test_replay(void)
             static uint8_t snap[3][sizeof(page_px)];
             box_t b;
             for (int k = 0; k < 3; k++) {
-                bstyle_t sty = { (uint8_t)br, (uint8_t)sh, (uint8_t)(k % 3), 0, 0 };
+                bstyle_t sty = { (uint8_t)br, (uint8_t)sh, (uint8_t)(k % 3), 0 };
                 hist_begin_style(&h, brush_is_eraser(br) ? HK_ERASE : HK_INK, &sty);
                 srand((unsigned)(br * 31 + sh * 7 + k));
                 int x = 40 + k * 30, y = 60 + k * 40;
@@ -289,7 +262,7 @@ static void test_replay(void)
             static hpt_t small[100];
             hist_init(&h, &page, base_px, small, 100, st, 16);
             for (int k = 0; k < 3; k++) {
-                bstyle_t sty = { (uint8_t)br, (uint8_t)sh, (uint8_t)(k % 3), 0, 0 };
+                bstyle_t sty = { (uint8_t)br, (uint8_t)sh, (uint8_t)(k % 3), 0 };
                 hist_begin_style(&h, brush_is_eraser(br) ? HK_ERASE : HK_INK, &sty);
                 srand((unsigned)(br * 31 + sh * 7 + k));
                 int x = 40 + k * 30, y = 60 + k * 40;

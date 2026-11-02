@@ -168,13 +168,13 @@ static void test_setting(void)
     rig_t r;
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
     CHECK(r.s.fill && r.s.map.ox == 0); /* default: fill */
-    strcpy(r.cfg_pen_area, "keep");
+    rig_cfg(&r, "pen_area", "keep");
     rig_start(&r, APP_ORIENT_BAR_BOTTOM);
     CHECK(!r.s.fill && r.s.map.ox > 0);
-    strcpy(r.cfg_pen_area, "fill");
+    rig_cfg(&r, "pen_area", "fill");
     sk_cfg_reload(&r.s);
     CHECK(r.s.fill && r.s.map.ox == 0);
-    strcpy(r.cfg_pen_area, "junk"); /* a bad value: the default */
+    rig_cfg(&r, "pen_area", "junk"); /* a bad value: the default */
     sk_cfg_reload(&r.s);
     CHECK(r.s.fill);
     rig_end(&r);
