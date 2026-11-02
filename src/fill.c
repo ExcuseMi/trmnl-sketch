@@ -208,9 +208,9 @@ int bf_plan(bf_t *r, const canvas_t *page, int x, int y, int shade, int gap, siz
 {
     memset(r, 0, sizeof(*r));
     if (x < 0 || y < 0 || x >= page->w || y >= page->h) return BF_NOTHING;
-    if (shade < 0 || shade >= SH_N) shade = 0;
+    if (shade < 0 || shade > SH_WHITE) shade = 0;
     int cls = bf_class(page, x, y);
-    if (cls == shade + 1) return BF_NOTHING;
+    if (cls == (shade == SH_WHITE ? 0 : shade + 1)) return BF_NOTHING;
     if (gap < 0) gap = 0;
     if (gap > BF_GAP_MAX) gap = BF_GAP_MAX;
     if (cls == 1) gap = 0; /* black: plain connected pixels */

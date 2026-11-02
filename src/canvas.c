@@ -41,10 +41,11 @@ int cv_get(const canvas_t *c, int x, int y)
 static const uint8_t bayer[4][4] = { { 0, 8, 2, 10 }, { 12, 4, 14, 6 }, { 3, 11, 1, 9 }, { 15, 7, 13, 5 } };
 static const uint8_t shade_level[SH_N] = { 16, 15, 14, 12, 10, 8, 6, 4, 2 };
 
-int cv_shade_level(int shade) { return shade < 0 || shade >= SH_N ? 16 : shade_level[shade]; }
+int cv_shade_level(int shade) { return shade == SH_WHITE ? 0 : shade < 0 || shade >= SH_N ? 16 : shade_level[shade]; }
 
 int cv_shade_black(int shade, int x, int y)
 {
+    if (shade == SH_WHITE) return 0;
     if (shade < 0 || shade >= SH_N) return 1;
     return bayer[y & 3][x & 3] < shade_level[shade];
 }

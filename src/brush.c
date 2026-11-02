@@ -6,10 +6,10 @@
 #include "sk_cfg.h"
 
 static const char *const names[BR_N] = { "Fineliner", "Brush pen", "Pencil", "Marker", "Calligraphy", "Spray", "Eraser", "Fill" };
-static const char *const shades[SH_N] = { "Black", "Tone 15/16", "Tone 14/16", "Tone 12/16", "Tone 10/16", "Tone 8/16", "Tone 6/16", "Tone 4/16", "Tone 2/16" };
+static const char *const shades[SH_N + 1] = { "Black", "Tone 15/16", "Tone 14/16", "Tone 12/16", "Tone 10/16", "Tone 8/16", "Tone 6/16", "Tone 4/16", "Tone 2/16", "White" };
 
 const char *brush_name(int b) { return names[b < 0 || b >= BR_N ? 0 : b]; }
-const char *shade_name(int sh) { return shades[sh < 0 || sh >= SH_N ? 0 : sh]; }
+const char *shade_name(int sh) { return shades[sh < 0 || sh > SH_WHITE ? 0 : sh]; }
 int brush_next(int b) { return (b + 1) % BR_N; }
 int brush_is_eraser(int b) { return b == BR_ERASER; }
 int brush_is_fill(int b) { return b == BR_FILL; }
@@ -187,6 +187,7 @@ void brush_seg(const bstyle_t *st, int colour, canvas_t *c, int x0, int y0, int 
 static void seg_img(const bstyle_t *st, int img, int colour, canvas_t *c, int x0, int y0, int p0, int t0, int x1, int y1, int p1, int t1, box_t *dirty)
 {
     int b = st->brush < BR_N ? st->brush : 0;
+    if (st->shade == SH_WHITE) colour = 1; /* white ink: the brush's own shape in solid white */
     bctx_t k = { c, colour, st->shade < SH_N ? st->shade : 0, sz(st->size), dirty, st->mirror, img, 0, 0 };
     stamp_fn fn = stamps[b];
     int dx = x1 - x0, dy = y1 - y0, adx = dx < 0 ? -dx : dx, ady = dy < 0 ? -dy : dy, n = adx > ady ? adx : ady;

@@ -14,6 +14,7 @@ int tx_line_h(int cls)
 
 void tx_draw(canvas_t *c, int colour, int shade, int x, int y, int cls, const uint16_t *cps, int n, box_t *bb, int *ex, int *ey)
 {
+    if (shade == SH_WHITE) colour = 1; /* white ink */
     const font_face_t *f = face(cls);
     int sc = scale(cls), lh = tx_line_h(cls), top = y;
     int32_t pen = 0; /* 1/64 px along the line, unscaled */

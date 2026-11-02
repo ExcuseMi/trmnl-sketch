@@ -32,7 +32,7 @@ void sk_recent_load(sketch_t *s)
             else if (v[j] == '.' && k < 2) k++;
             else ok = 0;
         }
-        ok = ok && k == 2 && f[0] < SH_N && f[1] < BR_N && f[1] != BR_ERASER && f[1] != BR_FILL && f[2] >= SK_SIZE_MIN && f[2] <= SK_SIZE_MAX;
+        ok = ok && k == 2 && f[0] <= SH_WHITE && f[1] < BR_N && f[1] != BR_ERASER && f[1] != BR_FILL && f[2] >= SK_SIZE_MIN && f[2] <= SK_SIZE_MAX;
         if (!ok) continue; /* a damaged value: that slot stays empty */
         bstyle_t e = { (uint8_t)f[1], (uint8_t)f[0], (uint8_t)f[2], 0, 0 };
         s->rc[s->rc_n++] = e;
@@ -41,7 +41,7 @@ void sk_recent_load(sketch_t *s)
 
 void sk_recent_add(sketch_t *s, const bstyle_t *st)
 {
-    if (brush_is_eraser(st->brush) || brush_is_fill(st->brush) || st->shade >= SH_N) return;
+    if (brush_is_eraser(st->brush) || brush_is_fill(st->brush) || st->shade > SH_WHITE) return;
     bstyle_t e = { st->brush, st->shade, st->size, 0, 0 };
     int at = 0;
     while (at < s->rc_n && !same(&s->rc[at], &e)) at++;

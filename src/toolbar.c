@@ -62,18 +62,18 @@ static int sl_size(const tb_layout_t *L, int dx)
     if (dx > w) dx = (int)w;
     return SK_SIZE_MIN + (int)(((long)(SK_SIZE_MAX - SK_SIZE_MIN) * dx * dx + w * w / 2) / (w * w));
 }
-/* 8 steps along the track, the shade of the nearest: the left end is the lightest (shade SH_N - 1) */
+/* SH_N + 1 positions along the track, the shade of the nearest: the left end is white (SH_WHITE), then the lightest tone (SH_N - 1) ... black at the right */
 int tb_tone_of(const tb_layout_t *L, int x)
 {
     long w = L->tn_x1 - L->tn_x0;
-    int dx = x < L->tn_x0 ? 0 : x > L->tn_x1 ? (int)w : x - L->tn_x0, step = (int)(((long)dx * (SH_N - 1) + w / 2) / w);
-    return SH_N - 1 - step;
+    int dx = x < L->tn_x0 ? 0 : x > L->tn_x1 ? (int)w : x - L->tn_x0, step = (int)(((long)dx * SH_N + w / 2) / w);
+    return SH_N - step;
 }
 int tb_tone_x(const tb_layout_t *L, int shade)
 {
     long w = L->tn_x1 - L->tn_x0;
-    int step = SH_N - 1 - (shade < 0 ? 0 : shade >= SH_N ? SH_N - 1 : shade);
-    return L->tn_x0 + (int)(((long)step * w + (SH_N - 1) / 2) / (SH_N - 1));
+    int step = SH_N - (shade < 0 ? 0 : shade > SH_WHITE ? SH_WHITE : shade);
+    return L->tn_x0 + (int)(((long)step * w + SH_N / 2) / SH_N);
 }
 void tb_tone_box(const tb_layout_t *L, int *x0, int *y0, int *x1, int *y1)
 {
@@ -123,8 +123,8 @@ static void tb_tone(gfx_t *g, const tb_layout_t *L, const bstyle_t *cur)
     int x0, y0, x1, y1, y = L->tn_y, kx = tb_tone_x(L, cur->shade), q = 44, sx = kx - q / 2, sy = y - q / 2;
     tb_tone_box(L, &x0, &y0, &x1, &y1);
     gfx_fill_rect(g, (float)L->tn_x0, (float)(y - 2), (float)L->tn_x1, (float)(y + 2), TB_BLK);
-    for (int k = 0; k < SH_N; k++) { /* the steps */
-        int tx = tb_tone_x(L, SH_N - 1 - k);
+    for (int k = 0; k <= SH_N; k++) { /* the steps */
+        int tx = tb_tone_x(L, SH_N - k);
         gfx_fill_rect(g, (float)(tx - 1), (float)(y - 7), (float)tx, (float)(y + 7), TB_BLK);
     }
     gfx_rrect(g, (float)(sx - 4), (float)(sy - 4), (float)(sx + q + 3), (float)(sy + q + 3), 3, 3, TB_WHT, TB_BLK);
@@ -132,7 +132,8 @@ static void tb_tone(gfx_t *g, const tb_layout_t *L, const bstyle_t *cur)
         for (int px = 0; px < q; px++) gfx_px(g, sx + px, sy + py, cv_shade_black(cur->shade, sx + px, sy + py) ? TB_BLK : TB_WHT);
     char t[16] = "Tone ";
     int n = 5, lv = cv_shade_level(cur->shade);
-    if (lv == 16) t[n++] = 'B', t[n++] = 'l', t[n++] = 'a', t[n++] = 'c', t[n++] = 'k';
+    if (cur->shade == SH_WHITE) t[0] = 'W', t[1] = 'h', t[2] = 'i', t[3] = 't', t[4] = 'e', n = 5;
+    else if (lv == 16) t[n++] = 'B', t[n++] = 'l', t[n++] = 'a', t[n++] = 'c', t[n++] = 'k';
     else {
         if (lv >= 10) t[n++] = '1';
         t[n++] = (char)('0' + lv % 10), t[n++] = '/', t[n++] = '1', t[n++] = '6';

@@ -99,14 +99,14 @@ static void test_slider(void)
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
     sk_toolbar(&r.s, r.now);
     const tb_layout_t *L = &r.s.tb;
-    CHECK(tb_tone_of(L, L->tn_x0 - 50) == SH_N - 1 && tb_tone_of(L, L->tn_x1 + 50) == SH_BLACK); /* light at the left, black at the right */
-    int prev = SH_N;
+    CHECK(tb_tone_of(L, L->tn_x0 - 50) == SH_WHITE && tb_tone_of(L, L->tn_x1 + 50) == SH_BLACK); /* white at the far left, then light, black at the right */
+    int prev = SH_WHITE + 1;
     for (int x = L->tn_x0; x <= L->tn_x1; x++) {
         int t = tb_tone_of(L, x);
-        CHECK(t <= prev && t >= 0 && t < SH_N); /* monotonic */
+        CHECK(t <= prev && t >= 0 && t <= SH_WHITE); /* monotonic */
         prev = t;
     }
-    for (int sh = 0; sh < SH_N; sh++) CHECK(tb_tone_of(L, tb_tone_x(L, sh)) == sh); /* the knob's place gives its tone back */
+    for (int sh = 0; sh <= SH_WHITE; sh++) CHECK(tb_tone_of(L, tb_tone_x(L, sh)) == sh); /* the knob's place gives its tone back */
     CHECK(tb_hit(L, tb_tone_x(L, 4), L->tn_y) == TI_TONE && tb_hit(L, L->cx[TI_TONE + 2] + 5, L->tn_y) == TI_TONE);
     /* the pen picks the knob up and drags: the tone follows, no ink, the toast names it on the lift */
     static uint8_t page[TS * TH];
@@ -116,8 +116,8 @@ static void test_slider(void)
     CHECK(r.s.tb_drag == 2);
     rig_pen_user(&r, tb_tone_x(L, 4), L->tn_y + 30, DOWN, 30000);
     CHECK(r.s.sty.shade == 4);
-    rig_pen_user(&r, tb_tone_x(L, SH_N - 1) - 40, L->tn_y + 300, DOWN, 30000); /* dragged off the strip: still the slider's */
-    CHECK(r.s.sty.shade == SH_N - 1 || r.s.sty.shade == SH_N - 2);
+    rig_pen_user(&r, tb_tone_x(L, SH_N - 1), L->tn_y + 300, DOWN, 30000); /* dragged off the strip: still the slider's */
+    CHECK(r.s.sty.shade == SH_N - 1);
     rig_pen_user(&r, tb_tone_x(L, 2), L->tn_y, APP_PEN_IN_RANGE, 0);
     CHECK(r.s.tb_drag == 0);
     CHECK(r.s.note_on && !memcmp(page, r.s.page.px, sizeof(page)));

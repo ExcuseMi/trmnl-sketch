@@ -316,7 +316,7 @@ void sk_set_brush(sketch_t *s, int brush, uint32_t now)
 
 void sk_set_shade(sketch_t *s, int shade, uint32_t now)
 {
-    if (shade < 0 || shade >= SH_N) return;
+    if (shade < 0 || shade > SH_WHITE) return;
     s->sty.shade = (uint8_t)shade;
     sk_cfg_num(s, "tone", shade);
     sk_picked(s, shade_name(shade), now);
@@ -658,7 +658,7 @@ void sk_set_orient(sketch_t *s, int orient, const app_touchbar_t *bar)
 static int tone_cfg(sketch_t *s)
 {
     int t = cfg_int(s, "tone", -1), old = cfg_int(s, "shade", 0);
-    if (t >= 0 && t < SH_N) return t;
+    if (t >= 0 && t <= SH_WHITE) return t;
     return old == 1 ? SH_DARK : old == 2 ? SH_LIGHT : SH_BLACK;
 }
 
