@@ -1,4 +1,4 @@
 # p95 ms from a pen event until the panel shows it (host/speed.c, make speed fails at +20 %). Lower them when a change makes drawing faster; never raise them to pass.
-slow writing=401
-fast scribble=410
-long curves=407
+slow writing=306
+fast scribble=321
+long curves=322

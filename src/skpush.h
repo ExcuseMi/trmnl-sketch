@@ -20,5 +20,8 @@ enum { SKP_ONE_CALL = 0, SKP_PER_RECT = 1 }; /* SKP_PER_RECT: one call per recta
 
 /* n: what sk_flush returned (SK_FULL, 0 or a count of rectangles in r). Fills out (SK_MAX_RECTS at most); returns the
    number of calls */
-int skp_calls(int n, const rect_t *r, int mode, sk_call_t *out);
+int skp_calls(int n, const rect_t *r, int mode, int ink, sk_call_t *out);
+/* ink: the firmware has APP_REFRESH_INK (api->size >= APP_API_SLOT(SKP_INK_SLOT), API 2.14): live partial rows go as
+   fast ink (returns at once, 2 passes); flash halves and the whole screen stay APP_REFRESH_FULL (the clean flash) */
+#define SKP_INK_SLOT 61
 #endif

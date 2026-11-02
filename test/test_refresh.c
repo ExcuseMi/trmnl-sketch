@@ -158,11 +158,12 @@ static void test_push_calls(void)
             flashes += r[i].flash;
         }
         sk_call_t c[SK_MAX_RECTS];
-        int k = skp_calls(n, r, SKP_ONE_CALL, c), parts = 0;
+        int ink = t & 1, k = skp_calls(n, r, SKP_ONE_CALL, ink, c), parts = 0;
         CHECK(k == flashes + (n > flashes));
         for (int j = 0; j < k; j++) {
             CHECK(!c[j].whole && c[j].r.x >= 0 && c[j].r.y >= 0 && c[j].r.x + c[j].r.w <= TW && c[j].r.y + c[j].r.h <= TH);
-            parts += c[j].how == APP_REFRESH_PARTIAL;
+            parts += c[j].how == (ink ? APP_REFRESH_INK : APP_REFRESH_PARTIAL);
+            CHECK(c[j].how != APP_REFRESH_PARTIAL || !ink); /* with fast ink no live partial is left */
         }
         CHECK(parts == (n > flashes));
         for (int i = 0; i < n; i++) { /* every rectangle's area is in a call of its kind */
@@ -171,11 +172,11 @@ static void test_push_calls(void)
                 in |= (c[j].how == APP_REFRESH_FULL) == (r[i].flash != 0) && c[j].r.x <= r[i].x && c[j].r.y <= r[i].y && c[j].r.x + c[j].r.w >= r[i].x + r[i].w && c[j].r.y + c[j].r.h >= r[i].y + r[i].h;
             CHECK(in);
         }
-        CHECK(skp_calls(n, r, SKP_PER_RECT, c) == n);
+        CHECK(skp_calls(n, r, SKP_PER_RECT, ink, c) == n);
     }
     sk_call_t c[SK_MAX_RECTS];
-    CHECK(skp_calls(SK_FULL, 0, SKP_MODE, c) == 1 && c[0].whole && c[0].how == APP_REFRESH_FULL);
-    CHECK(skp_calls(0, 0, SKP_MODE, c) == 0);
+    CHECK(skp_calls(SK_FULL, 0, SKP_MODE, 1, c) == 1 && c[0].whole && c[0].how == APP_REFRESH_FULL);
+    CHECK(skp_calls(0, 0, SKP_MODE, 1, c) == 0);
     CHECK(SKP_MODE == SKP_ONE_CALL); /* the app pushes one call a push (host/speed.c: a call costs about 200 ms however small) */
 }
 

@@ -90,7 +90,7 @@ static void read_tablet(void)
 static void push(int n, const rect_t *out)
 {
     sk_call_t c[SK_MAX_RECTS];
-    int k = n ? skp_calls(n, out, SKP_MODE, c) : 0;
+    int k = n ? skp_calls(n, out, SKP_MODE, api->size >= APP_API_SLOT(SKP_INK_SLOT), c) : 0;
     for (int i = 0; i < k; i++) api->screen_refresh(c[i].whole ? 0 : &c[i].r, c[i].how);
 }
 

@@ -2,7 +2,7 @@
 #include "skpush.h"
 #include "sketch.h"
 
-int skp_calls(int n, const rect_t *r, int mode, sk_call_t *out)
+int skp_calls(int n, const rect_t *r, int mode, int ink, sk_call_t *out)
 {
     if (n == SK_FULL) {
         out[0] = (sk_call_t){ { 0, 0, 0, 0 }, APP_REFRESH_FULL, 1 };
@@ -13,7 +13,7 @@ int skp_calls(int n, const rect_t *r, int mode, sk_call_t *out)
         app_rect_t a = { r[i].x, r[i].y, r[i].w, r[i].h };
         if (r[i].flash || mode == SKP_PER_RECT || band < 0) { /* a clean area, or the first partial one */
             if (!r[i].flash && mode != SKP_PER_RECT) band = k;
-            out[k++] = (sk_call_t){ a, r[i].flash ? APP_REFRESH_FULL : APP_REFRESH_PARTIAL, 0 };
+            out[k++] = (sk_call_t){ a, r[i].flash ? APP_REFRESH_FULL : ink ? APP_REFRESH_INK : APP_REFRESH_PARTIAL, 0 };
             continue;
         }
         app_rect_t *b = &out[band].r; /* the partial band grows to span this one too */

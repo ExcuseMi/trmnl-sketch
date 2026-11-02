@@ -11,6 +11,9 @@
    | rows in range | 0.034 ms a row (LUT per row, FastEPD.inl:3572-3606) | guess: the same log, rows range 768 -> 720 ms for 1404 rows |
    | panel power | stays on between calls (bKeepOn true) | app_api_table.cpp:105 |
    | a full refresh (clean) | 450 ms | guess; only the flashes use it, not ink |
+   | APP_REFRESH_INK (API 2.14, "Fast ink") | 2 passes: (2+1)*51 ms + rows, the app is NOT blocked | trmnl-fw-files include/app_api.h:435 "returns at once", docs/apps.md |
+   | INK while the panel is busy | one request waits; later ones merge into it (rows union); the panel runs it when free | docs/apps.md "Fast ink" |
+   | a blocking call (full, plain partial) | waits for the running ink first | guess: one panel lock |
    | pen events | queued in order while the app is blocked, 512 deep | lib/trmnl/include/usb_pen.h:82-88 |
    | app CPU (ink drawing, the loop) | 0 | guess: not modelled |
    Shown = the end of the call whose rows hold the pen point (the passes darken it during the call). The app's loop is
@@ -27,6 +30,7 @@
 #ifndef PASSES
 #define PASSES 3 /* the X sets 3 (display.cpp:177); -DPASSES=1 shows a faster driver */
 #endif
+#define INK_PASSES 2
 #define SCAN_MS 51.0
 #define PI 3.14159265358979
 #define ROW_MS 0.034
@@ -110,27 +114,48 @@ static double pct(double *v, int n, double p) { return n ? v[(int)((n - 1) * p +
 
 static call_t calls[MAXCALLS];
 static double deliv[MAXEV];
+static double busy_until; /* the panel is busy with ink until then */
+static int pend = -1;     /* index of the waiting (merged) ink call, -1 none */
 
-/* The glue: hands the calls to the "panel" (the rows copied from the framebuffer), returns their time */
-static double glue(rig_t *r, uint8_t *panel, int n, const rect_t *out, int mode, double t, int *nc)
+/* The glue: hands the calls to the "panel" (the rows copied from the framebuffer), returns the app's time. Ink returns
+   at once; a blocking call waits for the panel first */
+static double glue(rig_t *r, uint8_t *panel, int n, const rect_t *out, int mode, int ink, double t, int *nc)
 {
     sk_call_t c[SK_MAX_RECTS];
-    int k = n ? skp_calls(n, out, mode, c) : 0;
+    int k = n ? skp_calls(n, out, mode, ink, c) : 0;
     for (int i = 0; i < k; i++) {
         int y0 = c[i].whole ? 0 : c[i].r.y, y1 = c[i].whole ? TH - 1 : c[i].r.y + c[i].r.h - 1;
+        if (c[i].how == APP_REFRESH_INK) {
+            if (pend >= 0 && t < calls[pend].start) { /* merge into the waiting request */
+                call_t *w = &calls[pend];
+                y0 = y0 < w->y0 ? y0 : w->y0, y1 = y1 > w->y1 ? y1 : w->y1;
+                w->y0 = y0, w->y1 = y1;
+                w->end = w->start + (INK_PASSES + 1) * SCAN_MS + ROW_MS * (y1 - y0 + 1);
+                busy_until = w->end;
+            } else if (*nc < MAXCALLS) {
+                double st = busy_until > t ? busy_until : t, e = st + (INK_PASSES + 1) * SCAN_MS + ROW_MS * (y1 - y0 + 1);
+                pend = st > t ? *nc : -1;
+                calls[(*nc)++] = (call_t){ st, e, y0, y1 };
+                busy_until = e;
+            }
+            memcpy(panel + (size_t)y0 * TS, r->fb + (size_t)y0 * TS, (size_t)(y1 - y0 + 1) * TS);
+            continue;
+        }
+        if (t < busy_until) t = busy_until;
         double ms = c[i].how == APP_REFRESH_PARTIAL ? (PASSES + 1) * SCAN_MS + ROW_MS * (y1 - y0 + 1) : FULL_MS;
         memcpy(panel + (size_t)y0 * TS, r->fb + (size_t)y0 * TS, (size_t)(y1 - y0 + 1) * TS);
         if (*nc < MAXCALLS) calls[(*nc)++] = (call_t){ t, t + ms, y0, y1 };
         t += ms;
+        busy_until = t;
     }
     return t;
 }
 
 /* One loop step of main.c at virtual time *t (ms); events from *i on arrive at base + ev.t */
-static void step(rig_t *r, uint8_t *panel, const stream_t *st, int *i, double base, double *t, int mode, int *nc)
+static void step(rig_t *r, uint8_t *panel, const stream_t *st, int *i, double base, double *t, int mode, int ink, int *nc)
 {
     rect_t out[SK_MAX_RECTS];
-    do *t = glue(r, panel, sk_flush(&r->s, (uint32_t)*t, out), out, mode, *t, nc); while (sk_flash_busy(&r->s));
+    do *t = glue(r, panel, sk_flush(&r->s, (uint32_t)*t, out), out, mode, ink, *t, nc); while (sk_flash_busy(&r->s));
     sk_tick(&r->s, (uint32_t)*t);
     uint32_t wait = sk_next_due(&r->s, (uint32_t)*t);
     if (wait > 500) wait = 500;
@@ -152,7 +177,7 @@ static void step(rig_t *r, uint8_t *panel, const stream_t *st, int *i, double ba
     }
 }
 
-static result_t run(const stream_t *st, int mode, int batch, int verbose)
+static result_t run(const stream_t *st, int mode, int ink, int batch, int verbose)
 {
     static rig_t r;
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
@@ -161,16 +186,17 @@ static result_t run(const stream_t *st, int mode, int batch, int verbose)
     memset(panel, 0xff, (size_t)TS * TH);
     double t = 1000;
     int nc = 0, i = 0;
+    busy_until = 0, pend = -1;
     stream_t *warm = malloc(sizeof(*warm)); /* a first stroke takes the start legend away; its clean-up flash */
     warm->n = 0;
     stroke(warm, 0, 300, p_curve, (double[]){ 200, 800, 0 });
     double wb = t;
-    while (i < warm->n || t < wb + 7000) step(&r, panel, warm, &i, wb, &t, mode, &nc);
+    while (i < warm->n || t < wb + 7000) step(&r, panel, warm, &i, wb, &t, mode, ink, &nc);
     free(warm);
-    nc = 0, i = 0;
+    nc = 0, i = 0, pend = -1;
     double base = t + 3;
-    while (i < st->n || t < base + st->ev[st->n - 1].t + 2000) step(&r, panel, st, &i, base, &t, mode, &nc);
-    for (int k = 0; k < 20; k++) step(&r, panel, 0, &i, base, &t, mode, &nc); /* settle */
+    while (i < st->n || t < base + st->ev[st->n - 1].t + 2000) step(&r, panel, st, &i, base, &t, mode, ink, &nc);
+    for (int k = 0; k < 20; k++) step(&r, panel, 0, &i, base, &t, mode, ink, &nc); /* settle */
     result_t res;
     memset(&res, 0, sizeof(res));
     res.ok = !memcmp(panel, r.fb, (size_t)TS * TH); /* every changed pixel reached the glass */
@@ -229,17 +255,19 @@ int main(int argc, char **argv)
         make(w, &st);
         printf("%s (%d events, %.1f s)\n", names[w], st.n, st.ev[st.n - 1].t / 1000.0);
         if (!check) {
-            result_t a = run(&st, SKP_PER_RECT, 40, 0);
+            result_t a = run(&st, SKP_PER_RECT, 0, 40, 0);
             row("before: a call a rect, 40", &a);
             static const int win[] = { 0, 10, 20, 30, 40 };
+            result_t ik = run(&st, SKP_ONE_CALL, 1, SK_BATCH_MS, 0);
+            row("fast ink (2.14)", &ik);
             for (unsigned k = 0; k < sizeof(win) / sizeof(win[0]); k++) {
                 char lab[40];
                 snprintf(lab, sizeof(lab), "one call, window %d ms", win[k]);
-                result_t b = run(&st, SKP_ONE_CALL, win[k], 0);
+                result_t b = run(&st, SKP_ONE_CALL, 0, win[k], 0);
                 row(lab, &b);
             }
         }
-        result_t d = run(&st, SKP_MODE, SK_BATCH_MS, 0);
+        result_t d = run(&st, SKP_MODE, 1, SK_BATCH_MS, 0);
         row("default", &d);
         CHECK(d.ok);
         if (check) {
