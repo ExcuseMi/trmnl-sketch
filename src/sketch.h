@@ -74,8 +74,9 @@ typedef struct {
     box_t fl_box;        /* the flash under way: its inverted half was pushed, the clean half is next */
     int fl_phase;
     int tip;             /* the pen's tip is down */
-    int ovl_gone;        /* a note or the toolbar left the page: one whole-page flash when the tip is up */
+    int ovl_gone;        /* the legend or the toolbar left the page: one whole-page flash when the tip is up */
     int ghost;           /* a partial refresh was pushed since the last whole-screen flash */
+    int traces;          /* strokes, page changes and toasts gone since then: the idle clean-up of the drawing page waits for SK_CLEAN_TRACES */
     int cleanup_s;       /* setting cleanup_s: idle seconds before the whole screen is flashed clean (0: off) */
     uint32_t last_act;   /* the last pen, button or touch event */
     int lx, ly, px, py, lp; /* the open stroke's last two points and the byte of the last, for the tail */

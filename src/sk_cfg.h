@@ -13,5 +13,6 @@
 #define SK_FILE_MAX (700 * 1024) /* the largest page file read (a 1872 x 1404 page is 329 KB raw) */
 #define SK_SIZE_MIN 1  /* pen size = the diameter in px */
 #define SK_SIZE_MAX 48
+#define SK_CLEAN_TRACES 10 /* the drawing page's idle clean-up flash comes only after this many strokes, page changes or toasts (test_tbflash) */
 
 #endif

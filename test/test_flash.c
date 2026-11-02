@@ -36,6 +36,10 @@ static void rest(rig_t *r, int orient)
     CHECK(!r->s.note_on && !r->s.ghost && !r->s.ovl_gone);
 }
 static void ink(rig_t *r) { rig_line(r, 300, 500, 900, 560, 40000, 0); } /* a stroke, the pen lifts (stays in range) */
+static void inks(rig_t *r, int n) /* n strokes: SK_CLEAN_TRACES of them make the idle clean-up due (test_tbflash.c) */
+{
+    for (int i = 0; i < n; i++) rig_line(r, 300, 500 + i * 9, 900, 560 + i * 9, 40000, 0);
+}
 
 /* sk_flash(rect): the inverted area first, then the same area as it is, flashed */
 static void test_helper(void)
@@ -91,7 +95,8 @@ static void test_every_path(void)
     rig_end(&r);
 }
 
-/* Rule a */
+/* Rule a: the toolbar or the start legend going. A toast going is no flash (owner 2026-11-02, "flashing a lot" with
+   the toolbar: every pick's toast flashed the page): a trace for the idle clean-up */
 static void test_overlay_gone(void)
 {
     rig_t r;
@@ -100,14 +105,17 @@ static void test_overlay_gone(void)
     drain(&r);
     int f = r.fulls;
     CHECK(run(&r, 1500) == 0 && r.s.note_on); /* while it is up: nothing */
-    CHECK(run(&r, 3000) == 1 && !r.s.note_on); /* it goes: one whole-page flash */
-    CHECK(run(&r, 20000) == 0 && r.fulls == f + 1);
-    /* the tip is down when it goes: no flash until the tip is up */
-    sk_set_size(&r.s, 1, r.now += 10);
-    drain(&r);
+    CHECK(run(&r, 3000) == 0 && !r.s.note_on && !r.s.ovl_gone && r.s.traces == 1); /* it goes: no flash, one trace */
+    CHECK(run(&r, 20000) == 0 && r.fulls == f);
+    /* the legend goes when the tip comes down: no flash until the tip is up */
+    rig_end(&r);
+    rig_new(&r, APP_ORIENT_BAR_BOTTOM);
+    r.s.cleanup_s = 5;
+    run(&r, 100);
+    CHECK(r.s.legend && r.s.note_on);
     unsigned x, y;
     rig_pt(&r, 400, 700, &x, &y);
-    sk_pen(&r.s, APP_PEN_TIP | APP_PEN_IN_RANGE, x, y, 30000, r.now += 50); /* the pen goes down: the toast is hidden */
+    sk_pen(&r.s, APP_PEN_TIP | APP_PEN_IN_RANGE, x, y, 30000, r.now += 50); /* the pen goes down: the legend is hidden */
     CHECK(!r.s.note_on && r.s.ovl_gone);
     int fl = 0;
     for (int i = 0; i < 20; i++) {
@@ -128,6 +136,7 @@ static void test_overlay_gone(void)
     key(&r, 3);
     CHECK(r.s.ovl_gone);
     CHECK(run(&r, 4000) == 1);
+    CHECK(run(&r, 20000) == 0);
     /* the start legend going is the same */
     rig_end(&r);
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
@@ -145,6 +154,8 @@ static void test_idle(void)
     rig_t r;
     rest(&r, APP_ORIENT_BAR_BOTTOM);
     CHECK(run(&r, 30000) == 0); /* nothing was done: no flash, however long */
+    inks(&r, SK_CLEAN_TRACES - 1);
+    CHECK(run(&r, 30000) == 0 && r.s.ghost); /* a few strokes: not yet worth a flash */
     ink(&r);
     run(&r, 3000); /* the pen's traces go out; hide the corner note too */
     int f = r.fulls;
@@ -152,8 +163,9 @@ static void test_idle(void)
     CHECK(r.s.ghost);
     CHECK(run(&r, 4500) == 0); /* not yet */
     CHECK(run(&r, 1000) == 1 && r.fulls == f + 1); /* 5 s with nothing: one whole-screen flash */
-    CHECK(!r.s.ghost && run(&r, 60000) == 0); /* and no more: no partial refresh since */
+    CHECK(!r.s.ghost && !r.s.traces && run(&r, 60000) == 0); /* and no more: no partial refresh since */
     /* hover is activity: moving every 2 s keeps it quiet, then it flashes once after the pen stops */
+    inks(&r, SK_CLEAN_TRACES);
     unsigned x, y;
     int fl = 0;
     for (int i = 0; i < 6; i++) {
@@ -163,12 +175,21 @@ static void test_idle(void)
     }
     CHECK(fl == 0);
     CHECK(run(&r, 5500) == 1);
+    /* a hover alone (the brush cursor) is ink only: never a flash */
+    for (int i = 0; i < 6; i++) {
+        rig_pt(&r, 300 + i * 40, 600, &x, &y);
+        sk_pen(&r.s, APP_PEN_IN_RANGE, x, y, 0, r.now += 10);
+        fl += run(&r, 2000);
+    }
+    CHECK(fl == 0 && run(&r, 30000) == 0);
     /* setting 0: off */
     r.s.cleanup_s = 0;
-    ink(&r);
+    inks(&r, SK_CLEAN_TRACES);
     CHECK(run(&r, 30000) == 0);
     r.s.cleanup_s = 5;
-    /* the tip down: never (a long press on the page) */
+    /* the tip down: never (a long press on the page; its dot is the tenth trace when the pen lifts) */
+    CHECK(r.s.traces == SK_CLEAN_TRACES);
+    r.s.traces = SK_CLEAN_TRACES - 1;
     rig_pt(&r, 400, 700, &x, &y);
     sk_pen(&r.s, APP_PEN_TIP | APP_PEN_IN_RANGE, x, y, 30000, r.now += 10);
     drain(&r);
@@ -177,7 +198,7 @@ static void test_idle(void)
     CHECK(run(&r, 6000) == 1);
     /* never a double flash with rule a: a toast and ink both leave traces and both are due near each other */
     sk_set_size(&r.s, 0, r.now += 10);
-    ink(&r);
+    inks(&r, SK_CLEAN_TRACES);
     CHECK(run(&r, 12000) == 1);
     rig_end(&r);
 }
@@ -213,7 +234,9 @@ static void test_idle_screens(void)
     sk_pen(&r.s, APP_PEN_IN_RANGE, x, y, 0, r.now += 10);
     run(&r, 300);
     CHECK(r.s.ghost && r.s.tb_on);
-    CHECK(run(&r, 6000) == 1 && r.s.tb_on);
+    CHECK(run(&r, 6000) == 0 && r.s.tb_on); /* the arrow and the frame are ink only (test_tbflash.c) */
+    inks(&r, SK_CLEAN_TRACES);
+    CHECK(run(&r, 6000) == 1 && r.s.tb_on); /* strokes under the strip: the strip stays, the page is cleaned */
     rig_end(&r);
 }
 

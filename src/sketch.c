@@ -196,8 +196,9 @@ void sk_note_hide(sketch_t *s)
     if (!s->note_on) return;
     fb_put(s, &s->note);
     mark(s, &s->note);
+    if (s->mode == SK_DRAW && s->legend) s->ovl_gone = 1; /* the start legend: the page is cleaned once the tip is up (skflash.c) */
+    else if (s->mode == SK_DRAW) s->traces++; /* a toast: its ghost waits for the idle clean-up (owner 2026-11-02 "flashing a lot": every pick flashed the page) */
     s->note_on = s->legend = 0;
-    if (s->mode == SK_DRAW) s->ovl_gone = 1; /* the page is cleaned once the tip is up (skflash.c) */
 }
 
 static void note_set(sketch_t *s, const box_t *b, uint32_t until)
@@ -228,6 +229,7 @@ void sk_page_changed(sketch_t *s, const box_t *b, uint32_t now)
     if (s->note_on && hit(b, &s->note)) sk_note_hide(s);
     fb_put(s, b);
     mark(s, b);
+    s->traces++;
     s->dirty = 1;
     s->save_at = now + SK_AUTOSAVE_MS;
 }
@@ -452,6 +454,7 @@ void sk_pen(sketch_t *s, unsigned flags, unsigned x, unsigned y, unsigned pressu
         stroke_tail(s, now);
         hist_end(&s->hist);
         s->stroke = 0;
+        s->traces++;
         s->save_at = now + SK_AUTOSAVE_MS;
     }
     if (s->tb_on && range && !tip && inside && on_bar) { /* the arrow over the strip, not the brush's cursor */
