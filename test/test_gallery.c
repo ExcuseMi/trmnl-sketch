@@ -15,7 +15,7 @@ static void open_gallery(rig_t *r)
 {
     tap(r, APP_TOUCH_MIDDLE);
     CHECK(r->s.mode == SK_PAGEMENU);
-    for (int i = 0; i < 4; i++) tap(r, APP_TOUCH_RIGHT);
+    for (int i = 0; i < 5; i++) tap(r, APP_TOUCH_RIGHT);
     tap(r, APP_TOUCH_MIDDLE);
     CHECK(r->s.mode == SK_GALLERY);
 }
@@ -166,6 +166,7 @@ static void test_full_refresh_only_when_a_screen_opens_or_closes(void)
     r.now += 1000;
     tap(&r, APP_TOUCH_RIGHT);
     CHECK(rig_frame(&r, out) > 0 && r.fulls == f + 3);
+    tap(&r, APP_TOUCH_RIGHT);
     tap(&r, APP_TOUCH_RIGHT);
     tap(&r, APP_TOUCH_RIGHT);
     tap(&r, APP_TOUCH_RIGHT);

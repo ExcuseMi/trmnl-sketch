@@ -14,35 +14,42 @@
 #define TB_CH 104 /* glyph 64 + label */
 enum { TB_BLK = GFX_BLACK, TB_WHT = GFX_WHITE };
 
-static const char *const tb_label[TI_N] = { "Fine", "Brush", "Pencil", "Marker", "Calli", "Spray", "Eraser", "Fill", "Black", "Dark", "Light", "", "", "", "Mirror", "Undo", "Redo", "Clear" };
+static const char *const tb_label[TI_N] = { "Fine", "Brush", "Pencil", "Marker", "Calli", "Spray", "Eraser", "Fill", "Line", "Box", "Oval", "Text", "Black", "Dark", "Light", "", "", "", "Mirror", "Undo", "Redo", "Clear" };
 
 void tb_layout(tb_layout_t *L, int orient, int sw, int sh)
 {
-    int cell = (sw - 2 * TB_MARGIN - 3 * TB_GAP) / TI_N;
-    if (cell > 100) cell = 100;
+    static const int row_n[TB_ROWS] = { TI_SHADE, TI_N - TI_SHADE }, row_gaps[TB_ROWS] = { 1, 2 };
+    int cell = 100;
+    for (int r = 0; r < TB_ROWS; r++) {
+        int c = (sw - 2 * TB_MARGIN - row_gaps[r] * TB_GAP) / row_n[r];
+        if (c < cell) cell = c;
+    }
     L->cell = cell;
     L->ch = TB_CH;
-    int total = cell * TI_N + 3 * TB_GAP, x = (sw - total) / 2, h = TB_CH + 2 * TB_PAD + TB_LINE;
-    for (int i = 0; i < TI_N; i++) {
-        if (i == TI_SHADE || i == TI_SIZE || i == TI_MIRROR) L->gap_x[i == TI_SHADE ? 0 : i == TI_SIZE ? 1 : 2] = x + TB_GAP / 2, x += TB_GAP;
-        L->cx[i] = x;
-        x += cell;
-    }
-    L->sl_x0 = L->cx[TI_SIZE] + 28, L->sl_x1 = L->cx[TI_SIZE + 2] + cell - 28, L->sl_y = 0; /* sl_y is set with cy below */
+    int h = 2 * TB_CH + 2 * TB_PAD + TB_LINE;
     L->top = orient != APP_ORIENT_BAR_TOP;
     L->x0 = 0, L->x1 = sw - 1;
     L->y0 = L->top ? 0 : sh - h, L->y1 = L->top ? h - 1 : sh - 1;
     L->cy = L->top ? TB_PAD : L->y0 + TB_PAD + TB_LINE;
-    L->sl_y = L->cy + 44;
+    int g = 0;
+    for (int r = 0; r < TB_ROWS; r++) {
+        int first = r ? TI_SHADE : 0, last = r ? TI_N : TI_SHADE, x = (sw - (row_n[r] * cell + row_gaps[r] * TB_GAP)) / 2;
+        for (int i = first; i < last; i++) {
+            if (i == TI_LINE || i == TI_SIZE || i == TI_MIRROR) L->gap_x[g] = x + TB_GAP / 2, L->gap_row[g++] = r, x += TB_GAP;
+            L->cx[i] = x, L->cyi[i] = L->cy + r * TB_CH;
+            x += cell;
+        }
+    }
+    L->sl_x0 = L->cx[TI_SIZE] + 28, L->sl_x1 = L->cx[TI_SIZE + 2] + cell - 28;
+    L->sl_y = L->cyi[TI_SIZE] + 44;
 }
 
 int tb_in(const tb_layout_t *L, int x, int y) { return x >= L->x0 && x <= L->x1 && y >= L->y0 && y <= L->y1; }
 
 int tb_hit(const tb_layout_t *L, int x, int y)
 {
-    if (y < L->cy || y >= L->cy + L->ch) return -1;
     for (int i = 0; i < TI_N; i++)
-        if (x >= L->cx[i] && x < L->cx[i] + L->cell) return i > TI_SIZE && i < TI_MIRROR ? TI_SIZE : i;
+        if (y >= L->cyi[i] && y < L->cyi[i] + L->ch && x >= L->cx[i] && x < L->cx[i] + L->cell) return i > TI_SIZE && i < TI_MIRROR ? TI_SIZE : i;
     return -1;
 }
 
@@ -63,7 +70,7 @@ int tb_slider_x(const tb_layout_t *L, int size)
 }
 void tb_slider_box(const tb_layout_t *L, int *x0, int *y0, int *x1, int *y1)
 {
-    *x0 = L->cx[TI_SIZE], *x1 = L->cx[TI_SIZE + 2] + L->cell - 1, *y0 = L->cy, *y1 = L->cy + L->ch - 1;
+    *x0 = L->cx[TI_SIZE], *x1 = L->cx[TI_SIZE + 2] + L->cell - 1, *y0 = L->cyi[TI_SIZE], *y1 = L->cyi[TI_SIZE] + L->ch - 1;
 }
 
 static void tb_slider(gfx_t *g, const tb_layout_t *L, const bstyle_t *cur, int hot)
@@ -88,7 +95,7 @@ static void tb_slider(gfx_t *g, const tb_layout_t *L, const bstyle_t *cur, int h
     t[n++] = (char)('0' + v % 10), t[n] = 0;
     const font_face_t *f = font_get(FONT_BOLD, 24);
     int w = (int)((font_width64(f, t, 0) + 32) >> 6);
-    gfx_text(g, f, (int32_t)((x0 + x1 - w) / 2) * 64, L->cy + 4 + TBI_SIZE + 26, t, 0, TB_BLK);
+    gfx_text(g, f, (int32_t)((x0 + x1 - w) / 2) * 64, L->cyi[TI_SIZE] + 4 + TBI_SIZE + 26, t, 0, TB_BLK);
 }
 
 /* The pattern as it will be inked (black dots on paper), in a bordered swatch; picked: a white border on the black cell */
@@ -113,11 +120,14 @@ void tb_draw(gfx_t *g, const tb_layout_t *L, const bstyle_t *cur, int hot)
     gfx_fill_rect(g, (float)L->x0, (float)L->y0, (float)L->x1, (float)L->y1, TB_WHT);
     int ly = L->top ? L->y1 - TB_LINE + 1 : L->y0;
     gfx_fill_rect(g, (float)L->x0, (float)ly, (float)L->x1, (float)(ly + TB_LINE - 1), TB_BLK);
-    for (int k = 0; k < 3; k++) /* a thin divider between the groups */
-        gfx_fill_rect(g, (float)(L->gap_x[k] - 1), (float)(L->cy + 8), (float)L->gap_x[k], (float)(L->cy + L->ch - 8), TB_BLK);
+    for (int k = 0; k < 3; k++) { /* a thin divider between the groups */
+        int dy = L->cy + L->gap_row[k] * TB_CH;
+        gfx_fill_rect(g, (float)(L->gap_x[k] - 1), (float)(dy + 8), (float)L->gap_x[k], (float)(dy + L->ch - 8), TB_BLK);
+    }
     for (int i = 0; i < TI_N; i++) {
-        int x = L->cx[i], y = L->cy, sel = 0, gx = x + (L->cell - TBI_SIZE) / 2, gy = y + 4;
-        if (i < TI_SHADE) sel = cur->brush == i;
+        int x = L->cx[i], y = L->cyi[i], sel = 0, gx = x + (L->cell - TBI_SIZE) / 2, gy = y + 4;
+        if (i < TI_LINE) sel = cur->brush == i && cur->tool == TL_DRAW;
+        else if (i < TI_SHADE) sel = cur->tool == i - TI_LINE + TL_LINE;
         else if (i < TI_SIZE) sel = cur->shade == i - TI_SHADE;
         else if (i < TI_MIRROR) continue; /* the slider */
         else if (i == TI_MIRROR) sel = cur->mirror != 0;
@@ -128,7 +138,8 @@ void tb_draw(gfx_t *g, const tb_layout_t *L, const bstyle_t *cur, int hot)
             else gfx_rrect(g, (float)x, (float)y, (float)x1, (float)y1, 12, 4, TB_WHT, TB_BLK);
         }
         int c = sel ? TB_WHT : TB_BLK, bg = sel ? TB_BLK : TB_WHT;
-        if (i < TI_SHADE) tbi_brush(g, i, gx, gy, c, bg);
+        if (i < TI_LINE) tbi_brush(g, i, gx, gy, c, bg);
+        else if (i < TI_SHADE) tbi_tool(g, i - TI_LINE + TL_LINE, gx, gy, c, bg);
         else if (i < TI_SIZE) tb_swatch(g, i - TI_SHADE, gx, gy, sel);
         else if (i == TI_MIRROR) tbi_mirror(g, cur->mirror, gx, gy, c, bg);
         else if (i == TI_UNDO) tbi_undo(g, gx, gy, c, bg);

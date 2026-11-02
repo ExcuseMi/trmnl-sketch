@@ -209,7 +209,7 @@ static void test_idle_screens(void)
     rest(&r, APP_ORIENT_BAR_BOTTOM);
     key(&r, 3); /* the toolbar up, a hover on it */
     drain(&r);
-    rig_pt(&r, r.s.tb.cx[2] + 10, r.s.tb.cy + 10, &x, &y);
+    rig_pt(&r, r.s.tb.cx[2] + 10, r.s.tb.cyi[2] + 10, &x, &y);
     sk_pen(&r.s, APP_PEN_IN_RANGE, x, y, 0, r.now += 10);
     run(&r, 300);
     CHECK(r.s.ghost && r.s.tb_on);

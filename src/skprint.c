@@ -5,10 +5,10 @@
 #include "sk_cfg.h"
 #include "sketch.h"
 
-static uint8_t *read_file(sketch_t *s, int num, size_t *n)
+static uint8_t *read_file(sketch_t *s, int num, const char *suffix, size_t *n)
 {
     char path[48];
-    pg_path(path, sizeof(path), num, ".png");
+    pg_path(path, sizeof(path), num, suffix);
     const sk_fs_t *fs = s->env.fs;
     void *f = fs->open(fs->ctx, path, 0);
     if (!f) return 0;
@@ -48,7 +48,9 @@ int sk_print_check(sketch_t *s)
 int sk_print_page(sketch_t *s, int num)
 {
     size_t n = 0;
-    uint8_t *file = read_file(s, num, &n);
+    uint8_t *file = 0; /* the printed copy has the paper under the ink; a page without paper (or whose copy is missing) prints plain */
+    if (num == s->cur ? s->paper : 1) file = read_file(s, num, "-paper.png", &n);
+    if (!file) file = read_file(s, num, ".png", &n);
     if (!file) return fail(s, "The page could not be read."), -1;
     pj_net_t net = s->env.net;
     net.format = s->prn.format;

@@ -216,3 +216,22 @@ void tbi_mirror(gfx_t *g, int mode, int ix, int iy, int ink, int bg)
     gfx_ellipse(g, X + 24, Y + 24, X + 40, Y + 40, 0, ink, ink);
     gfx_ellipse(g, X + 28, Y + 28, X + 36, Y + 36, 0, bg, bg);
 }
+
+void tbi_tool(gfx_t *g, int tool, int x, int y, int ink, int bg)
+{
+    (void)bg;
+    float X = (float)x, Y = (float)y;
+    if (tool == TL_LINE) {
+        gfx_line(g, X + 10, Y + 54, X + 54, Y + 10, 5, ink);
+        gfx_ellipse(g, X + 4, Y + 48, X + 16, Y + 60, 0, ink, ink);
+        gfx_ellipse(g, X + 48, Y + 4, X + 60, Y + 16, 0, ink, ink);
+    } else if (tool == TL_RECT) {
+        gfx_rrect(g, X + 8, Y + 14, X + 56, Y + 50, 0, 5, bg, ink);
+    } else if (tool == TL_OVAL) {
+        gfx_ellipse(g, X + 6, Y + 12, X + 58, Y + 52, 5, bg, ink);
+    } else {
+        gfx_fill_rect(g, X + 10, Y + 12, X + 46, Y + 18, ink);
+        gfx_fill_rect(g, X + 25, Y + 12, X + 31, Y + 54, ink);
+        gfx_fill_rect(g, X + 52, Y + 26, X + 54, Y + 56, ink); /* the caret */
+    }
+}

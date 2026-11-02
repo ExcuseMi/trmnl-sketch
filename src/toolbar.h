@@ -7,13 +7,16 @@
 #include "gfx.h"
 
 /* TI_MIRROR cycles the symmetry (mirror.h); it is shown picked while one is on. TI_SIZE is the slider: it takes the width of three cells (tb_hit gives TI_SIZE for each of them) */
-enum { TI_BRUSH = 0, TI_SHADE = BR_N, TI_SIZE = BR_N + SH_N, TI_MIRROR = BR_N + SH_N + 3, TI_UNDO, TI_REDO, TI_CLEAR, TI_N };
+enum { TI_BRUSH = 0, TI_LINE = BR_N, TI_RECT, TI_OVAL, TI_TEXT, TI_SHADE, TI_SIZE = TI_SHADE + SH_N, TI_MIRROR = TI_SIZE + 3, TI_UNDO, TI_REDO, TI_CLEAR, TI_N };
+/* Two rows: brushes and the shape and text tools, then the shades, size slider, mirror and the actions (a row of 22 cells would not fit a portrait panel) */
+#define TB_ROWS 2
+#define TB_ROW_OF(i) ((i) < TI_SHADE ? 0 : 1)
 
 typedef struct {
     int x0, y0, x1, y1; /* the strip, user frame, inclusive */
     int cell, ch;       /* an item is cell wide and ch high: a 64 px glyph with its short label under it */
-    int cx[TI_N], cy;   /* item left edges, common top edge */
-    int gap_x[3];       /* centres of the dividers between the groups (brushes | shades | sizes | actions) */
+    int cx[TI_N], cyi[TI_N], cy; /* item left and top edges (cy: the first row's top) */
+    int gap_x[3], gap_row[3]; /* centres of the dividers before Line, the size slider and Mirror, and their row */
     int sl_x0, sl_x1, sl_y; /* the size slider: the knob's centre runs along the track from sl_x0 to sl_x1 at sl_y, user frame */
     int top;            /* the strip is along the top edge (else the bottom) */
 } tb_layout_t;

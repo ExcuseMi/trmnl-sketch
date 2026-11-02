@@ -42,13 +42,23 @@ static const uint8_t *thumb_for(sketch_t *s, int num)
 {
     const uint8_t *t = gal_find(&s->cache, num);
     if (t) return t;
-    if (num == s->cur) return gal_make(&s->cache, num, &s->page);
+    if (num == s->cur && !s->paper) return gal_make(&s->cache, num, &s->page);
+    if (num == s->cur) { /* the paper shows in the thumbnail, lightly (the pattern is one pixel in three) */
+        memcpy(s->ui.px, s->page.px, (size_t)s->ui.stride * (size_t)s->ui.h);
+        box_t all = { 0, 0, s->ui.w - 1, s->ui.h - 1 };
+        pp_overlay(&s->ui, &all, s->paper, s->paper_sp);
+        return gal_make(&s->cache, num, &s->ui);
+    }
     int rc = pg_load(&s->pg, num, &s->ui);
     if (rc == PG_MISSING) return 0;
     if (rc == PG_BAD) { /* never deleted, never opened for drawing: a "Damaged" tile */
         if (!is_dmg(s, num) && s->dmg_n < SK_DMG_MAX) s->dmg[s->dmg_n++] = (uint16_t)num;
         return 0;
     }
+    int pk, psp;
+    pg_paper_load(&s->pg, num, &pk, &psp);
+    box_t all = { 0, 0, s->ui.w - 1, s->ui.h - 1 };
+    pp_overlay(&s->ui, &all, pk, psp);
     return gal_make(&s->cache, num, &s->ui);
 }
 
@@ -145,10 +155,12 @@ static void menu_draw(sketch_t *s)
         break;
     }
     case SK_PAGEMENU: {
-        static const char *const items[] = { "Print", "Send to phone", "Settings", "New page", "Gallery", "Back", "Exit Sketch" };
+        char pap[24] = "Paper: ";
+        sk_cpy(pap + 7, sizeof(pap) - 7, pp_name(s->paper));
+        const char *const items[] = { "Print", "Send to phone", "Settings", pap, "New page", "Gallery", "Back", "Exit Sketch" };
         num_text(t, "Page ", s->act_num);
-        ui_list(&g, &s->L, t, items, 7, s->act_sel, &s->lg);
-        s->list_n = 7;
+        ui_list(&g, &s->L, t, items, 8, s->act_sel, &s->lg);
+        s->list_n = 8;
         gfx_rrect(&g, px - 10, py - 10, px + s->L.tw + 9, py + s->L.th + 9, 12, 2, MWHT_, MBLK_);
         ui_menu_pills(&g, &s->bar, "Select", hot);
         ui_button(&g, &s->L, CTL_BACK, hot == CTL_BACK);
@@ -359,7 +371,7 @@ static void menu_back(sketch_t *s)
 {
     switch (s->mode) {
     case SK_ACTIONS: to_menu(s, SK_GALLERY, s->act_sel); break;
-    case SK_CONFIRM: to_menu(s, SK_PAGEMENU, s->exit_unsaved ? 6 : 0); break;
+    case SK_CONFIRM: to_menu(s, SK_PAGEMENU, s->exit_unsaved ? 7 : 0); break;
     case SK_RESULT: to_menu(s, SK_PAGEMENU, 0); break;
     default: to_draw(s); /* the page menu, the gallery */
     }
@@ -396,9 +408,10 @@ static void list_select(sketch_t *s, uint32_t now)
         switch (s->act_sel) {
         case 0: print_start(s); break;
         case 1: case 2: share_from(s, s->act_sel); break;
-        case 3: to_draw(s), sk_new_page(s, now); break;
-        case 4: sk_to_gallery(s, now); break;
-        case 5: to_draw(s); break;
+        case 3: sk_set_paper(s, (s->paper + 1) % PP_N, now), to_menu(s, SK_PAGEMENU, 3); break; /* Paper cycles in place */
+        case 4: to_draw(s), sk_new_page(s, now); break;
+        case 5: sk_to_gallery(s, now); break;
+        case 6: to_draw(s); break;
         default: /* Exit Sketch: the page is saved, the app returns as after a long press; only a failed save asks first */
             if (sk_save_page(s, now)) s->exit_req = 1;
             else s->exit_unsaved = 1, to_menu(s, SK_CONFIRM, 0);

@@ -302,7 +302,7 @@ static void test_menu_and_share(void)
     CHECK(r.s.want_full); /* a change is drawn */
     touch(&r, APP_TOUCH_MIDDLE, APP_GESTURE_TAP);
     CHECK(r.s.share_req == -1 && r.s.mode == SK_PAGEMENU);
-    for (int i = 0; i < 4; i++) touch(&r, APP_TOUCH_RIGHT, APP_GESTURE_TAP);
+    for (int i = 0; i < 5; i++) touch(&r, APP_TOUCH_RIGHT, APP_GESTURE_TAP);
     touch(&r, APP_TOUCH_MIDDLE, APP_GESTURE_TAP); /* Back */
     CHECK(r.s.mode == SK_DRAW && same_page_and_fb(&r)); /* back to the page */
     CHECK(rig_frame(&r, out) == SK_FULL && same_page_and_fb(&r));

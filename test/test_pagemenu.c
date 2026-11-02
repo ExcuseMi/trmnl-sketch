@@ -100,14 +100,14 @@ static void test_menu_and_exact_back(void)
         else pen_pill(&r, PL_MENU);
         CHECK(r.s.mode == SK_PAGEMENU && r.s.act_num == cur && r.s.pl_hold == 0);
         frames(&r);
-        CHECK(r.s.list_n == 7 && !r.s.dirty); /* the page is written first: Print and Send work on the file */
+        CHECK(r.s.list_n == 8 && !r.s.dirty); /* the page is written first: Print and Send work on the file */
         char path[48];
         pg_path(path, sizeof(path), cur, ".png");
         CHECK(memfs_find(&r.fs, path) != 0);
         CHECK(!memcmp(r.s.page.px, keep, sizeof(keep))); /* the page is still in memory, untouched */
         if (way == 0 || way == 3) btn(&r, 5);              /* tablet 5 */
         else if (way == 1) btn(&r, 7);                     /* the menu button again */
-        else if (way == 2) { for (int i = 0; i < 5; i++) tap(&r, APP_TOUCH_RIGHT); tap(&r, APP_TOUCH_MIDDLE); } /* the Back row */
+        else if (way == 2) { for (int i = 0; i < 6; i++) tap(&r, APP_TOUCH_RIGHT); tap(&r, APP_TOUCH_MIDDLE); } /* the Back row */
         else if (way == 4) pen_ctl(&r, CTL_BACK);          /* the Back pill */
         else btn(&r, 8);
         CHECK(r.s.mode == SK_DRAW && r.s.cur == cur);
@@ -144,8 +144,8 @@ static void test_exit(void)
     make_pages(&r, 1);
     rig_line(&r, 300, 800, 1200, 900, 40000, 0);
     btn(&r, 7);
-    for (int i = 0; i < 6; i++) btn(&r, 2); /* Exit Sketch is the last row */
-    CHECK(r.s.act_sel == 6 && !r.s.exit_req);
+    for (int i = 0; i < 7; i++) btn(&r, 2); /* Exit Sketch is the last row */
+    CHECK(r.s.act_sel == 7 && !r.s.exit_req);
     btn(&r, 4);
     CHECK(r.s.exit_req && r.s.mode == SK_PAGEMENU); /* the glue leaves app_main, as after a long press */
     CHECK(read_all(&r, "sketch/sk0001.png", file, SK_FILE_MAX) > 0);
@@ -156,11 +156,11 @@ static void test_exit(void)
     btn(&r, 7);
     r.s.dirty = 1;
     r.fs.fail_write = 1;
-    for (int i = 0; i < 6; i++) btn(&r, 2);
+    for (int i = 0; i < 7; i++) btn(&r, 2);
     btn(&r, 4);
     CHECK(!r.s.exit_req && r.s.mode == SK_CONFIRM && r.s.exit_unsaved);
     btn(&r, 5); /* Back: the menu, on the Exit row */
-    CHECK(r.s.mode == SK_PAGEMENU && r.s.act_sel == 6 && !r.s.exit_req);
+    CHECK(r.s.mode == SK_PAGEMENU && r.s.act_sel == 7 && !r.s.exit_req);
     btn(&r, 4);
     CHECK(r.s.mode == SK_CONFIRM);
     btn(&r, 4); /* Exit without saving */
@@ -177,14 +177,14 @@ static void test_gallery_from_menu(void)
     make_pages(&r, 3);
     memcpy(keep, r.s.page.px, sizeof(keep));
     btn(&r, 7);
-    for (int i = 0; i < 4; i++) btn(&r, 2);
+    for (int i = 0; i < 5; i++) btn(&r, 2);
     btn(&r, 4);
     CHECK(r.s.mode == SK_GALLERY && r.s.cur == 3 && r.s.sel == 1);
     btn(&r, 5); /* Back from the gallery: the page you came from */
     CHECK(r.s.mode == SK_DRAW && r.s.cur == 3 && !memcmp(r.s.page.px, keep, sizeof(keep)));
     /* the menu again, the gallery, another drawing: it opens at once; the one left is on disk */
     btn(&r, 7);
-    for (int i = 0; i < 4; i++) btn(&r, 2);
+    for (int i = 0; i < 5; i++) btn(&r, 2);
     btn(&r, 4);
     btn(&r, 2);
     btn(&r, 2);
@@ -291,7 +291,7 @@ static void test_damaged_page(void)
     make_pages(&r, 3);
     memfs_put(&r.fs, "sketch/sk0002.png", junk, sizeof(junk));
     btn(&r, 7);
-    for (int i = 0; i < 4; i++) btn(&r, 2);
+    for (int i = 0; i < 5; i++) btn(&r, 2);
     btn(&r, 4);
     CHECK(r.s.mode == SK_GALLERY);
     rect_t out[SK_MAX_RECTS];
@@ -361,7 +361,7 @@ static void test_walk_with_the_pen_only(void)
         pen_pill(&r, PL_MENU);
         CHECK(r.s.mode == SK_PAGEMENU);
         rig_frame(&r, (rect_t[SK_MAX_RECTS]){ 0 });
-        pen_row(&r, 5); /* Back */
+        pen_row(&r, 6); /* Back */
         CHECK(r.s.mode == SK_DRAW);
         pen_pill(&r, PL_MENU);
         pen_ctl(&r, CTL_BACK);
@@ -395,7 +395,7 @@ static void test_walk_with_the_pen_only(void)
         CHECK(r.s.mode == SK_SHARE && r.s.share_req == 2);
         pen_anywhere(&r);
         CHECK(r.s.mode == SK_PAGEMENU);
-        pen_row(&r, 4); /* Gallery */
+        pen_row(&r, 5); /* Gallery */
         CHECK(r.s.mode == SK_GALLERY);
         rig_frame(&r, (rect_t[SK_MAX_RECTS]){ 0 });
         pen_tile(&r, 1); /* the damaged one */
@@ -409,14 +409,14 @@ static void test_walk_with_the_pen_only(void)
         pen_ctl(&r, CTL_BACK);
         CHECK(r.s.mode == SK_DRAW);
         pen_pill(&r, PL_MENU);
-        pen_row(&r, 4);
+        pen_row(&r, 5);
         pen_tile(&r, 3); /* page 1 */
         CHECK(r.s.mode == SK_DRAW && r.s.cur == 1);
         pen_pill(&r, PL_MENU);
-        pen_row(&r, 3); /* New page */
+        pen_row(&r, 4); /* New page */
         CHECK(r.s.mode == SK_DRAW && r.s.cur == 4);
         pen_pill(&r, PL_MENU);
-        pen_row(&r, 6); /* Exit Sketch */
+        pen_row(&r, 7); /* Exit Sketch */
         CHECK(r.s.exit_req);
         rig_end(&r);
     }
@@ -473,7 +473,7 @@ static void test_walk_with_the_tablet_buttons_only(void)
         btn(&r, 4);
         CHECK(r.s.mode == SK_SHARE && r.s.share_req == 2);
         btn(&r, 1);
-        row_button(&r, 4);
+        row_button(&r, 5);
         btn(&r, 4);
         CHECK(r.s.mode == SK_GALLERY);
         rig_frame(&r, (rect_t[SK_MAX_RECTS]){ 0 });
@@ -488,7 +488,7 @@ static void test_walk_with_the_tablet_buttons_only(void)
         btn(&r, 5);
         CHECK(r.s.mode == SK_DRAW);
         btn(&r, 7);
-        row_button(&r, 6);
+        row_button(&r, 7);
         btn(&r, 4);
         CHECK(r.s.exit_req);
         rig_end(&r);

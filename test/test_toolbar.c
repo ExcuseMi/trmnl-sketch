@@ -29,7 +29,7 @@ static int px_black(const rig_t *r, int x, int y) { return !cv_get(&r->s.page, x
 /* a pen tap on item i (landscape: the user's frame is the framebuffer) */
 static void tap(rig_t *r, int item)
 {
-    int x = r->s.tb.cx[item] + r->s.tb.cell / 2, y = r->s.tb.cy + r->s.tb.cell / 2;
+    int x = r->s.tb.cx[item] + r->s.tb.cell / 2, y = r->s.tb.cyi[item] + r->s.tb.cell / 2;
     rig_pen(r, x, y, APP_PEN_IN_RANGE, 0);
     rig_pen(r, x, y, APP_PEN_TIP | APP_PEN_IN_RANGE, 30000);
     rig_pen(r, x + 1, y, APP_PEN_TIP | APP_PEN_IN_RANGE, 30000);
@@ -67,7 +67,7 @@ static void test_toggle_and_restore(void)
                 if (cv_get(&r.s.page, x, y) != ((r.fb[y * TS + x / 8] >> (7 - x % 8)) & 1) && !in_box(tb, x, y) && !in_box(&r.s.pl_box, x, y)) outside++; /* the pills are over the page too */
         CHECK(outside == 0);
         int bw = tb->x1 - tb->x0 + 1, bh = tb->y1 - tb->y0 + 1, lng = bw > bh ? bw : bh, sht = bw > bh ? bh : bw;
-        CHECK(lng >= 1404 && sht < 160 && sht > 60); /* a thin strip along one edge */
+        CHECK(lng >= 1404 && sht < 320 && sht > 60); /* a thin strip along one edge */
         key(&r, 3); /* the same button hides it */
         CHECK(!r.s.tb_on && same_page_and_fb(&r)); /* pixel for pixel */
         CHECK(!memcmp(page, r.s.page.px, sizeof(page)));
@@ -85,8 +85,8 @@ static void test_flash_only_strip(void)
     key(&r, 3);
     int n = rig_frame(&r, out);
     CHECK(n == 1 && out[0].flash == 1); /* one rectangle, clean (flashes), not the whole screen */
-    CHECK(out[0].x == 0 && out[0].y == 0 && out[0].w == TW && out[0].h == r.s.tb.y1 + 1 && out[0].h < 140);
-    CHECK((long)out[0].w * out[0].h < (long)TW * TH / 8);
+    CHECK(out[0].x == 0 && out[0].y == 0 && out[0].w == TW && out[0].h == r.s.tb.y1 + 1 && out[0].h < 280);
+    CHECK((long)out[0].w * out[0].h < (long)TW * TH / 5);
     CHECK(rig_frame(&r, out) == 0); /* nothing else follows */
     CHECK(sk_next_due(&r.s, r.now) > 100);
     key(&r, 3); /* hiding: the strip left the page, one whole-page flash (rule a), which covers the strip */
@@ -99,7 +99,7 @@ static void test_flash_only_strip(void)
     while (rig_frame(&r, out) != 0) {}
     key(&r, 3);
     n = rig_frame(&r, out);
-    CHECK(n == 1 && out[0].flash == 1 && out[0].x % 8 == 0 && out[0].w % 8 == 0 && out[0].h == TH && out[0].w < 140 + 8);
+    CHECK(n == 1 && out[0].flash == 1 && out[0].x % 8 == 0 && out[0].w % 8 == 0 && out[0].h == TH && out[0].w < 280 + 8);
     rig_end(&r);
 }
 
@@ -117,7 +117,8 @@ static void test_taps_never_ink(void)
         tap(&r, i);
         CHECK(!memcmp(page, r.s.page.px, sizeof(page))); /* a tap on the strip never inks */
         CHECK(!r.s.stroke);
-        if (i < TI_SHADE) CHECK(r.s.sty.brush == i - TI_BRUSH);
+        if (i < TI_LINE) CHECK(r.s.sty.brush == i - TI_BRUSH);
+        else if (i < TI_SHADE) CHECK(r.s.sty.tool == i - TI_LINE + TL_LINE);
         else if (i < TI_SIZE) CHECK(r.s.sty.shade == i - TI_SHADE);
         else CHECK(1);
         CHECK(r.s.note_on); /* a toast names the choice ... */
@@ -166,7 +167,7 @@ static void test_draw_near_strip(void)
     key(&r, 3);
     idle(&r, 3000);
     int below = r.s.tb.y1 + 1;
-    static uint8_t strip[TS * 200];
+    static uint8_t strip[TS * 300]; /* the strip is two rows tall */
     memcpy(strip, r.fb, (size_t)TS * (size_t)below);
     /* drawing elsewhere stays fast: ink below the strip is a few small partial rectangles, no flash, no full refresh */
     rect_t out[SK_MAX_RECTS];
@@ -207,8 +208,8 @@ static void test_layout_all_positions(void)
         CHECK(L.top == (o != APP_ORIENT_BAR_TOP)); /* away from the touch bar */
         CHECK(L.top ? L.y0 == 0 : L.y1 == sh - 1);
         for (int i = 0; i < TI_N; i++) {
-            CHECK(L.cx[i] >= 0 && L.cx[i] + L.cell <= sw && (i == 0 || L.cx[i] >= L.cx[i - 1] + L.cell)); /* inside, in order, no overlap */
-            int cx = L.cx[i] + L.cell / 2, cy = L.cy + L.ch / 2, fx, fy, ux, uy;
+            CHECK(L.cx[i] >= 0 && L.cx[i] + L.cell <= sw && (i == 0 || i == TI_SHADE || L.cx[i] >= L.cx[i - 1] + L.cell)); /* inside, in order, no overlap */
+            int cx = L.cx[i] + L.cell / 2, cy = L.cyi[i] + L.ch / 2, fx, fy, ux, uy;
             CHECK(tb_in(&L, cx, cy) && tb_hit(&L, cx, cy) == (i > TI_SIZE && i < TI_MIRROR ? TI_SIZE : i));
             /* through the panel and back: what a pen on the panel hits */
             app_orient_to_fb(o, TW, TH, cx, cy, &fx, &fy);
@@ -338,7 +339,7 @@ static int rect_hits(const rect_t *q, const box_t *b)
 }
 static void item_fb_box(const rig_t *r, int i, box_t *b)
 {
-    *b = (box_t){ r->s.tb.cx[i], r->s.tb.cy, r->s.tb.cx[i] + r->s.tb.cell - 1, r->s.tb.cy + r->s.tb.ch - 1 };
+    *b = (box_t){ r->s.tb.cx[i], r->s.tb.cyi[i], r->s.tb.cx[i] + r->s.tb.cell - 1, r->s.tb.cyi[i] + r->s.tb.ch - 1 };
 }
 
 static void test_pointer_over_the_strip(void)
@@ -353,7 +354,7 @@ static void test_pointer_over_the_strip(void)
     push(panel, &r, out, rig_frame(&r, out));
     memcpy(clean, r.fb, sizeof(clean));
     CHECK(!r.s.tb_ptr && r.s.tb_hot == -1);
-    int xa = r.s.tb.cx[2] + r.s.tb.cell / 2, xb = r.s.tb.cx[TI_SHADE + 1] + r.s.tb.cell / 2, y = r.s.tb.cy + r.s.tb.cell / 2;
+    int xa = r.s.tb.cx[2] + r.s.tb.cell / 2, xb = r.s.tb.cx[4] + r.s.tb.cell / 2, y = r.s.tb.cyi[2] + r.s.tb.cell / 2;
     rig_pen(&r, xa, y, APP_PEN_IN_RANGE, 0);
     r.now += 200;
     int n = rig_frame(&r, out);
@@ -363,11 +364,11 @@ static void test_pointer_over_the_strip(void)
     /* onto another item: only the old and the new item and the arrow's two boxes are pushed */
     box_t oldp = r.s.tb_ptr_box, ia, ib;
     item_fb_box(&r, 2, &ia);
-    item_fb_box(&r, TI_SHADE + 1, &ib);
+    item_fb_box(&r, 4, &ib);
     rig_pen(&r, xb, y, APP_PEN_IN_RANGE, 0);
     r.now += 200;
     n = rig_frame(&r, out);
-    CHECK(r.s.tb_hot == TI_SHADE + 1 && n > 0 && n != SK_FULL);
+    CHECK(r.s.tb_hot == 4 && n > 0 && n != SK_FULL);
     for (int i = 0; i < n; i++) CHECK(rect_hits(&out[i], &ia) || rect_hits(&out[i], &ib) || rect_hits(&out[i], &oldp) || rect_hits(&out[i], &r.s.tb_ptr_box));
     long area = 0;
     for (int i = 0; i < n; i++) area += (long)out[i].w * out[i].h;

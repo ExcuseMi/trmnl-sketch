@@ -33,5 +33,9 @@
 ../../src/mirror.c
 ../../src/skmirror.c
 ../../src/sketch.c
+../../src/skpage.c
+../../src/skshape.c
+../../src/paper.c
+../../src/skpaper.c
 ../../src/font.c
 ../../src/gfx.c

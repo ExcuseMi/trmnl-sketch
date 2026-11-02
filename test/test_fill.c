@@ -176,7 +176,7 @@ static int fill_in(hist_t *h, int x, int y, int shade)
     bf_t r;
     if (bf_plan(&r, h->page, x, y, shade, 3, 0) != BF_OK) return 0;
     uint32_t n = bf_runs(&r);
-    bstyle_t st = { BR_FILL, (uint8_t)shade, 1, 0 };
+    bstyle_t st = { BR_FILL, (uint8_t)shade, 1, 0, 0 };
     hpt_t *slots = hist_fill_begin(h, n, &st);
     if (!slots) return bf_free(&r), -1;
     bf_emit(&r, slots);
@@ -388,11 +388,11 @@ static void test_toolbar_item(void)
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
     sk_pen_key(&r.s, 1u << 3, 1u << 3, r.now += 50);
     sk_pen_key(&r.s, 0, 1u << 3, r.now);
-    CHECK(TI_SHADE == BR_FILL + 1 && r.s.tb_on);
+    CHECK(TI_LINE == BR_FILL + 1 && r.s.tb_on);
     rig_pen_user(&r, r.s.tb.cx[TI_BRUSH + BR_FILL] + 20, r.s.tb.cy + 20, APP_PEN_TIP | APP_PEN_IN_RANGE, 30000);
     rig_pen_user(&r, r.s.tb.cx[TI_BRUSH + BR_FILL] + 20, r.s.tb.cy + 20, APP_PEN_IN_RANGE, 0);
     CHECK(r.s.sty.brush == BR_FILL && r.s.note_on);
-    int tx = r.s.tb.cx[TI_BRUSH + BR_FILL] + r.s.tb.cell, nx = r.s.tb.cx[TI_SHADE]; /* the cell fits before the next group */
+    int tx = r.s.tb.cx[TI_BRUSH + BR_FILL] + r.s.tb.cell, nx = r.s.tb.cx[TI_LINE]; /* the cell fits before the next group */
     CHECK(tx <= nx);
     rig_end(&r);
     for (int o = 0; o < 2; o++) { /* the strip fits in both positions */

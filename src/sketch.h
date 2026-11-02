@@ -13,6 +13,7 @@
 #include "hist.h"
 #include "mirror.h"
 #include "pages.h"
+#include "paper.h"
 #include "penmap.h"
 #include "rects.h"
 #include "skmenu.h"
@@ -64,6 +65,10 @@ typedef struct {
     int lx, ly, px, py, lp; /* the open stroke's last two points and the byte of the last, for the tail */
     int tablet;          /* a tablet is connected (pen_info) */
     int stroke, barrel;  /* a stroke is open; a pen button is held */
+    int sh_on, sh_x0, sh_y0, sh_x1, sh_y1, sh_barrel; /* a shape is being dragged (skshape.c): start, end, constrain was on at the last preview */
+    int paper, paper_sp, paper_def, paper_sp_def; /* the page on screen's paper (paper.h) and the settings' default for new pages */
+    box_t sh_box;        /* the rubber band on the screen (framebuffer only, never in the page) */
+    unsigned mods;       /* keyboard modifiers held (APP_MOD_*) */
     int stroke_erase;    /* the open stroke erases */
     int hover_valid, hover_x, hover_y; /* the pen hovers over the page there */
     uint32_t um_w, um_h; /* the tablet's area, micrometres (0: unknown) */
@@ -152,6 +157,22 @@ void sk_save_now(sketch_t *s);
 void sk_run_print(sketch_t *s);
 /* Sends page `num`'s saved file to the printer; 0 or < 0 with s->pres.msg set (skprint.c) */
 int sk_print_page(sketch_t *s, int num);
+/* The shape tools (skshape.c). sk_shape_end constrains the end point; sk_shape_pts gives the outline as a polyline (the
+   points of the stroke); sk_shape_pen takes the pen events of a shape tool (1: taken); the preview is on the screen only */
+#define SK_SHAPE_PTS 140
+void sk_shape_end(int tool, int x0, int y0, int *x1, int *y1, int constrain);
+int sk_shape_pts(int tool, int x0, int y0, int x1, int y1, int16_t (*pt)[2], int cap);
+int sk_shape_pen(sketch_t *s, int tip, int inside, int fx, int fy, uint32_t now);
+void sk_shape_cancel(sketch_t *s);
+void sk_set_tool(sketch_t *s, int tool, uint32_t now);
+void sk_fb_restore(sketch_t *s, const box_t *b); /* the page (and strip, pills) back on the screen in b, and pushed */
+void sk_mark(sketch_t *s, const box_t *b);       /* b is to be pushed */
+/* The paper (skpaper.c) */
+void sk_paper_new(sketch_t *s);               /* the default for a new page */
+void sk_paper_open(sketch_t *s, int num);     /* the paper of page num (Blank for a page saved before papers existed) */
+void sk_paper_store(sketch_t *s);             /* beside the saved page: sidecar and printed copy */
+void sk_paper_blit(sketch_t *s, const box_t *b); /* the paper over the framebuffer box (just copied from the page) */
+void sk_set_paper(sketch_t *s, int kind, uint32_t now);
 /* The bucket (skfill.c): the pen with the Fill tool, true when it took the event; a tap at (x, y) fills */
 int sk_fill_pen(sketch_t *s, int tip, int inside, int fx, int fy, uint32_t now);
 void sk_fill_at(sketch_t *s, int x, int y, uint32_t now);
@@ -188,6 +209,7 @@ void sk_screen_render(sketch_t *s); /* draws the menu screen of the mode into `u
 void sk_menu_cursor(sketch_t *s); /* draws the pointer on the framebuffer at the hover place, when a menu shows one */
 void sk_to_gallery(sketch_t *s, uint32_t now); /* from the page menu */
 void sk_to_pagemenu(sketch_t *s, uint32_t now); /* from the drawing: the menu of the current page */
+int sk_do_save(sketch_t *s, uint32_t now); /* writes the page; 0 or the pages.h error (skpage.c) */
 int sk_save_page(sketch_t *s, uint32_t now); /* writes the page on screen if changed; 0 when it could not */
 void sk_resume_draw(sketch_t *s); /* the toolbar and pills as they were, for the page coming back */
 int sk_print_check(sketch_t *s); /* the default printer into s->prn: 0, or -1 with the result words set */

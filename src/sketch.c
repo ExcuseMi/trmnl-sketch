@@ -8,7 +8,6 @@
 
 #define TOAST_MS 2500
 #define LEGEND_MS 40000
-#define RETRY_MS 5000
 
 static void mkg(const sketch_t *s, gfx_t *g) { gfx_init(g, s->fb.px, s->fb.w, s->fb.h, s->fb.stride, s->orient); }
 static void mark(sketch_t *s, const box_t *b) { rs_add(&s->pend, b, s->fb.w, s->fb.h); }
@@ -69,16 +68,25 @@ static void pl_place(sketch_t *s) /* the Tools and Menu pills for the screen in 
 static void fb_put(sketch_t *s, const box_t *b)
 {
     cv_copy_box(&s->fb, &s->page, b);
+    sk_paper_blit(s, b);
     mr_guide(&s->fb, s->sty.mirror, b); /* the screen-only guide of the mirror (mirror.h) */
     if (s->tb_on && hit(b, &s->tb_box)) sk_tb_paint(s);
     if (hit(b, &s->pl_box)) pl_paint(s);
 }
+
+void sk_fb_restore(sketch_t *s, const box_t *b)
+{
+    fb_put(s, b);
+    mark(s, b);
+}
+void sk_mark(sketch_t *s, const box_t *b) { mark(s, b); }
 
 void sk_show_page(sketch_t *s)
 {
     box_t b;
     whole(&b, &s->page);
     cv_copy_box(&s->fb, &s->page, &b);
+    sk_paper_blit(s, &b);
     mr_guide(&s->fb, s->sty.mirror, &b);
     if (s->tb_on) sk_tb_paint(s);
     pl_paint(s);
@@ -118,7 +126,7 @@ static void tb_item_box(sketch_t *s, int i, box_t *b)
 {
     gfx_t g;
     mkg(s, &g);
-    ui_fb_box(&g, s->tb.cx[i], s->tb.cy, s->tb.cx[i] + s->tb.cell - 1, s->tb.cy + s->tb.ch - 1, b);
+    ui_fb_box(&g, s->tb.cx[i], s->tb.cyi[i], s->tb.cx[i] + s->tb.cell - 1, s->tb.cyi[i] + s->tb.ch - 1, b);
     box_clip(b, s->fb.w, s->fb.h);
 }
 
@@ -233,135 +241,11 @@ void sk_page_changed(sketch_t *s, const box_t *b, uint32_t now)
     s->save_at = now + SK_AUTOSAVE_MS;
 }
 
-/* ---- saving ---- */
-
-static int do_save(sketch_t *s, uint32_t now)
-{
-    if (s->bad_pending) { /* the unreadable file stays, under another name */
-        if (pg_keep_bad(&s->pg, s->cur) < 0 && pg_index(&s->pg, s->cur) >= 0) return s->save_failed = 1, s->save_at = now + RETRY_MS, PG_IO;
-        s->bad_pending = 0;
-    }
-    int rc = pg_save(&s->pg, s->cur, &s->page);
-    if (rc) return s->save_failed = 1, s->save_at = now + RETRY_MS, rc;
-    s->dirty = s->save_failed = 0;
-    gal_invalidate(&s->cache, s->cur);
-    return 0;
-}
-
-void sk_save_now(sketch_t *s)
-{
-    if (s->dirty) do_save(s, s->last_push);
-}
-
-/* ---- pages ---- */
-
-int sk_is_blank(const canvas_t *c)
-{
-    int rb = (c->w + 7) / 8;
-    for (int y = 0; y < c->h; y++)
-        for (int x = 0; x < rb; x++)
-            if (c->px[y * c->stride + x] != 0xff) return 0;
-    return 1;
-}
-
-void sk_open_page(sketch_t *s, int num, uint32_t now)
-{
-    s->cur = num;
-    s->bad_pending = 0;
-    int rc = pg_load(&s->pg, num, &s->page);
-    if (rc == PG_MISSING) cv_fill(&s->page, 1);
-    if (rc == PG_BAD) s->bad_pending = 1;
-    hist_reset(&s->hist);
-    s->cursor = s->note_on = s->legend = s->stroke = 0;
-    sk_show_page(s);
-    s->want_full = 1;
-    s->dirty = 0;
-    sk_cfg_num(s, "cur", num);
-    (void)now;
-}
-
-static const char *page_text(sketch_t *s, char *buf)
-{
-    int pos = 0;
-    for (int i = 0; i < s->pg.n; i++)
-        if (s->pg.nums[i] <= s->cur) pos = i + 1;
-    int v[2] = { pos, s->pg.n }, n = 0;
-    const char *pre = "Page ";
-    while (*pre) buf[n++] = *pre++;
-    for (int k = 0; k < 2; k++) {
-        char d[8];
-        int m = 0, x = v[k];
-        do d[m++] = (char)('0' + x % 10), x /= 10; while (x);
-        while (m) buf[n++] = d[--m];
-        if (k == 0) buf[n++] = ' ', buf[n++] = 'o', buf[n++] = 'f', buf[n++] = ' ';
-    }
-    buf[n] = 0;
-    return buf;
-}
-
-void sk_make_page(sketch_t *s, uint32_t now);
-
-int sk_save_page(sketch_t *s, uint32_t now) /* writes the page on screen if it changed: the menus work on its file; 0 when it could not */
-{
-    hist_end(&s->hist);
-    s->stroke = 0;
-    return !s->dirty || sk_is_blank(&s->page) || !do_save(s, now);
-}
-
-int sk_leave_page(sketch_t *s, uint32_t now) /* saves the page on screen first; 0 when it could not */
-{
-    hist_end(&s->hist);
-    s->stroke = 0;
-    if (sk_is_blank(&s->page)) { /* a blank page is not kept: at most one exists, the one on screen (owner 2026-11-01) */
-        if (s->bad_pending) return 1; /* an unreadable file is not blank: it stays */
-        pg_remove(&s->pg, s->cur);
-        s->dirty = 0;
-        return 1;
-    }
-    if (s->dirty && do_save(s, now)) return 0;
-    return 1;
-}
-
-void sk_goto_page(sketch_t *s, int index, uint32_t now)
-{
-    if (!sk_leave_page(s, now)) return sk_toast(s, "Could not save this page", now);
-    pg_scan(&s->pg);
-    if (s->pg.n == 0) return sk_make_page(s, now);
-    if (index < 0 || index >= s->pg.n) return sk_toast(s, index < 0 ? "First page" : "Last page", now);
-    sk_open_page(s, s->pg.nums[index], now);
-    char b[24];
-    sk_toast(s, page_text(s, b), now);
-}
-
-/* A new page only from a page with ink: no run of empty pages (owner 2026-11-01) */
-void sk_new_page(sketch_t *s, uint32_t now)
-{
-    if (sk_is_blank(&s->page)) return sk_toast(s, "This page is still empty", now);
-    sk_make_page(s, now);
-}
-
-void sk_make_page(sketch_t *s, uint32_t now)
-{
-    if (!sk_leave_page(s, now)) return sk_toast(s, "Could not save this page", now);
-    pg_scan(&s->pg);
-    int num = pg_next_num(&s->pg);
-    if (!num) return sk_toast(s, "No more pages", now);
-    s->cur = num;
-    cv_fill(&s->page, 1);
-    s->bad_pending = 0;
-    hist_reset(&s->hist);
-    s->cursor = s->note_on = s->legend = 0;
-    sk_show_page(s);
-    s->want_full = 1;
-    sk_cfg_num(s, "cur", num);
-    char b[24];
-    sk_toast(s, page_text(s, b), now);
-}
-
 /* ---- actions ---- */
 
 void sk_undo(sketch_t *s, uint32_t now)
 {
+    sk_shape_cancel(s);
     box_t b;
     s->stroke = 0;
     if (hist_undo(&s->hist, &b)) sk_page_changed(s, &b, now);
@@ -370,6 +254,7 @@ void sk_undo(sketch_t *s, uint32_t now)
 
 void sk_redo(sketch_t *s, uint32_t now)
 {
+    sk_shape_cancel(s);
     box_t b;
     s->stroke = 0;
     if (hist_redo(&s->hist, &b)) sk_page_changed(s, &b, now);
@@ -378,10 +263,11 @@ void sk_redo(sketch_t *s, uint32_t now)
 
 void sk_clear(sketch_t *s, uint32_t now)
 {
+    sk_shape_cancel(s);
     hist_end(&s->hist);
     s->stroke = 0;
     if (sk_is_blank(&s->page)) return sk_toast(s, "The page is empty", now);
-    if (s->dirty) do_save(s, now);
+    if (s->dirty) sk_do_save(s, now);
     pg_save_as(&s->pg, s->cur, "-cleared.png", &s->page); /* what was on the page stays on the flash */
     box_t b;
     hist_clear(&s->hist, &b);
@@ -417,6 +303,8 @@ void sk_set_brush(sketch_t *s, int brush, uint32_t now)
     if (s->sty.brush == BR_ERASER) s->era_size = s->sty.size;
     else s->ink_size = s->sty.size;
     s->sty.brush = (uint8_t)brush;
+    sk_shape_cancel(s);
+    s->sty.tool = TL_DRAW;
     s->sty.size = brush == BR_ERASER ? s->era_size : s->ink_size;
     sk_picked(s, brush_name(brush), now);
 }
@@ -448,6 +336,7 @@ void sk_toolbar(sketch_t *s, uint32_t now)
 {
     (void)now;
     if (s->mode != SK_DRAW) return;
+    sk_shape_cancel(s);
     sk_cursor_hide(s);
     if (s->tb_on) { /* the page under the strip comes back as it was */
         s->tb_on = s->tb_hold = 0;
@@ -468,7 +357,8 @@ void sk_toolbar(sketch_t *s, uint32_t now)
 static void tb_press(sketch_t *s, int item, uint32_t now)
 {
     if (item < 0) return;
-    if (item < TI_SHADE) sk_set_brush(s, item - TI_BRUSH, now);
+    if (item < TI_LINE) sk_set_brush(s, item - TI_BRUSH, now);
+    else if (item < TI_SHADE) sk_set_tool(s, item - TI_LINE + TL_LINE, now);
     else if (item < TI_SIZE) sk_set_shade(s, item - TI_SHADE, now);
     else if (item == TI_MIRROR) sk_set_mirror(s, (s->sty.mirror + 1) % MR_N, now);
     else if (item == TI_SIZE) s->tb_drag = 1; /* the first x comes with the same event: slider_drag */
@@ -531,8 +421,9 @@ void sk_pen(sketch_t *s, unsigned flags, unsigned x, unsigned y, unsigned pressu
         return;
     }
     if (tip && on_bar) { /* a press on the strip picks, never inks; a stroke dragged onto it just ends */
-        int was = s->stroke || s->bk_down;
+        int was = s->stroke || s->bk_down || s->sh_on;
         s->bk_down = 0;
+        sk_shape_cancel(s);
         if (was) stroke_tail(s, now), hist_end(&s->hist), s->stroke = 0;
         if (!s->tb_hold) {
             s->tb_hold = 1;
@@ -545,6 +436,7 @@ void sk_pen(sketch_t *s, unsigned flags, unsigned x, unsigned y, unsigned pressu
     if (tip && s->tb_drag) return sk_slider_drag(s, ux); /* dragged off the strip: the knob stays at the track's end */
     if (tip && s->tb_hold) return; /* dragged off the strip: no ink until the pen lifts */
     if (sk_fill_pen(s, tip, inside, fx, fy, now)) return;
+    if (sk_shape_pen(s, tip, inside, fx, fy, now)) return;
     if (tip && inside) {
         if (!s->stroke) {
             int br = eff_brush(s);
@@ -641,7 +533,7 @@ void sk_tick(sketch_t *s, uint32_t now)
         if (s->hover_valid) cursor_show(s, s->hover_x, s->hover_y);
     }
     if (s->legend && (int32_t)(now - s->note_until) >= 0) sk_note_hide(s);
-    if (s->dirty && !s->stroke && (int32_t)(now - s->save_at) >= 0) do_save(s, now);
+    if (s->dirty && !s->stroke && (int32_t)(now - s->save_at) >= 0) sk_do_save(s, now);
 }
 
 int sk_flush(sketch_t *s, uint32_t now, rect_t *out)
@@ -694,6 +586,9 @@ void sk_cfg_reload(sketch_t *s)
     s->turn = !(s->env.cfg_get && (n = s->env.cfg_get(s->env.user, "tablet_turn", b, 7)) == 3 && !memcmp(b, "off", 3)); /* auto unless off */
     s->bk_gap = cfg_int(s, "fill_gap", 3);
     if (s->bk_gap > 6) s->bk_gap = 6;
+    n = s->env.cfg_get ? s->env.cfg_get(s->env.user, "paper", b, 7) : -1;
+    s->paper_def = n > 0 ? pp_from_name(b, n) : PP_BLANK;
+    s->paper_sp_def = pp_spacing(cfg_int(s, "paper_sp", 0));
     s->cleanup_s = cfg_int(s, "cleanup_s", 5);
     if (s->cleanup_s > 600) s->cleanup_s = 600;
     pm_init(&s->map, s->orient, s->fb.w, s->fb.h, s->um_w, s->um_h, s->fill, s->turn);
@@ -762,7 +657,7 @@ int sk_init(sketch_t *s, const sk_env_t *env, uint8_t *fb, int w, int h, int str
     }
     s->cur = num;
     if (s->pg.n && pg_index(&s->pg, num) >= 0) sk_open_page(s, num, 0); /* none: the blank one is written with its first ink */
-    else cv_fill(&s->page, 1);
+    else cv_fill(&s->page, 1), sk_paper_new(s);
     pl_place(s);
     sk_show_page(s);
     s->want_full = 1;

@@ -2,6 +2,7 @@
 #include "pages.h"
 #include <stdlib.h>
 #include <string.h>
+#include "paper.h"
 #include "pngio.h"
 #include "sk_cfg.h"
 
@@ -100,16 +101,11 @@ int pg_load(pages_t *p, int num, canvas_t *c)
     return PG_OK;
 }
 
-int pg_save_as(pages_t *p, int num, const char *suffix, const canvas_t *c)
+/* Writes n bytes to dst through a temp file and a rename; PG_OK or PG_IO */
+static int write_file(pages_t *p, int num, const char *dst, const uint8_t *buf, long n)
 {
-    char tmp[48], dst[48];
+    char tmp[48];
     pg_path(tmp, sizeof(tmp), num, ".tmp");
-    pg_path(dst, sizeof(dst), num, suffix);
-    size_t cap = png_max_size(c->w, c->h);
-    uint8_t *buf = malloc(cap);
-    if (!buf) return PG_IO;
-    long n = png_encode(c->px, c->w, c->h, c->stride, buf, cap);
-    if (n < 0) return free(buf), PG_IO;
     void *f = p->fs->open(p->fs->ctx, tmp, 1);
     int ok = f != 0;
     if (f) {
@@ -120,12 +116,67 @@ int pg_save_as(pages_t *p, int num, const char *suffix, const canvas_t *c)
         }
         ok = p->fs->close(p->fs->ctx, f) >= 0 && ok;
     }
-    free(buf);
     if (!ok || p->fs->rename(p->fs->ctx, tmp, dst) < 0) {
         p->fs->remove(p->fs->ctx, tmp);
         return PG_IO;
     }
     return PG_OK;
+}
+
+int pg_save_as(pages_t *p, int num, const char *suffix, const canvas_t *c)
+{
+    char dst[48];
+    pg_path(dst, sizeof(dst), num, suffix);
+    size_t cap = png_max_size(c->w, c->h);
+    uint8_t *buf = malloc(cap);
+    if (!buf) return PG_IO;
+    long n = png_encode(c->px, c->w, c->h, c->stride, buf, cap);
+    int rc = n < 0 ? PG_IO : write_file(p, num, dst, buf, n);
+    free(buf);
+    return rc;
+}
+
+int pg_paper_save(pages_t *p, int num, int kind, int sp)
+{
+    char dst[48], t[16];
+    pg_path(dst, sizeof(dst), num, ".pap");
+    if (kind == 0) { /* blank paper: no sidecar, no printed copy */
+        char pc[48];
+        void *f = p->fs->open(p->fs->ctx, dst, 0); /* only touch the files when there is something to remove */
+        if (!f) return PG_OK;
+        p->fs->close(p->fs->ctx, f);
+        pg_path(pc, sizeof(pc), num, "-paper.png");
+        p->fs->remove(p->fs->ctx, pc);
+        p->fs->remove(p->fs->ctx, dst);
+        return PG_OK;
+    }
+    int n = 0, v[2] = { kind, sp };
+    for (int k = 0; k < 2; k++) {
+        char d[8];
+        int m = 0, x = v[k];
+        do d[m++] = (char)('0' + x % 10), x /= 10; while (x);
+        while (m) t[n++] = d[--m];
+        t[n++] = k ? '\n' : ' ';
+    }
+    return write_file(p, num, dst, (const uint8_t *)t, n);
+}
+
+void pg_paper_load(pages_t *p, int num, int *kind, int *sp)
+{
+    char path[48], b[16];
+    *kind = 0, *sp = 0;
+    pg_path(path, sizeof(path), num, ".pap");
+    void *f = p->fs->open(p->fs->ctx, path, 0);
+    if (!f) return; /* an old page: Blank */
+    int n = p->fs->read(p->fs->ctx, f, b, 15);
+    p->fs->close(p->fs->ctx, f);
+    int v[2] = { 0, 0 }, k = 0;
+    for (int i = 0; i < n && k < 2; i++) {
+        if (b[i] >= '0' && b[i] <= '9' && v[k] < 100000) v[k] = v[k] * 10 + b[i] - '0';
+        else if (b[i] == ' ' || b[i] == '\n') k++;
+        else return; /* damaged: Blank */
+    }
+    if (v[0] > 0 && v[0] < PP_N) *kind = v[0], *sp = pp_spacing(v[1]);
 }
 
 int pg_save(pages_t *p, int num, const canvas_t *c)
@@ -152,6 +203,11 @@ int pg_remove(pages_t *p, int num)
         for (int k = i; k + 1 < p->n; k++) p->nums[k] = p->nums[k + 1];
         p->n--;
     }
+    char side[48];
+    pg_path(side, sizeof(side), num, ".pap");
+    p->fs->remove(p->fs->ctx, side);
+    pg_path(side, sizeof(side), num, "-paper.png");
+    p->fs->remove(p->fs->ctx, side);
     return p->fs->remove(p->fs->ctx, path);
 }
 
