@@ -6,6 +6,11 @@
 
    Owner 2026-11-02: "draw whatever happened in the last moment, consistently": the latency must stay bounded and no
    report may be dropped. `make frames` fails when p95 is over FRAMES_P95_MS or a report was dropped.
+
+   Owner 2026-11-02: "for the cursor we only need to show the latest position each time": a second run hovers for the
+   same three minutes (no tip). It fails when a frame drew the cursor more than once, the cursor is not at the last
+   report of a hover frame, pushes a second exceed the frame rate, or the report-to-cursor p95 is over FRAMES_HOVER_P95_MS.
+   The drawing run checks the first two as well.
    SPDX-License-Identifier: MIT */
 #define _POSIX_C_SOURCE 200809L
 #include <stdio.h>
@@ -21,6 +26,7 @@
 #define SECS 180
 #define QUEUE 512      /* the firmware's pen queue (usb_pen.h) */
 #define FRAMES_P95_MS 100
+#define FRAMES_HOVER_P95_MS 60
 #define STROKE_MS 2000 /* a stroke, then a hover */
 #define HOVER_MS 300
 
@@ -35,17 +41,16 @@ static double cpu_us(void)
 
 static int cmp(const void *a, const void *b) { double x = *(const double *)a, y = *(const double *)b; return x < y ? -1 : x > y; }
 
-int main(int argc, char **argv)
+static int run(int hover_only, int check)
 {
-    int check = argc > 1 && !strcmp(argv[1], "--check");
     int n = HZ * SECS, i = 0;
     ev_t *ev = malloc(sizeof(ev_t) * (size_t)n);
     double *lat = malloc(sizeof(double) * (size_t)n);
     int x = 300, y = 500, dx = 15, dy = 3;
     for (int k = 0; k < n; k++) { /* a scribble at 3 px/ms, lifted every STROKE_MS for HOVER_MS */
         double t = 1000.0 + k * (1000.0 / HZ);
-        int in_stroke = (int)(t - 1000.0) % (STROKE_MS + HOVER_MS) < STROKE_MS;
-        if (in_stroke) {
+        int in_stroke = !hover_only && (int)(t - 1000.0) % (STROKE_MS + HOVER_MS) < STROKE_MS;
+        if (in_stroke || hover_only) {
             x += dx, y += dy;
             if (x > 1500 || x < 300) dx = -dx, x += 2 * dx;
             if (y > 900 || y < 400) dy = -dy, y += 2 * dy;
@@ -60,8 +65,11 @@ int main(int argc, char **argv)
     double t = 1000;
     int drops = 0, frames = 0, max_q = 0, max_scale = 1, taken = 0;
     double max_cost = 0, sum_cost = 0;
+    int multi_draw = 0, off_target = 0, hover_frames = 0, pushes = 0, max_pushes = 0, sec = -1, hq_bad = 0;
     while (i < n) {
-        rig_flush(&r, (uint32_t)t, out); /* the push returns at once (fast ink) */
+        int np = rig_flush(&r, (uint32_t)t, out); /* the push returns at once (fast ink) */
+        if ((int)(t / 1000) != sec) sec = (int)(t / 1000), pushes = 0;
+        if (np && ++pushes > max_pushes) max_pushes = pushes;
         sk_tick(&r.s, (uint32_t)t);
         uint32_t wait = sk_wait_ms(&r.s, (uint32_t)t);
         if (wait > 500) wait = 500;
@@ -73,7 +81,7 @@ int main(int argc, char **argv)
             t = ev[i].t;
         }
         double frame_end = t + SK_FRAME_MS, c0 = cpu_us();
-        int first = i;
+        int first = i, draws0 = r.s.cur_draws;
         int queued = 0;
         for (int k = i; k < n && ev[k].t <= t; k++) queued++; /* waiting in the firmware's queue when the frame starts */
         if (queued > max_q) max_q = queued;
@@ -83,7 +91,9 @@ int main(int argc, char **argv)
             rig_pt(&r, ev[i].x, ev[i].y, &px, &py);
             if (ev[i].t > t) t = ev[i].t;
             double e0 = cpu_us();
+            int q0 = r.s.frame.n, was_hover = !(ev[i].flags & APP_PEN_TIP) && !r.s.stroke;
             sk_pen(&r.s, (unsigned)ev[i].flags, px, py, ev[i].p, (uint32_t)t);
+            if (was_hover && r.s.frame.n != q0) hq_bad++; /* a hover report never enters the stroke queue */
             if (getenv("FRAMES_V") && (cpu_us() - e0) * COST_X_RATIO / 1000.0 > 50)
                 fprintf(stderr, "  event %d flags %x: %.0f ms, stroke now %d, queue %d\n", i, ev[i].flags,
                         (cpu_us() - e0) * COST_X_RATIO / 1000.0, r.s.stroke, r.s.frame.n);
@@ -97,6 +107,12 @@ int main(int argc, char **argv)
         if (getenv("FRAMES_V") && cost > 40)
             fprintf(stderr, "t %.0f: %d points, scale %d, pen %.1f ms, frame %.1f ms, stroke %d\n", t, i - first, r.s.frame.scale,
                     (c1 - c0) * COST_X_RATIO / 1000.0, (cpu_us() - c1) * COST_X_RATIO / 1000.0, r.s.stroke);
+        if (r.s.cur_draws - draws0 > 1) multi_draw++;
+        if (i > first && !(ev[i - 1].flags & APP_PEN_TIP) && (ev[i - 1].flags & APP_PEN_IN_RANGE)) { /* the frame ended hovering */
+            int ddx = r.s.cx - ev[i - 1].x, ddy = r.s.cy - ev[i - 1].y;
+            hover_frames++;
+            if (!r.s.cursor || ddx * ddx + ddy * ddy >= 9) off_target++;
+        }
         sk_frame_cost(&r.s, (uint32_t)cost); /* the bake of an old stroke's slice runs in it: costed, not in `cost` */
         cost += (cpu_us() - c2) * COST_X_RATIO / 1000.0;
         t += cost;
@@ -108,12 +124,22 @@ int main(int argc, char **argv)
     }
     qsort(lat, (size_t)n, sizeof(double), cmp);
     double p50 = lat[n / 2], p95 = lat[n * 95 / 100], max = lat[n - 1];
-    printf("frames %d, X ms a frame avg %.1f max %.1f, step scale max %d, queue max %d, dropped %d, latency ms p50 %.0f p95 %.0f max %.0f\n",
-           frames, sum_cost / frames, max_cost, max_scale, max_q, drops, p50, p95, max);
-    int bad = check && (p95 > FRAMES_P95_MS || drops > 0);
-    if (bad) fprintf(stderr, "frames: p95 over %d ms or reports dropped\n", FRAMES_P95_MS);
+    printf("%s: frames %d, X ms a frame avg %.1f max %.1f, step scale max %d, queue max %d, dropped %d, latency ms p50 %.0f p95 %.0f max %.0f\n",
+           hover_only ? "hover" : "draw", frames, sum_cost / frames, max_cost, max_scale, max_q, drops, p50, p95, max);
+    printf("  cursor: frames hovering %d, drawn twice in a frame %d, not at the last report %d, pushes a second max %d, hover reports queued %d\n",
+           hover_frames, multi_draw, off_target, max_pushes, hq_bad);
+    int limit = hover_only ? FRAMES_HOVER_P95_MS : FRAMES_P95_MS;
+    int bad = check && (p95 > limit || drops > 0 || multi_draw || off_target || hq_bad || (hover_only && max_pushes > 1000 / SK_FRAME_MS + 1));
+    if (bad) fprintf(stderr, "frames (%s): p95 over %d ms, reports dropped, or the cursor drawn more than once a frame / off the last report / pushed too often\n", hover_only ? "hover" : "draw", limit);
     rig_end(&r);
     free(ev);
     free(lat);
     return bad;
+}
+
+int main(int argc, char **argv)
+{
+    int check = argc > 1 && !strcmp(argv[1], "--check");
+    int bad = run(0, check);
+    return run(1, check) || bad;
 }

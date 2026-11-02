@@ -25,6 +25,8 @@
 #include "toolbar.h"
 #include "mrpick.h"
 
+enum { HV_NONE, HV_CURSOR, HV_ARROW };
+
 typedef struct {
     const sk_fs_t *fs;
     void *user;
@@ -93,6 +95,7 @@ typedef struct {
     int paper, paper_sp, paper_def, paper_sp_def; /* the page on screen's paper (paper.h) and the settings' default for new pages */
     unsigned mods;       /* keyboard modifiers held (APP_MOD_*) */
     int stroke_erase;    /* the open stroke erases */
+    int hv_pend, hv_kind, hv_ux, hv_uy; /* a hover report waits for the frame to draw its cursor (sk_pen, sk_frame) */
     int hover_valid, hover_x, hover_y; /* the pen hovers over the page there */
     uint32_t um_w, um_h; /* the tablet's area, micrometres (0: unknown) */
     int turn;            /* setting tablet_turn (auto): the tablet is used turned in portrait (penmap.h) */
@@ -101,6 +104,7 @@ typedef struct {
     int bk_gap;          /* setting fill_gap: gaps up to this many px close for the bucket (0..6) */
     int bk_down, bk_moved, bk_x, bk_y; /* a bucket tap: the tip is down (where), and moved too far to be a tap */
     uint32_t bk_ask_until; /* "Fill the whole page?" was asked: a tap before this confirms */
+    int cur_draws;       /* cursors and arrows drawn so far (the frames bench counts them: at most one a frame) */
     int cursor, cx, cy, cr, cb, csz; /* the hover cursor is drawn at fb (cx, cy) with half size cr, for brush cb */
     box_t note;          /* the corner note (legend or toast) on screen, when note_on */
     int note_on, legend;

@@ -33,6 +33,7 @@ Sketch for the TRMNL X with a USB pen tablet (XP-Pen Deco 01 V2; firmware API 2.
 | undo/redo/clear over a bounded stroke log and a base image | `src/hist.c` |
 | page files: temp + rename, bad file moved to `-bad.png`, list | `src/pages.c`, `src/pngio.c` (1-bit PNG, no library) |
 | rectangles pushed to the panel (merged, at most 6, byte aligned, every 16 ms: `SK_BATCH_MS`); one panel call per push over their rows (a call costs about 200 ms however small; `make speed` simulates it) | `src/rects.c`, `src/sketch.c` (`sk_flush`), `src/skpush.c`, `host/speed.c` |
+| hover cursor and toolbar arrow: a hover report only notes the position (`hv_*`), `sk_frame` draws it once per frame at the last report; never queued (`host/frames.c` hover run) | `src/sketch.c` |
 | controller (all decisions), screens | `src/sketch.c`, `src/skui.c` |
 | app glue | `apps/trmnl-sketch/main.c` |
 

@@ -197,6 +197,7 @@ static inline void rig_pen_user(rig_t *r, int ux, int uy, unsigned flags, unsign
     if (m->turn == 1) x = y, y = 65535 - t; /* the tablet turned clockwise: undo it (penmap.c) */
     else if (m->turn == 2) x = 65535 - y, y = t;
     sk_pen(&r->s, flags, x, y, pressure, r->now);
+    if (!(flags & APP_PEN_TIP)) sk_frame(&r->s, r->now);
 }
 
 static inline void rig_pen(rig_t *r, int fx, int fy, unsigned flags, unsigned pressure)
@@ -205,6 +206,7 @@ static inline void rig_pen(rig_t *r, int fx, int fy, unsigned flags, unsigned pr
     rig_pt(r, fx, fy, &x, &y);
     r->now += 5;
     sk_pen(&r->s, flags, x, y, pressure, r->now);
+    if (!(flags & APP_PEN_TIP)) sk_frame(&r->s, r->now); /* a hover report is a frame of its own: the frame draws the cursor (sk_pen only notes it); ink points stay queued */
 }
 /* a stroke along points, then the pen lifts */
 static inline void rig_stroke(rig_t *r, const int *xy, int n, unsigned pressure, unsigned extra)

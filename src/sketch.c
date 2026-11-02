@@ -121,6 +121,7 @@ static void tb_pointer(sketch_t *s, int ux, int uy)
             if (i >= 0) tb_item_box(s, i, &b), mark(s, &b);
         }
     ui_arrow(&s->fb, s->orient, ux, uy, &b);
+    s->cur_draws++;
     box_clip(&b, s->fb.w, s->fb.h);
     if (s->note_on && hit(&b, &s->note)) { /* never over a note: restoring the page would eat it */
         fb_put(s, &b);
@@ -165,6 +166,7 @@ static void cursor_show(sketch_t *s, int fx, int fy)
     if ((s->tb_on && hit(&want, &s->tb_box)) || (s->mp_on && hit(&want, &s->mp_box))) return; /* nor over the toolbar or the mirror picker */
     box_t b;
     ui_cursor(&s->fb, fx, fy, br, sz, &b);
+    s->cur_draws++;
     mark(s, &b);
     s->cursor = 1, s->cx = fx, s->cy = fy, s->cr = r, s->cb = br, s->csz = sz;
 }
@@ -350,10 +352,11 @@ static void stroke_add(sketch_t *s, int fx, int fy, int p, uint32_t now)
     s->save_at = now + SK_AUTOSAVE_MS;
 }
 
-void sk_frame(sketch_t *s, uint32_t now)
+static void hover_apply(sketch_t *s);
+
+static void frame_ink(sketch_t *s)
 {
     sk_frame_t *f = &s->frame;
-    (void)now; /* the latency was noted when the point was queued */
     if (!f->n) return;
     int brush = s->stk.brush == BR_BRUSH, step = brush ? brush_stamp_step(BR_BRUSH, s->stk.size) : 1;
     int scale = brush && s->stk.scale > 1 ? s->stk.scale : 1, keep[SK_QUEUE_MAX];
@@ -370,6 +373,13 @@ void sk_frame(sketch_t *s, uint32_t now)
         fb_put(s, &dirty);
         mark(s, &dirty);
     }
+}
+
+void sk_frame(sketch_t *s, uint32_t now)
+{
+    (void)now; /* the latency was noted when the point was queued */
+    frame_ink(s);
+    if (s->hv_pend) hover_apply(s);
 }
 
 void sk_frame_cost(sketch_t *s, uint32_t ms)
@@ -396,6 +406,7 @@ void sk_pen(sketch_t *s, unsigned flags, unsigned x, unsigned y, unsigned pressu
     s->barrel = (flags & (APP_PEN_BARREL | APP_PEN_BARREL2)) != 0;
     s->tip = (flags & APP_PEN_TIP) != 0;
     s->last_act = now;
+    s->hv_pend = 0;
     int fx, fy, inside = pm_map(&s->map, x, y, &fx, &fy);
     if (s->mode != SK_DRAW) return sk_menu_pen(s, flags, fx, fy, inside, now);
     int tip = (flags & APP_PEN_TIP) != 0, range = (flags & (APP_PEN_IN_RANGE | APP_PEN_TIP)) != 0;
@@ -456,14 +467,25 @@ void sk_pen(sketch_t *s, unsigned flags, unsigned x, unsigned y, unsigned pressu
         s->traces++;
         s->save_at = now + SK_AUTOSAVE_MS;
     }
-    if (s->tb_on && range && !tip && inside && on_bar) { /* the arrow over the strip, not the brush's cursor */
+    /* A hover report only notes where the pen is; sk_frame draws the cursor (or the arrow) once, at the last one */
+    s->hv_pend = 1;
+    s->hv_ux = ux, s->hv_uy = uy, s->hover_x = fx, s->hover_y = fy;
+    if (s->tb_on && range && !tip && inside && on_bar) s->hv_kind = HV_ARROW;
+    else s->hv_kind = range && !tip && inside && !on_bar ? HV_CURSOR : HV_NONE;
+}
+
+/* The hover of the last report of the frame: the arrow over the strip, the brush's cursor on the page, or nothing */
+static void hover_apply(sketch_t *s)
+{
+    s->hv_pend = 0;
+    if (s->hv_kind == HV_ARROW) {
         s->hover_valid = 0;
-        return tb_pointer(s, ux, uy);
+        tb_pointer(s, s->hv_ux, s->hv_uy);
+        return;
     }
     tb_pointer_off(s);
-    s->hover_valid = range && !tip && inside && !on_bar;
-    s->hover_x = fx, s->hover_y = fy;
-    if (s->hover_valid) cursor_show(s, fx, fy);
+    s->hover_valid = s->hv_kind == HV_CURSOR;
+    if (s->hover_valid) cursor_show(s, s->hover_x, s->hover_y);
     else sk_cursor_hide(s);
 }
 
