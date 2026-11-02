@@ -3,6 +3,8 @@
 #include "brush.h"
 #include "fmath.h"
 #include "mirror.h"
+#include "sk_cfg.h"
+#include <string.h>
 
 /* A tool lies on the 45 degree diagonal, tip at the lower left: a point is (u along the tool from the tip, v across) */
 typedef struct {
@@ -234,4 +236,47 @@ void tbi_tool(gfx_t *g, int tool, int x, int y, int ink, int bg)
         gfx_fill_rect(g, X + 25, Y + 12, X + 31, Y + 54, ink);
         gfx_fill_rect(g, X + 52, Y + 26, X + 54, Y + 56, ink); /* the caret */
     }
+}
+
+/* The brush's 64 px glyph shrunk to 28 px: drawn in a scratch bitmap, a pixel is black when any of its 2 x 2 (or 3 x 3) are */
+static void tbi_mini(gfx_t *g, int brush, int x, int y, int ink)
+{
+    uint8_t buf[8 * 64];
+    gfx_t t;
+    memset(buf, 0xff, sizeof(buf));
+    gfx_init(&t, buf, 64, 64, 8, 0);
+    tbi_brush(&t, brush, 0, 0, GFX_BLACK, GFX_WHITE);
+    for (int py = 0; py < 28; py++)
+        for (int px = 0; px < 28; px++) {
+            int black = 0;
+            for (int dy = 0; dy < 3 && !black; dy++)
+                for (int dx = 0; dx < 3; dx++) {
+                    int sx = px * 64 / 28 + dx, sy = py * 64 / 28 + dy;
+                    if (sx < 64 && sy < 64 && !gfx_get(&t, sx, sy)) {
+                        black = 1;
+                        break;
+                    }
+                }
+            if (black) gfx_px(g, x + px, y + py, ink);
+        }
+}
+
+void tbi_recent(gfx_t *g, const bstyle_t *e, int x, int y, int ink, int bg)
+{
+    int q = 48, sx = x + 4, sy = y + 4;
+    if (!e) { /* an empty slot: a dotted frame */
+        for (int k = 0; k < q; k += 4) {
+            gfx_px(g, sx + k, sy, ink), gfx_px(g, sx + k, sy + q - 1, ink), gfx_px(g, sx, sy + k, ink), gfx_px(g, sx + q - 1, sy + k, ink);
+        }
+        return;
+    }
+    gfx_rrect(g, (float)(sx - 3), (float)(sy - 3), (float)(sx + q + 2), (float)(sy + q + 2), 3, 3, bg, ink);
+    for (int py = 0; py < q; py++)
+        for (int px = 0; px < q; px++) gfx_px(g, sx + px, sy + py, cv_shade_black(e->shade, sx + px, sy + py) ? ink : bg);
+    int d = 6 + e->size * 16 / SK_SIZE_MAX; /* the pen size as a dot, 6 .. 22 px, with a ring so it shows on any tone */
+    float cx = (float)(sx + 16), cy = (float)(sy + 16), r = (float)d / 2;
+    gfx_ellipse(g, cx - r - 2, cy - r - 2, cx + r + 2, cy + r + 2, 0, bg, bg);
+    gfx_ellipse(g, cx - r, cy - r, cx + r, cy + r, 0, ink, ink);
+    gfx_fill_rect(g, (float)(sx + q - 30), (float)(sy + q - 30), (float)(sx + q + 1), (float)(sy + q + 1), bg);
+    tbi_mini(g, e->brush, sx + q - 30, sy + q - 30, ink);
 }

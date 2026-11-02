@@ -11,6 +11,7 @@
 #define SK_DIR "sketch"      /* inside the app's folder; the Wi-Fi page lists its .png files */
 #define SK_FILE_MAX (700 * 1024) /* the largest page file read (a 1872 x 1404 page is 329 KB raw) */
 #define SK_TEXT_MAX 400 /* characters of one text (newlines count) */
+#define SK_RECENT 5 /* tone + brush + size combinations kept (the toolbar's Recent slots) */
 #define SK_SIZE_MIN 1  /* pen size = the diameter in px (the slider knob's too) */
 #define SK_SIZE_MAX 48
 #define SK_SIZE_DEF 9

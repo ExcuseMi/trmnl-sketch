@@ -36,6 +36,7 @@
 ../../src/skpage.c
 ../../src/skshape.c
 ../../src/sktext.c
+../../src/skrecent.c
 ../../src/skcursor.c
 ../../src/textdraw.c
 ../../src/paper.c

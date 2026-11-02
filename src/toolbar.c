@@ -14,11 +14,11 @@
 #define TB_CH 104 /* glyph 64 + label */
 enum { TB_BLK = GFX_BLACK, TB_WHT = GFX_WHITE };
 
-static const char *const tb_label[TI_N] = { "Fine", "Brush", "Pencil", "Marker", "Calli", "Spray", "Eraser", "Fill", "Line", "Box", "Oval", "Text", "Tone", "", "", "", "", "", "Mirror", "Undo", "Redo", "Clear" };
+static const char *const tb_label[TI_N] = { "Fine", "Brush", "Pencil", "Marker", "Calli", "Spray", "Eraser", "Fill", "Line", "Box", "Oval", "Text", "Tone", "", "", "", "", "", "Mirror", "Undo", "Redo", "Clear", "", "", "", "", "" };
 
 void tb_layout(tb_layout_t *L, int orient, int sw, int sh)
 {
-    static const int row_n[TB_ROWS] = { TI_TONE, TI_N - TI_TONE }, row_gaps[TB_ROWS] = { 1, 2 };
+    static const int row_n[TB_ROWS] = { TI_TONE, TI_N - TI_TONE }, row_gaps[TB_ROWS] = { 1, 3 };
     int cell = 100;
     for (int r = 0; r < TB_ROWS; r++) {
         int c = (sw - 2 * TB_MARGIN - row_gaps[r] * TB_GAP) / row_n[r];
@@ -35,7 +35,7 @@ void tb_layout(tb_layout_t *L, int orient, int sw, int sh)
     for (int r = 0; r < TB_ROWS; r++) {
         int first = r ? TI_TONE : 0, last = r ? TI_N : TI_TONE, x = (sw - (row_n[r] * cell + row_gaps[r] * TB_GAP)) / 2;
         for (int i = first; i < last; i++) {
-            if (i == TI_LINE || i == TI_SIZE || i == TI_MIRROR) L->gap_x[g] = x + TB_GAP / 2, L->gap_row[g++] = r, x += TB_GAP;
+            if (i == TI_LINE || i == TI_SIZE || i == TI_MIRROR || i == TI_RECENT) L->gap_x[g] = x + TB_GAP / 2, L->gap_row[g++] = r, x += TB_GAP;
             L->cx[i] = x, L->cyi[i] = L->cy + r * TB_CH;
             x += cell;
         }
@@ -150,13 +150,27 @@ static void tb_caption(gfx_t *g, const tb_layout_t *L, int i, int x, int y, int 
     gfx_text(g, f, (int32_t)(x + (L->cell - w) / 2) * 64, y + TBI_SIZE + 26, tb_label[i], 0, c);
 }
 
-void tb_draw(gfx_t *g, const tb_layout_t *L, const bstyle_t *cur, int hot)
+/* A Recent slot's caption: the pen size */
+static void tb_recent_caption(gfx_t *g, const tb_layout_t *L, const bstyle_t *e, int x, int y, int c)
+{
+    char t[8] = "";
+    if (e) {
+        int n = 0;
+        if (e->size >= 10) t[n++] = (char)('0' + e->size / 10);
+        t[n++] = (char)('0' + e->size % 10), t[n] = 0;
+    }
+    const font_face_t *f = font_get(FONT_BOLD, 24);
+    int w = (int)((font_width64(f, t, 0) + 32) >> 6);
+    gfx_text(g, f, (int32_t)(x + (L->cell - w) / 2) * 64, y + TBI_SIZE + 26, t, 0, c);
+}
+
+void tb_draw(gfx_t *g, const tb_layout_t *L, const bstyle_t *cur, int hot, const bstyle_t *rc, int rc_n)
 {
     gfx_clip(g, L->x0, L->y0, L->x1, L->y1);
     gfx_fill_rect(g, (float)L->x0, (float)L->y0, (float)L->x1, (float)L->y1, TB_WHT);
     int ly = L->top ? L->y1 - TB_LINE + 1 : L->y0;
     gfx_fill_rect(g, (float)L->x0, (float)ly, (float)L->x1, (float)(ly + TB_LINE - 1), TB_BLK);
-    for (int k = 0; k < 3; k++) { /* a thin divider between the groups */
+    for (int k = 0; k < 4; k++) { /* a thin divider between the groups */
         int dy = L->cy + L->gap_row[k] * TB_CH;
         gfx_fill_rect(g, (float)(L->gap_x[k] - 1), (float)(dy + 8), (float)L->gap_x[k], (float)(dy + L->ch - 8), TB_BLK);
     }
@@ -166,6 +180,7 @@ void tb_draw(gfx_t *g, const tb_layout_t *L, const bstyle_t *cur, int hot)
         else if (i < TI_TONE) sel = cur->tool == i - TI_LINE + TL_LINE;
         else if (i < TI_MIRROR) continue; /* the sliders */
         else if (i == TI_MIRROR) sel = cur->mirror != 0;
+        else if (i >= TI_RECENT) sel = i - TI_RECENT < rc_n && rc[i - TI_RECENT].brush == cur->brush && rc[i - TI_RECENT].shade == cur->shade && rc[i - TI_RECENT].size == cur->size;
         int x1 = x + L->cell - 1, y1 = y + L->ch - 1;
         if (sel) gfx_rrect(g, (float)x, (float)y, (float)x1, (float)y1, 12, 0, TB_BLK, TB_BLK);
         if (hot == i) { /* the pen is over it: a frame (on a picked item an inset white one) */
@@ -176,10 +191,12 @@ void tb_draw(gfx_t *g, const tb_layout_t *L, const bstyle_t *cur, int hot)
         if (i < TI_LINE) tbi_brush(g, i, gx, gy, c, bg);
         else if (i < TI_TONE) tbi_tool(g, i - TI_LINE + TL_LINE, gx, gy, c, bg);
         else if (i == TI_MIRROR) tbi_mirror(g, cur->mirror, gx, gy, c, bg);
+        else if (i >= TI_RECENT) tbi_recent(g, i - TI_RECENT < rc_n ? &rc[i - TI_RECENT] : 0, gx, gy, c, bg);
         else if (i == TI_UNDO) tbi_undo(g, gx, gy, c, bg);
         else if (i == TI_REDO) tbi_redo(g, gx, gy, c, bg);
         else tbi_clear(g, gx, gy, c, bg);
-        tb_caption(g, L, i, x, y, c);
+        if (i >= TI_RECENT) tb_recent_caption(g, L, i < TI_RECENT + rc_n ? &rc[i - TI_RECENT] : 0, x, y, c);
+        else tb_caption(g, L, i, x, y, c);
     }
     tb_tone(g, L, cur);
     tb_slider(g, L, cur, hot);

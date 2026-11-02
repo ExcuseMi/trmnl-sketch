@@ -159,8 +159,33 @@ static void cursor_shots(const char *dir, int *bad)
     rig_end(&r);
 }
 
+static void recent_shots(const char *dir, int *bad)
+{
+    static const int combo[5][3] = { { BR_FINELINER, 0, 4 }, { BR_MARKER, 5, 30 }, { BR_PENCIL, 3, 12 }, { BR_BRUSHPEN, 7, 20 }, { BR_SPRAY, 1, 44 } };
+    for (int o = 0; o < 2; o++) {
+        rig_t r;
+        rig_new(&r, o ? APP_ORIENT_BAR_LEFT : APP_ORIENT_BAR_BOTTOM);
+        for (int k = 0; k < 5; k++) {
+            sk_set_brush(&r.s, combo[k][0], r.now += 50);
+            sk_set_shade(&r.s, combo[k][1], r.now += 50);
+            sk_set_size(&r.s, combo[k][2], r.now += 50);
+            if (o) {
+                for (int i = 0; i <= 20; i++) rig_pen_user(&r, 200 + i * 30, 500 + k * 120, APP_PEN_TIP | APP_PEN_IN_RANGE, 40000);
+                rig_pen_user(&r, 800, 500 + k * 120, APP_PEN_IN_RANGE, 0);
+            } else {
+                drag(&r, 300, 400 + k * 150, 1200, 420 + k * 150, 0, 1);
+            }
+        }
+        sk_toolbar(&r.s, r.now);
+        frames(&r);
+        put(&r, dir, o ? "r2-recent-row-portrait" : "r1-recent-row", bad);
+        rig_end(&r);
+    }
+}
+
 void tool_shots(const char *dir, int *bad)
 {
+    recent_shots(dir, bad);
     cursor_shots(dir, bad);
     tone_shots(dir, bad);
     text_shots(dir, bad);

@@ -7,7 +7,7 @@
 #include "gfx.h"
 
 /* TI_MIRROR cycles the symmetry (mirror.h); it is shown picked while one is on. TI_TONE and TI_SIZE are sliders: each takes the width of three cells (tb_hit gives TI_TONE / TI_SIZE for each of them) */
-enum { TI_BRUSH = 0, TI_LINE = BR_N, TI_RECT, TI_OVAL, TI_TEXT, TI_TONE, TI_SIZE = TI_TONE + 3, TI_MIRROR = TI_SIZE + 3, TI_UNDO, TI_REDO, TI_CLEAR, TI_N };
+enum { TI_BRUSH = 0, TI_LINE = BR_N, TI_RECT, TI_OVAL, TI_TEXT, TI_TONE, TI_SIZE = TI_TONE + 3, TI_MIRROR = TI_SIZE + 3, TI_UNDO, TI_REDO, TI_CLEAR, TI_RECENT, TI_N = TI_RECENT + 5 };
 /* Two rows: brushes and the shape and text tools, then the shades, size slider, mirror and the actions (a row of 22 cells would not fit a portrait panel) */
 #define TB_ROWS 2
 #define TB_ROW_OF(i) ((i) < TI_TONE ? 0 : 1)
@@ -16,7 +16,7 @@ typedef struct {
     int x0, y0, x1, y1; /* the strip, user frame, inclusive */
     int cell, ch;       /* an item is cell wide and ch high: a 64 px glyph with its short label under it */
     int cx[TI_N], cyi[TI_N], cy; /* item left and top edges (cy: the first row's top) */
-    int gap_x[3], gap_row[3]; /* centres of the dividers before Line, the size slider and Mirror, and their row */
+    int gap_x[4], gap_row[4]; /* centres of the dividers before Line, the size slider, Mirror and the Recent slots, and their row */
     int tn_x0, tn_x1, tn_y; /* the tone slider: the knob runs from tn_x0 (lightest) to tn_x1 (black) at tn_y */
     int sl_x0, sl_x1, sl_y; /* the size slider: the knob's centre runs along the track from sl_x0 to sl_x1 at sl_y, user frame */
     int top;            /* the strip is along the top edge (else the bottom) */
@@ -37,5 +37,7 @@ int tb_tone_of(const tb_layout_t *L, int x);
 int tb_tone_x(const tb_layout_t *L, int shade);
 void tb_tone_box(const tb_layout_t *L, int *x0, int *y0, int *x1, int *y1);
 /* ... `hot` == TI_SIZE: the current brush's footprint is drawn over the knob (clipped to the slider) */
-void tb_draw(gfx_t *g, const tb_layout_t *L, const bstyle_t *cur, int hot);
+/* The Recent slots (TI_RECENT .. +4): the last combinations drawn with, `rc` (rc_n of them, most recent first): a swatch of the tone with a dot of
+   the size and the brush's glyph tiny in a corner; the one equal to the current brush, tone and size is shown picked */
+void tb_draw(gfx_t *g, const tb_layout_t *L, const bstyle_t *cur, int hot, const bstyle_t *rc, int rc_n);
 #endif

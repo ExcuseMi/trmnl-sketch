@@ -84,7 +84,7 @@ static void test_in_the_app(void)
     for (int k = 0; k < 4; k++) {
         sk_set_tool(&r.s, TL_LINE + k, r.now);
         rig_pen(&r, 700, 700, APP_PEN_IN_RANGE, 0);
-        CHECK(r.s.cursor && r.s.cb / 64 == BR_N + TL_LINE + k);
+        CHECK(r.s.cursor && r.s.cb == BR_N + TL_LINE + k);
         rig_pen(&r, 10, 600, 0, 0); /* out of range: the cursor goes, no mark is left */
         r.now += 3000;
         sk_tick(&r.s, r.now);

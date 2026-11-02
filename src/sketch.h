@@ -74,6 +74,8 @@ typedef struct {
     box_t tx_box;        /* its drawing on the screen (framebuffer only until it ends) */
     uint32_t kbd;        /* APP_KBD_* bits connected now */
     int kbd_req;         /* the Text tool wants the glue to enable the keyboards (keyboard_enable) */
+    bstyle_t rc[SK_RECENT]; /* the last tone + brush + size combinations drawn with, most recent first (skrecent.c) */
+    int rc_n;
     unsigned mods;       /* keyboard modifiers held (APP_MOD_*) */
     int stroke_erase;    /* the open stroke erases */
     int hover_valid, hover_x, hover_y; /* the pen hovers over the page there */
@@ -84,7 +86,7 @@ typedef struct {
     int bk_gap;          /* setting fill_gap: gaps up to this many px close for the bucket (0..6) */
     int bk_down, bk_moved, bk_x, bk_y; /* a bucket tap: the tip is down (where), and moved too far to be a tap */
     uint32_t bk_ask_until; /* "Fill the whole page?" was asked: a tap before this confirms */
-    int cursor, cx, cy, cr, cb; /* the hover cursor is drawn at fb (cx, cy) with half size cr, for brush cb */
+    int cursor, cx, cy, cr, cb, csz; /* the hover cursor is drawn at fb (cx, cy) with half size cr, for brush cb */
     box_t note;          /* the corner note (legend or toast) on screen, when note_on */
     int note_on, legend;
     uint32_t note_until;
@@ -178,6 +180,10 @@ int sk_text_pen(sketch_t *s, int tip, int inside, int fx, int fy, uint32_t now);
 void sk_text_end(sketch_t *s, uint32_t now);
 void sk_keyboard(sketch_t *s, uint32_t bits, uint32_t now);
 void sk_key(sketch_t *s, int down, unsigned key, unsigned mods, unsigned hid, const char *utf8, uint32_t now);
+/* The Recent combinations (skrecent.c): sk_recent_add when a stroke ends (the eraser and the bucket never enter), sk_recent_pick restores slot i */
+void sk_recent_load(sketch_t *s);
+void sk_recent_add(sketch_t *s, const bstyle_t *st);
+void sk_recent_pick(sketch_t *s, int slot, uint32_t now);
 /* The paper (skpaper.c) */
 void sk_paper_new(sketch_t *s);               /* the default for a new page */
 void sk_paper_open(sketch_t *s, int num);     /* the paper of page num (Blank for a page saved before papers existed) */

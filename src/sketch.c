@@ -41,7 +41,7 @@ void sk_tb_paint(sketch_t *s)
 {
     gfx_t g;
     mkg(s, &g);
-    tb_draw(&g, &s->tb, &s->sty, s->tb_hot);
+    tb_draw(&g, &s->tb, &s->sty, s->tb_hot, s->rc, s->rc_n);
 }
 
 static void pl_paint(sketch_t *s)
@@ -191,14 +191,14 @@ static void cursor_show(sketch_t *s, int fx, int fy)
     int tool = s->sty.tool, br = tool != TL_DRAW ? BR_N + tool : eff_brush(s), sz = tool != TL_DRAW ? s->sty.size : size_for(s, br), r = brush_cursor_r(br, sz);
     if (s->tx_on) return sk_cursor_hide(s); /* the caret is the cursor */
     box_t want = { fx - r - BR_CUR_OUT, fy - r - BR_CUR_OUT, fx + r + BR_CUR_OUT, fy + r + BR_CUR_OUT };
-    if (s->cursor && s->cr == r && s->cb == br * 64 + sz && (fx - s->cx) * (fx - s->cx) + (fy - s->cy) * (fy - s->cy) < 9) return;
+    if (s->cursor && s->cr == r && s->cb == br && s->csz == sz && (fx - s->cx) * (fx - s->cx) + (fy - s->cy) * (fy - s->cy) < 9) return;
     sk_cursor_hide(s);
     if (s->note_on && hit(&want, &s->note)) return; /* never over a note: restoring the page would eat it */
     if ((s->tb_on && hit(&want, &s->tb_box)) || hit(&want, &s->pl_box)) return; /* nor over the toolbar or the pills */
     box_t b;
     ui_cursor(&s->fb, fx, fy, br, sz, &b);
     mark(s, &b);
-    s->cursor = 1, s->cx = fx, s->cy = fy, s->cr = r, s->cb = br * 64 + sz;
+    s->cursor = 1, s->cx = fx, s->cy = fy, s->cr = r, s->cb = br, s->csz = sz;
 }
 
 void sk_note_hide(sketch_t *s)
@@ -366,6 +366,7 @@ static void tb_press(sketch_t *s, int item, uint32_t now)
     if (item < TI_LINE) sk_set_brush(s, item - TI_BRUSH, now);
     else if (item < TI_TONE) sk_set_tool(s, item - TI_LINE + TL_LINE, now);
     else if (item < TI_SIZE) s->tb_drag = 2; /* the tone slider: the first x comes with the same event */
+    else if (item >= TI_RECENT) sk_recent_pick(s, item - TI_RECENT, now);
     else if (item == TI_MIRROR) sk_set_mirror(s, (s->sty.mirror + 1) % MR_N, now);
     else if (item == TI_SIZE) s->tb_drag = 1; /* the first x comes with the same event: slider_drag */
     else if (item == TI_UNDO) sk_undo(s, now);
@@ -432,7 +433,8 @@ void sk_pen(sketch_t *s, unsigned flags, unsigned x, unsigned y, unsigned pressu
         int was = s->stroke || s->bk_down || s->sh_on;
         s->bk_down = 0;
         sk_shape_cancel(s);
-        if (was) stroke_tail(s, now), hist_end(&s->hist), s->stroke = 0;
+        if (was && s->stroke) stroke_tail(s, now), hist_end(&s->hist), sk_recent_add(s, &s->stk), s->stroke = 0;
+        else if (was) hist_end(&s->hist), s->stroke = 0;
         if (!s->tb_hold) {
             s->tb_hold = 1;
             sk_cursor_hide(s);
@@ -468,6 +470,7 @@ void sk_pen(sketch_t *s, unsigned flags, unsigned x, unsigned y, unsigned pressu
     if (s->stroke) {
         stroke_tail(s, now);
         hist_end(&s->hist);
+        sk_recent_add(s, &s->stk);
         s->stroke = 0;
         s->save_at = now + SK_AUTOSAVE_MS;
     }
@@ -660,6 +663,7 @@ int sk_init(sketch_t *s, const sk_env_t *env, uint8_t *fb, int w, int h, int str
     s->sty.brush = (uint8_t)(cfg_int(s, "brush", 0) % BR_N);
     if (s->sty.brush == BR_ERASER) s->sty.brush = BR_FINELINER;
     s->last_ink = s->sty.brush;
+    sk_recent_load(s);
     box_clear(&s->flash);
     s->orient = orient;
     s->bar = *bar;

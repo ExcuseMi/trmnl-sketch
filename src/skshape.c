@@ -105,6 +105,7 @@ static void commit(sketch_t *s, uint32_t now)
     hist_begin_style(&s->hist, brush_is_eraser(br) ? HK_ERASE : HK_INK, &st);
     for (int i = 0; i < n; i++) hist_add(&s->hist, pt[i][0], pt[i][1], d, &dirty);
     hist_end(&s->hist);
+    sk_recent_add(s, &st);
     if (!box_empty(&dirty)) sk_page_changed(s, &dirty, now);
 }
 

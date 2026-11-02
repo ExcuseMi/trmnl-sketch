@@ -165,6 +165,7 @@ static void test_draw_near_strip(void)
     rig_t r;
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
     key(&r, 3);
+    rig_line(&r, 500, 900, 700, 910, 40000, 0); /* the first stroke fills a Recent slot (the strip changes then, not for the next ones) */
     idle(&r, 3000);
     int below = r.s.tb.y1 + 1;
     static uint8_t strip[TS * 300]; /* the strip is two rows tall */
