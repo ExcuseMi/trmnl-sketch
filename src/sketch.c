@@ -386,6 +386,7 @@ static void stroke_add(sketch_t *s, int fx, int fy, int p, uint32_t now)
     if (!box_empty(&dirty)) {
         fb_put(s, &dirty);
         mark(s, &dirty);
+        sk_lat_ink(s, now);
     }
     s->px = s->lx, s->py = s->ly, s->lx = fx, s->ly = fy, s->lp = p;
     s->dirty = 1;
@@ -502,7 +503,16 @@ void sk_pen_key(sketch_t *s, unsigned keys, unsigned changed, uint32_t now)
         if (down) sk_menu_key(s, down, now);
         return;
     }
-    for (int b = 0; b < 8; b++) {
+    if (changed >> 7 & 1) { /* button 8: the menu when let go, the debug toast after a long press */
+        if (down >> 7 & 1) s->k8_down = now | 1;
+        else if (s->k8_down) {
+            int held = (int32_t)(now - s->k8_down) >= SK_LONGPRESS_MS;
+            s->k8_down = 0;
+            if (held) sk_lat_debug(s, now);
+            else sk_to_pagemenu(s, now);
+        }
+    }
+    for (int b = 0; b < 7; b++) {
         if (!(down >> b & 1)) continue;
         switch (b) {
         case 0: sk_undo(s, now); break;
@@ -511,7 +521,7 @@ void sk_pen_key(sketch_t *s, unsigned keys, unsigned changed, uint32_t now)
         case 3: sk_toolbar(s, now); break;
         case 4: sk_clear(s, now); break;
         case 5: sk_new_page(s, now); break;
-        default: sk_to_pagemenu(s, now); break; /* 7 and 8: the menu of this page (no page stepping: the gallery is the way between pages) */
+        default: sk_to_pagemenu(s, now); break; /* 7: the menu of this page (8 does the same when let go; no page stepping: the gallery is the way between pages) */
         }
     }
 }
@@ -555,6 +565,7 @@ void sk_tick(sketch_t *s, uint32_t now)
     }
     if (s->legend && (int32_t)(now - s->note_until) >= 0) sk_note_hide(s);
     if (s->dirty && !s->stroke && (int32_t)(now - s->save_at) >= 0) sk_do_save(s, now);
+    sk_lat_tick(s, now);
 }
 
 int sk_flush(sketch_t *s, uint32_t now, rect_t *out)
@@ -563,6 +574,7 @@ int sk_flush(sketch_t *s, uint32_t now, rect_t *out)
     if (n != SK_NOFLASH) return n;
     if (!s->pend.n || (uint32_t)(now - s->last_push) < (uint32_t)s->batch_ms) return 0;
     n = rs_take(&s->pend, out);
+    sk_lat_issued(s, now);
     for (int i = 0; i < n; i++) s->pushed_px += (uint32_t)(out[i].w * out[i].h);
     s->pushed_rects += (uint32_t)n;
     s->last_push = now;

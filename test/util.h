@@ -36,6 +36,7 @@ typedef struct {
     uint32_t now;
     int started;
     char cfg_cur[8], cfg_size[8], cfg_esize[8], cfg_brush[8], cfg_shade[8], cfg_tone[8], cfg_pen_area[8], cfg_cleanup[8], cfg_paper[8], cfg_papsp[8], cfg_smooth[8], cfg_pcurve[8], cfg_use_tilt[8], cfg_rc[5][12];
+    int log_n, log_ev_med, log_ev_p95, log_push_med, log_push_p95, log_samples; /* the latency lines sketch handed to its log */
     int inverted;       /* inverted halves seen (rig_flush) */
     int bare_fulls;     /* full refreshes handed out without their inverted half first: the flash helper was bypassed */
     box_t pre;          /* the area of the last inverted half */
@@ -57,6 +58,12 @@ static int fake_post(void *u, const char *url, const void *body, size_t n, uint8
         resp[0] = 1, resp[1] = 1, resp[2] = (uint8_t)(p->ipp >> 8), resp[3] = (uint8_t)p->ipp, *rn = 8;
     }
     return p->status;
+}
+
+static void rig_log(void *u, int ev_med, int ev_p95, int push_med, int push_p95, int n)
+{
+    rig_t *r = u;
+    r->log_n++, r->log_ev_med = ev_med, r->log_ev_p95 = ev_p95, r->log_push_med = push_med, r->log_push_p95 = push_p95, r->log_samples = n;
 }
 
 static int rig_printer(void *u, pj_printer_t *out)
@@ -99,7 +106,7 @@ static inline void rig_start(rig_t *r, int orient)
     memset(r->fb, 0xff, (size_t)TS * TH);
     app_touchbar_t bar;
     tbfw_layout(orient, &bar);
-    sk_env_t env = { &r->fs.fs, r, rig_get, rig_set, { PJ_PWG, fake_post, &r->pr }, rig_printer };
+    sk_env_t env = { &r->fs.fs, r, rig_get, rig_set, { PJ_PWG, fake_post, &r->pr }, rig_log, rig_printer };
     if (sk_init(&r->s, &env, r->fb, TW, TH, TS, orient, &bar)) abort();
     sk_set_tablet(&r->s, UM_W, UM_H, 1);
     r->started = 1;

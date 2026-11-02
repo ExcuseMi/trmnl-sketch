@@ -5,7 +5,7 @@ FW ?= $(HOME)/workspace/trmnl-fw-files
 PRINT ?= $(HOME)/workspace/trmnl-print/src
 PY ?= $(HOME)/workspace/trmnl-fpv/.venv/bin/python
 CFLAGS = -Itest -std=c11 -O1 -g -Wall -Wextra -Werror -Wshadow -Isrc -I$(PRINT) -Ihost -Igen -I$(FW)/include -fsanitize=address,undefined -fno-sanitize-recover=all
-CORE = src/canvas.c src/brush.c src/toolbar.c src/tbicons.c src/penmap.c src/hist.c src/pngio.c src/pages.c src/rects.c src/skpush.c src/skcfg.c src/sksize.c src/skflash.c src/fill.c src/skfill.c src/mirror.c src/skmirror.c src/skui.c src/skpills.c src/skmenu.c src/gallery.c src/skprint.c src/skgal.c $(PRINT)/pcl.c $(PRINT)/pwg.c $(PRINT)/ipp.c $(PRINT)/imgfit.c $(PRINT)/textlay.c $(PRINT)/printer.c $(PRINT)/printjob.c src/sketch.c src/skpage.c src/skshape.c src/sktext.c src/skrecent.c src/skstab.c src/skpress.c src/sktilt.c src/skcursor.c src/textdraw.c src/paper.c src/skpaper.c src/font.c src/gfx.c gen/fonts_gen.c
+CORE = src/canvas.c src/brush.c src/toolbar.c src/tbicons.c src/penmap.c src/hist.c src/pngio.c src/pages.c src/rects.c src/skpush.c src/skcfg.c src/sksize.c src/skflash.c src/fill.c src/skfill.c src/mirror.c src/skmirror.c src/skui.c src/skpills.c src/skmenu.c src/gallery.c src/skprint.c src/skgal.c $(PRINT)/pcl.c $(PRINT)/pwg.c $(PRINT)/ipp.c $(PRINT)/imgfit.c $(PRINT)/textlay.c $(PRINT)/printer.c $(PRINT)/printjob.c src/sketch.c src/skpage.c src/skshape.c src/sktext.c src/skrecent.c src/skstab.c src/skpress.c src/sktilt.c src/sklat.c src/sklatency.c src/skcursor.c src/textdraw.c src/paper.c src/skpaper.c src/font.c src/gfx.c gen/fonts_gen.c
 HOST = host/memfs.c build/tbfw.o
 TESTS = $(patsubst test/%.c,build/%,$(wildcard test/test_*.c))
 
@@ -22,9 +22,9 @@ build/%: test/%.c $(CORE) $(HOST) test/check.h test/util.h $(wildcard src/*.h ho
 	$(CC) $(CFLAGS) $< $(CORE) $(HOST) -o $@ -lm -lz -lstdc++
 test: $(TESTS) speed
 	@for t in $(TESTS); do ./$$t || exit 1; done
-build/shots: host/shots.c host/shots_fill.c host/shots_mirror.c host/shots_tools.c host/png.c $(CORE) $(HOST) test/util.h $(wildcard src/*.h host/*.h)
+build/shots: host/shots.c host/shots_fill.c host/shots_mirror.c host/shots_tools.c host/shots_pro.c host/png.c $(CORE) $(HOST) test/util.h $(wildcard src/*.h host/*.h)
 	@mkdir -p build
-	$(CC) $(CFLAGS) host/shots.c host/shots_fill.c host/shots_mirror.c host/shots_tools.c host/png.c $(CORE) $(HOST) -o $@ -lz -lm -lstdc++
+	$(CC) $(CFLAGS) host/shots.c host/shots_fill.c host/shots_mirror.c host/shots_tools.c host/shots_pro.c host/png.c $(CORE) $(HOST) -o $@ -lz -lm -lstdc++
 shots: build/shots
 	@mkdir -p shots
 	./build/shots shots

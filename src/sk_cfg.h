@@ -2,7 +2,8 @@
 #ifndef SK_CFG_H
 #define SK_CFG_H
 
-#define SK_BATCH_MS 40       /* new ink is pushed to the panel at most this often */
+#define SK_BATCH_MS 16       /* new ink is pushed to the panel at most this often (host/speed.c: 16 beats 40 by 4 to 11 ms p95, the panel is the bottleneck) */
+#define SK_LONGPRESS_MS 800 /* tablet button 8 held this long: the hidden debug toast */
 #define SK_MAX_RECTS 6       /* rectangles per push (and pending) */
 #define SK_AUTOSAVE_MS 1500  /* the page is written this long after the pen left it */
 #define SK_HIST_STROKES 48   /* undo depth; older strokes are baked into the page's base image */

@@ -19,6 +19,7 @@
 #include "skmenu.h"
 #include "skpills.h"
 #include "sk_cfg.h"
+#include "sklat.h"
 #include "skpress.h"
 #include "skstab.h"
 #include "skui.h"
@@ -30,6 +31,7 @@ typedef struct {
     int (*cfg_get)(void *user, const char *key, char *buf, int cap); /* app settings; length or < 0 */
     int (*cfg_set)(void *user, const char *key, const char *val, int n);
     pj_net_t net;        /* the printer connection (post == NULL: this firmware cannot print) */
+    void (*log)(void *user, int ev_med, int ev_p95, int push_med, int push_p95, int n); /* drawing latency, a line in the log every SK_LAT_LOG_MS while drawing (NULL: none) */
     int (*printer)(void *user, pj_printer_t *out); /* the default printer (pj_default_printer): 0, PJ_NO_PRINTER, APP_ENOTSUP, APP_EIO */
 } sk_env_t;
 
@@ -69,6 +71,9 @@ typedef struct {
     int tablet;          /* a tablet is connected (pen_info) */
     int stroke, barrel;  /* a stroke is open; a pen button is held */
     stab_t stab;         /* the stabiliser of the open stroke (skstab.h) */
+    lat_t lat_ev, lat_push; /* event to push issued, push duration (sklat.h) */
+    int ink_pend, lat_new, dbg; /* ink waits to be pushed; samples since the last log line; the debug toast is on */
+    uint32_t ink_t, lat_next, k8_down; /* when that ink began; when the next log line is due; when tablet button 8 went down */
     int use_tilt, tilt;  /* setting use_tilt (default on); the tilt code of the pen's last event (sk_pen_tilt) */
     int pcurve;          /* setting pressure_curve: PC_SOFT, PC_NORMAL (default), PC_FIRM (skpress.h) */
     int smooth;          /* the stabiliser 0..10 (setting smooth, default 3; the toolbar's Smooth cell) */
@@ -171,6 +176,12 @@ void sk_touch(sketch_t *s, int zone, int gesture, uint32_t now);
 void sk_share_update(sketch_t *s, int start_rc, const app_webshare_status_t *st);
 /* Autosave and notes timing */
 void sk_tick(sketch_t *s, uint32_t now);
+/* Latency (sklatency.c): sk_lat_push is what the glue reports after a push call (its duration in ms); a long press of tablet button 8 toggles the debug toast */
+void sk_lat_push(sketch_t *s, uint32_t ms);
+void sk_lat_ink(sketch_t *s, uint32_t now);
+void sk_lat_issued(sketch_t *s, uint32_t now);
+void sk_lat_tick(sketch_t *s, uint32_t now);
+void sk_lat_debug(sketch_t *s, uint32_t now);
 /* The pages saved now (the app ends or is told to) */
 void sk_save_now(sketch_t *s);
 /* After sk_flush showed the "Printing" screen (print_req): sends the page, sets the result screen */

@@ -74,6 +74,13 @@ static int f_post(void *u, const char *url, const void *body, size_t n, uint8_t 
 /* The default printer: the X's device setting (API 2.11) or the Print app's printer.cfg, one function */
 static int f_printer(void *u, pj_printer_t *out) { return (void)u, pj_default_printer(api, out); }
 
+/* The drawing latency, a line in the device log every 10 s while drawing (sklat.h) */
+static void f_log(void *u, int ev_med, int ev_p95, int push_med, int push_p95, int n)
+{
+    (void)u;
+    api->log("sketch lat: event to push med %d p95 %d ms, push call med %d p95 %d ms, n %d", ev_med, ev_p95, push_med, push_p95, n);
+}
+
 static int have_pen(void) { return api->size >= APP_API_SLOT(50); }
 
 /* The tablet connected now (it may come after the app starts) */
@@ -91,7 +98,13 @@ static void push(int n, const rect_t *out)
 {
     sk_call_t c[SK_MAX_RECTS];
     int k = n ? skp_calls(n, out, SKP_MODE, api->size >= APP_API_SLOT(SKP_INK_SLOT), c) : 0;
-    for (int i = 0; i < k; i++) api->screen_refresh(c[i].whole ? 0 : &c[i].r, c[i].how);
+    uint32_t t0 = api->millis();
+    int ink = k > 0;
+    for (int i = 0; i < k; i++) {
+        api->screen_refresh(c[i].whole ? 0 : &c[i].r, c[i].how);
+        if (c[i].whole || c[i].how == APP_REFRESH_FULL) ink = 0; /* a flash or a full refresh is not drawing */
+    }
+    if (ink) sk_lat_push(&sk, api->millis() - t0);
 }
 
 int app_main(const app_api_t *a)
@@ -104,7 +117,7 @@ int app_main(const app_api_t *a)
     app_touchbar_t bar;
     ao_layout(api, orient, fw, fh, &bar);
     skcfg_declare(api);
-    sk_env_t env = { &fs, 0, cfg_get, cfg_set, { PJ_PWG, f_post, 0 }, f_printer };
+    sk_env_t env = { &fs, 0, cfg_get, cfg_set, { PJ_PWG, f_post, 0 }, f_log, f_printer };
     int rc = sk_init(&sk, &env, fb, fw, fh, stride, orient, &bar);
     if (rc) return rc;
     if (api->size >= APP_API_SLOT(41)) api->touch_hold(1u << APP_TOUCH_MIDDLE);

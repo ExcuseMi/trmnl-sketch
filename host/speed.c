@@ -139,6 +139,7 @@ static double glue(rig_t *r, uint8_t *panel, int n, const rect_t *out, int mode,
                 busy_until = e;
             }
             memcpy(panel + (size_t)y0 * TS, r->fb + (size_t)y0 * TS, (size_t)(y1 - y0 + 1) * TS);
+            sk_lat_push(&r->s, 0); /* an ink call returns at once */
             continue;
         }
         if (t < busy_until) t = busy_until;
@@ -147,6 +148,7 @@ static double glue(rig_t *r, uint8_t *panel, int n, const rect_t *out, int mode,
         if (*nc < MAXCALLS) calls[(*nc)++] = (call_t){ t, t + ms, y0, y1 };
         t += ms;
         busy_until = t;
+        if (c[i].how == APP_REFRESH_PARTIAL) sk_lat_push(&r->s, (uint32_t)ms); /* a plain partial blocks the app for its whole time */
     }
     return t;
 }
@@ -222,7 +224,11 @@ static result_t run(const stream_t *st, int mode, int ink, int batch, int verbos
     for (int k = 0; k < nc; k++)
         if (calls[k].start <= base + st->ev[st->n - 1].t + 2000) during++, rows += calls[k].y1 - calls[k].y0 + 1;
     res.calls_s = during / secs, res.rows_call = during ? rows / during : 0;
-    if (verbose) printf("    %d pen events with the tip down, %d calls\n", m, nc);
+    if (verbose) {
+        char lt[80];
+        lat_text(lt, sizeof(lt), &r.s.lat_ev, &r.s.lat_push);
+        printf("    %d pen events with the tip down, %d calls; the app's own log (sklat.h), last %d samples: %s\n", m, nc, SK_LAT_N, lt);
+    }
     free(lp), free(ls), free(panel);
     rig_end(&r);
     return res;
@@ -257,9 +263,13 @@ int main(int argc, char **argv)
         if (!check) {
             result_t a = run(&st, SKP_PER_RECT, 0, 40, 0);
             row("before: a call a rect, 40", &a);
-            static const int win[] = { 0, 10, 20, 30, 40 };
-            result_t ik = run(&st, SKP_ONE_CALL, 1, SK_BATCH_MS, 0);
-            row("fast ink (2.14)", &ik);
+            static const int win[] = { 0, 10, 20, 30, 40 }, iw[] = { 8, 16, 24, 32, 40, 60 };
+            for (unsigned k = 0; k < sizeof(iw) / sizeof(iw[0]); k++) {
+                char lab[40];
+                snprintf(lab, sizeof(lab), "fast ink (2.14), window %d", iw[k]);
+                result_t ik = run(&st, SKP_ONE_CALL, 1, iw[k], 0);
+                row(lab, &ik);
+            }
             for (unsigned k = 0; k < sizeof(win) / sizeof(win[0]); k++) {
                 char lab[40];
                 snprintf(lab, sizeof(lab), "one call, window %d ms", win[k]);
@@ -267,7 +277,7 @@ int main(int argc, char **argv)
                 row(lab, &b);
             }
         }
-        result_t d = run(&st, SKP_MODE, 1, SK_BATCH_MS, 0);
+        result_t d = run(&st, SKP_MODE, 1, SK_BATCH_MS, !check);
         row("default", &d);
         CHECK(d.ok);
         if (check) {
