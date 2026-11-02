@@ -8,7 +8,7 @@
 #include "brush.h"
 #include "canvas.h"
 
-enum { HK_INK, HK_ERASE, HK_CLEAR, HK_FILL }; /* HK_FILL: the points are runs of a bucket fill (fill.h) */
+enum { HK_INK, HK_ERASE, HK_CLEAR, HK_FILL, HK_TEXT }; /* HK_FILL: the points are runs of a bucket fill (fill.h); HK_TEXT: point 0 is the origin and the size class, the others are code points in x (textdraw.h) */
 
 typedef struct {
     int16_t x, y;
@@ -50,6 +50,8 @@ void hist_clear(hist_t *h, box_t *changed);
    NULL when n alone does not fit), the caller writes them (bf_emit); hist_fill_end paints them with the style's shade */
 hpt_t *hist_fill_begin(hist_t *h, uint32_t n, const bstyle_t *style);
 void hist_fill_end(hist_t *h, uint32_t n, const box_t *bb);
+/* A text as a stroke of its own: room for n points (origin, then the code points); the caller writes them and ends with hist_fill_end */
+hpt_t *hist_text_begin(hist_t *h, uint32_t n, const bstyle_t *style);
 int hist_can_undo(const hist_t *h);
 int hist_can_redo(const hist_t *h);
 #endif

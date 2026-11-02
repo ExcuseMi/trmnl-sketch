@@ -2,6 +2,8 @@
 #include "hist.h"
 #include <string.h>
 #include "fill.h"
+#include "sk_cfg.h"
+#include "textdraw.h"
 
 void hist_init(hist_t *h, canvas_t *page, uint8_t *base_px, hpt_t *pts, uint32_t pt_cap, hstroke_t *st, int st_cap)
 {
@@ -27,6 +29,13 @@ static void apply(canvas_t *c, const hstroke_t *s, const hpt_t *p)
 {
     if (s->kind == HK_CLEAR) return cv_fill(c, 1);
     if (s->kind == HK_FILL) return bf_apply(c, p, s->n, s->style.shade);
+    if (s->kind == HK_TEXT) {
+        uint16_t cps[SK_TEXT_MAX];
+        uint32_t n = s->n > SK_TEXT_MAX + 1 ? SK_TEXT_MAX : s->n - 1;
+        for (uint32_t i = 0; i < n; i++) cps[i] = (uint16_t)p[1 + i].x;
+        box_t bb;
+        return tx_draw(c, 0, s->style.shade, p[0].x, p[0].y, p[0].d, cps, (int)n, &bb, 0, 0);
+    }
     int colour = s->kind == HK_ERASE;
     for (uint32_t i = 0; i < s->n; i++) {
         const hpt_t *a = i ? &p[i - 1] : &p[i];
@@ -154,14 +163,16 @@ void hist_clear(hist_t *h, box_t *changed)
     hist_end(h);
 }
 
-hpt_t *hist_fill_begin(hist_t *h, uint32_t n, const bstyle_t *style)
+static hpt_t *slots_begin(hist_t *h, int kind, uint32_t n, const bstyle_t *style)
 {
     if (n == 0 || n > h->pt_cap) return 0;
-    hist_begin_style(h, HK_FILL, style);
+    hist_begin_style(h, kind, style);
     while (h->pt_cap - h->pt_n < n && h->st_cur > 1) bake(h, 1);
     return h->pts + h->pt_n;
 }
 
+hpt_t *hist_fill_begin(hist_t *h, uint32_t n, const bstyle_t *style) { return slots_begin(h, HK_FILL, n, style); }
+hpt_t *hist_text_begin(hist_t *h, uint32_t n, const bstyle_t *style) { return slots_begin(h, HK_TEXT, n, style); }
 void hist_fill_end(hist_t *h, uint32_t n, const box_t *bb)
 {
     if (!h->open) return;

@@ -111,7 +111,7 @@ int app_main(const app_api_t *a)
     if (have_pen() && api->pen_enable(1) != 0) api->log("sketch: pen_enable failed");
     if (!have_pen()) api->log("sketch: firmware without pen support (API 2.7): touch bar only");
     read_tablet();
-    int sharing = 0, share_rc = 0;
+    int sharing = 0, share_rc = 0, kbd_on = 0;
     uint32_t sec = 0, pen_check = api->millis();
     for (;;) {
         uint32_t now = api->millis();
@@ -145,6 +145,13 @@ int app_main(const app_api_t *a)
             pen_check = now;
             read_tablet();
         }
+        if (sk.kbd_req && api->size >= APP_API_SLOT(48)) { /* the Text tool: keyboards on, characters as the X's layout maps them */
+            sk.kbd_req = 0;
+            api->keyboard_chars(1);
+            kbd_on = 1;
+            if (api->keyboard_enable(APP_KBD_USB | APP_KBD_BLE) != 0) api->log("sketch: keyboard_enable failed");
+            sk_keyboard(&sk, api->keyboard_status(), now);
+        }
         uint32_t wait = sk_next_due(&sk, now);
         if (wait > 500) wait = 500;
         if (sk.mode == SK_SHARE && wait > 250) wait = 250;
@@ -157,6 +164,10 @@ int app_main(const app_api_t *a)
             case APP_EVENT_PEN: sk_pen(&sk, u.pen.flags, u.pen.x, u.pen.y, u.pen.pressure, now); break;
             case APP_EVENT_PEN_KEY: sk_pen_key(&sk, u.pen.keys, u.pen.changed, now); break;
             case APP_EVENT_TOUCH: sk_touch(&sk, u.ev.zone, u.ev.gesture, now); break;
+            case APP_EVENT_KEY_DOWN: case APP_EVENT_KEY_UP:
+                sk_key(&sk, u.ev.type == APP_EVENT_KEY_DOWN, u.ev.key, u.ev.modifiers, u.ev.hid_usage, u.ev.utf8, now);
+                break;
+            case APP_EVENT_KEYBOARD: sk_keyboard(&sk, u.ev.key, now); break;
             case APP_EVENT_ORIENTATION:
                 if (u.ev.key <= APP_ORIENT_BAR_RIGHT && (int)u.ev.key != orient) {
                     orient = (int)u.ev.key;
@@ -175,6 +186,7 @@ int app_main(const app_api_t *a)
     }
     if (sharing) api->webshare_stop();
     if (have_pen()) api->pen_enable(0);
+    if (kbd_on) api->keyboard_enable(0);
     sk_save_now(&sk); /* within APP_EXIT_GRACE_MS */
     sk_free(&sk);
     return 0;

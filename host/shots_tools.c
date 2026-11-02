@@ -76,8 +76,47 @@ static void paper_shots(const char *dir, int *bad)
     }
 }
 
+static void say(rig_t *r, const char *s)
+{
+    for (; *s; s++) {
+        char c[2] = { *s, 0 };
+        r->now += 20;
+        sk_key(&r->s, 1, *s == '\n' ? APP_KEY_ENTER : APP_KEY_CHAR, 0, 0, *s == '\n' ? "" : c, r->now);
+    }
+}
+
+static void text_shots(const char *dir, int *bad)
+{
+    rig_t r;
+    rig_new(&r, APP_ORIENT_BAR_BOTTOM);
+    sk_set_paper(&r.s, PP_LINES, r.now);
+    r.s.paper_sp = 96;
+    sk_show_page(&r.s);
+    sk_keyboard(&r.s, APP_KBD_USB, r.now);
+    sk_set_tool(&r.s, TL_TEXT, r.now);
+    sk_set_size(&r.s, 40, r.now);
+    rig_pen(&r, 200, 200, DOWN, 30000);
+    rig_pen(&r, 200, 200, APP_PEN_IN_RANGE, 0);
+    say(&r, "Shopping list");
+    sk_text_end(&r.s, r.now);
+    sk_set_size(&r.s, 24, r.now);
+    rig_pen(&r, 200, 480, DOWN, 30000);
+    rig_pen(&r, 200, 480, APP_PEN_IN_RANGE, 0);
+    say(&r, "bread\nmilk\neggs, and\nsome apples");
+    sk_text_end(&r.s, r.now);
+    sk_set_size(&r.s, 8, r.now);
+    sk_set_shade(&r.s, SH_DARK, r.now);
+    rig_pen(&r, 900, 480, DOWN, 30000);
+    rig_pen(&r, 900, 480, APP_PEN_IN_RANGE, 0);
+    say(&r, "small gray note");
+    frames(&r);
+    put(&r, dir, "x1-text-on-lines", bad);
+    rig_end(&r);
+}
+
 void tool_shots(const char *dir, int *bad)
 {
+    text_shots(dir, bad);
     shape_shots(dir, bad);
     paper_shots(dir, bad);
 }

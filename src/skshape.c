@@ -135,6 +135,8 @@ void sk_set_tool(sketch_t *s, int tool, uint32_t now)
     static const char *const names[] = { "", "Line", "Box", "Oval", "Text" };
     if (tool < TL_DRAW || tool > TL_TEXT) return;
     sk_shape_cancel(s);
+    sk_text_end(s, now);
     s->sty.tool = (uint8_t)tool;
-    sk_picked(s, tool ? names[tool] : brush_name(s->sty.brush), now);
+    if (tool == TL_TEXT && !s->kbd) s->kbd_req = 1; /* the glue enables the keyboards */
+    sk_picked(s, tool == TL_TEXT ? (s->kbd ? "Text: tap where it goes" : "Connect a keyboard") : tool ? names[tool] : brush_name(s->sty.brush), now);
 }

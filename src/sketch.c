@@ -245,6 +245,7 @@ void sk_page_changed(sketch_t *s, const box_t *b, uint32_t now)
 
 void sk_undo(sketch_t *s, uint32_t now)
 {
+    sk_text_end(s, now);
     sk_shape_cancel(s);
     box_t b;
     s->stroke = 0;
@@ -254,6 +255,7 @@ void sk_undo(sketch_t *s, uint32_t now)
 
 void sk_redo(sketch_t *s, uint32_t now)
 {
+    sk_text_end(s, now);
     sk_shape_cancel(s);
     box_t b;
     s->stroke = 0;
@@ -263,6 +265,7 @@ void sk_redo(sketch_t *s, uint32_t now)
 
 void sk_clear(sketch_t *s, uint32_t now)
 {
+    sk_text_end(s, now);
     sk_shape_cancel(s);
     hist_end(&s->hist);
     s->stroke = 0;
@@ -303,6 +306,7 @@ void sk_set_brush(sketch_t *s, int brush, uint32_t now)
     if (s->sty.brush == BR_ERASER) s->era_size = s->sty.size;
     else s->ink_size = s->sty.size;
     s->sty.brush = (uint8_t)brush;
+    sk_text_end(s, now);
     sk_shape_cancel(s);
     s->sty.tool = TL_DRAW;
     s->sty.size = brush == BR_ERASER ? s->era_size : s->ink_size;
@@ -336,6 +340,7 @@ void sk_toolbar(sketch_t *s, uint32_t now)
 {
     (void)now;
     if (s->mode != SK_DRAW) return;
+    sk_text_end(s, now);
     sk_shape_cancel(s);
     sk_cursor_hide(s);
     if (s->tb_on) { /* the page under the strip comes back as it was */
@@ -437,6 +442,7 @@ void sk_pen(sketch_t *s, unsigned flags, unsigned x, unsigned y, unsigned pressu
     if (tip && s->tb_hold) return; /* dragged off the strip: no ink until the pen lifts */
     if (sk_fill_pen(s, tip, inside, fx, fy, now)) return;
     if (sk_shape_pen(s, tip, inside, fx, fy, now)) return;
+    if (sk_text_pen(s, tip, inside, fx, fy, now)) return;
     if (tip && inside) {
         if (!s->stroke) {
             int br = eff_brush(s);

@@ -18,6 +18,7 @@
 #include "rects.h"
 #include "skmenu.h"
 #include "skpills.h"
+#include "sk_cfg.h"
 #include "skui.h"
 #include "toolbar.h"
 
@@ -68,6 +69,11 @@ typedef struct {
     int sh_on, sh_x0, sh_y0, sh_x1, sh_y1, sh_barrel; /* a shape is being dragged (skshape.c): start, end, constrain was on at the last preview */
     int paper, paper_sp, paper_def, paper_sp_def; /* the page on screen's paper (paper.h) and the settings' default for new pages */
     box_t sh_box;        /* the rubber band on the screen (framebuffer only, never in the page) */
+    int tx_on, tx_x, tx_y, tx_n, tx_cls, tx_down, tx_moved, tx_dx, tx_dy; /* the text being typed (sktext.c): origin, length, size class, the tap */
+    uint16_t tx_cp[SK_TEXT_MAX];
+    box_t tx_box;        /* its drawing on the screen (framebuffer only until it ends) */
+    uint32_t kbd;        /* APP_KBD_* bits connected now */
+    int kbd_req;         /* the Text tool wants the glue to enable the keyboards (keyboard_enable) */
     unsigned mods;       /* keyboard modifiers held (APP_MOD_*) */
     int stroke_erase;    /* the open stroke erases */
     int hover_valid, hover_x, hover_y; /* the pen hovers over the page there */
@@ -167,6 +173,11 @@ void sk_shape_cancel(sketch_t *s);
 void sk_set_tool(sketch_t *s, int tool, uint32_t now);
 void sk_fb_restore(sketch_t *s, const box_t *b); /* the page (and strip, pills) back on the screen in b, and pushed */
 void sk_mark(sketch_t *s, const box_t *b);       /* b is to be pushed */
+/* The Text tool (sktext.c). sk_key: a key event of a keyboard (down 0: released); sk_keyboard: the keyboards connected now */
+int sk_text_pen(sketch_t *s, int tip, int inside, int fx, int fy, uint32_t now);
+void sk_text_end(sketch_t *s, uint32_t now);
+void sk_keyboard(sketch_t *s, uint32_t bits, uint32_t now);
+void sk_key(sketch_t *s, int down, unsigned key, unsigned mods, unsigned hid, const char *utf8, uint32_t now);
 /* The paper (skpaper.c) */
 void sk_paper_new(sketch_t *s);               /* the default for a new page */
 void sk_paper_open(sketch_t *s, int num);     /* the paper of page num (Blank for a page saved before papers existed) */
