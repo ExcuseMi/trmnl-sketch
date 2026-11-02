@@ -185,17 +185,27 @@ static void menu_draw(sketch_t *s)
         gfx_rrect(&g, px - 10, py - 10, px + s->L.tw + 9, py + s->L.th + 9, 12, 2, MWHT_, MBLK_);
         char a[100] = "Printer: ";
         if (!s->exit_unsaved) {
-            pj_printer_addr(&s->prn, a + 9, 80);
+            pj_printer_label(&s->prn, a + 9, 80);
             ui_footer(&g, &s->L, a);
         }
         ui_menu_pills(&g, &s->bar, "Select", hot);
         ui_button(&g, &s->L, CTL_BACK, hot == CTL_BACK);
         break;
     }
-    case SK_BUSY: ui_message(&g, &s->L, "Printing...", "Sending the page to the printer.", "This takes a few seconds.", 0); break;
+    case SK_BUSY: { /* which printer it goes to (owner 2026-11-02) */
+        char to[80] = "To: ";
+        pj_printer_label(&s->prn, to + 4, sizeof(to) - 4);
+        ui_message(&g, &s->L, "Printing...", s->prn.host[0] ? to : "Sending the page to the printer.", "This takes a few seconds.", 0);
+        break;
+    }
     default:
         split_msg(s->pres.msg, l1, l2);
         ui_message(&g, &s->L, s->pres.pages && s->pres.jobs ? "Printed" : "Not printed", l1, l2, 0);
+        if (s->prn.host[0] && !s->need_setup) {
+            char a[100] = "Printer: ";
+            pj_printer_label(&s->prn, a + 9, 80);
+            ui_footer(&g, &s->L, a);
+        }
         ui_pill(&g, &s->bar, APP_TOUCH_MIDDLE, "OK", PILL_NONE, hot == CTL_SEL);
         ui_button(&g, &s->L, CTL_BACK, hot == CTL_BACK);
         if (s->need_setup) ui_button(&g, &s->L, CTL_SETUP, hot == CTL_SETUP);
