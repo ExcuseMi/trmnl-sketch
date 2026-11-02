@@ -88,16 +88,18 @@ static void test_flash_only_strip(void)
     scribble(&r);
     rect_t out[SK_MAX_RECTS];
     while (rig_frame(&r, out) != 0) {} /* what is pending goes out */
+    int inv0 = r.inverted;
     key(&r, 3);
     int n = rig_frame(&r, out);
-    CHECK(n == 1 && out[0].flash == 1); /* one rectangle, clean (flashes), not the whole screen */
+    CHECK(n == 1 && out[0].flash == 0); /* one rectangle, fast ink (never a flash), not the whole screen */
     CHECK(out[0].x == 0 && out[0].y == 0 && out[0].w == TW && out[0].h == r.s.tb.y1 + 1 && out[0].h < 280);
     CHECK((long)out[0].w * out[0].h < (long)TW * TH / 5);
     CHECK(rig_frame(&r, out) == 0); /* nothing else follows */
     CHECK(sk_next_due(&r.s, r.now) > 100);
-    key(&r, 3); /* hiding: the strip left the page, one whole-page flash (rule a), which covers the strip */
+    key(&r, 3); /* hiding: the page under the strip comes back as fast ink, no flash */
+    r.now += 500;
     n = rig_frame(&r, out);
-    CHECK(n == SK_FULL);
+    CHECK(n >= 1 && out[0].flash == 0 && r.inverted == inv0);
     CHECK(rig_frame(&r, out) == 0);
     /* the portrait positions: the strip is a column of the panel, byte aligned */
     rig_end(&r);
@@ -105,7 +107,7 @@ static void test_flash_only_strip(void)
     while (rig_frame(&r, out) != 0) {}
     key(&r, 3);
     n = rig_frame(&r, out);
-    CHECK(n == 1 && out[0].flash == 1 && out[0].x % 8 == 0 && out[0].w % 8 == 0 && out[0].h == TH && out[0].w < 280 + 8);
+    CHECK(n == 1 && out[0].flash == 0 && out[0].x % 8 == 0 && out[0].w % 8 == 0 && out[0].h == TH && out[0].w < 280 + 8);
     rig_end(&r);
 }
 

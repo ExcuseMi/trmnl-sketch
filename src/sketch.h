@@ -74,7 +74,6 @@ typedef struct {
     box_t fl_box;        /* the flash under way: its inverted half was pushed, the clean half is next */
     int fl_phase;
     int tip;             /* the pen's tip is down */
-    int ovl_gone;        /* the legend or the toolbar left the page: one whole-page flash when the tip is up */
     int ghost;           /* a partial refresh was pushed since the last whole-screen flash */
     int traces;          /* strokes, page changes and toasts gone since then: the idle clean-up of the drawing page waits for SK_CLEAN_TRACES */
     int cleanup_s;       /* setting cleanup_s: idle seconds before the whole screen is flashed clean (0: off) */
@@ -109,6 +108,7 @@ typedef struct {
     rset_t pend;
     uint32_t last_push;
     int batch_ms;        /* new ink waits this long after the last push (SK_BATCH_MS; the speed run tries others) */
+    uint32_t wz_push; int wz_zero; /* sk_wait_ms: last_push at the last zero, zeros since a push */
     int want_full, share_req, share_kind; /* share_req: 1 start the files page, 2 the settings page, -1 stop; share_kind: which one is on screen */
     share_view_t share, share_shown;
     int share_rc;
@@ -217,6 +217,8 @@ int sk_flash_step(sketch_t *s, uint32_t now, rect_t *out); /* inside sk_flush */
 uint32_t sk_cleanup_due(const sketch_t *s, uint32_t now);
 /* Milliseconds until sk_tick or sk_flush has something to do (idle: a large number) */
 uint32_t sk_next_due(const sketch_t *s, uint32_t now);
+/* How long the loop may sleep: sk_next_due, but never 0 twice in a row without a push in between (no busy spin) */
+uint32_t sk_wait_ms(sketch_t *s, uint32_t now);
 /* Actions, also what the buttons and the touch bar call */
 void sk_undo(sketch_t *s, uint32_t now);
 void sk_redo(sketch_t *s, uint32_t now);

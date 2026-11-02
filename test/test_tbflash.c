@@ -3,17 +3,23 @@
    session with the strip shown: the pen hovers 400 moves over it, picks 5 buttons (looking 3 s at each), draws 20
    strokes near it with a pause every 5. The arrow, the item frame, the pick shown inverted, the brush cursor
    and a toast change only black and white pixels: they go as fast ink and never ask for a flash. Strokes leave traces:
-   the idle clean-up (rule b) flashes the page once enough of them were drawn (SK_CLEAN_TRACES), not after every pause.
-   Before the fix: 11 flashes (a whole-page flash after every toast, one at every pause). SPDX-License-Identifier: MIT */
+   the drawing page has no idle clean-up at all (skflash.c).
+   Before the fix: 3 flashes (the strip, two idle clean-ups). SPDX-License-Identifier: MIT */
 #include "check.h"
 #include <stdio.h>
 #include "util.h"
 
+static int spins; /* turns where the app would not sleep twice in a row at the same instant with nothing to push */
 static void turn(rig_t *r)
 {
     rect_t out[SK_MAX_RECTS];
     sk_tick(&r->s, r->now);
     rig_flush(r, r->now, out);
+    if (sk_wait_ms(&r->s, r->now) == 0) { /* due now: the next turn must have taken it */
+        sk_tick(&r->s, r->now);
+        rig_flush(r, r->now, out);
+        if (sk_wait_ms(&r->s, r->now) == 0) spins++;
+    }
 }
 /* the pen at a point, 10 ms after the last one (a tablet sends about 100 a second), and the app's turn */
 static void pen(rig_t *r, int x, int y, unsigned f, unsigned p)
@@ -70,13 +76,23 @@ static void strokes(rig_t *r) /* 20 strokes just under the strip, the pen hoveri
     }
 }
 
+static void test_spin(void) /* a due time nothing consumes: the second ask sleeps */
+{
+    rig_t r;
+    rig_new(&r, APP_ORIENT_BAR_BOTTOM);
+    r.s.want_full = 1; /* pending, and no flush follows */
+    CHECK(sk_wait_ms(&r.s, r.now) == 0);
+    CHECK(sk_wait_ms(&r.s, r.now) > 0);
+    rig_end(&r);
+}
+
 static void test_session(void)
 {
     rig_t r;
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
     r.s.cleanup_s = 5;
     wait(&r, 45000); /* the start legend and its clean-up are over */
-    CHECK(!r.s.note_on && !r.s.ghost);
+    CHECK(!r.s.note_on);
     int f0 = r.inverted;
     key(&r, 3);
     wait(&r, 200);
@@ -89,18 +105,21 @@ static void test_session(void)
     int f_strokes = r.inverted - f0 - f_show - f_hover - f_picks;
     wait(&r, 10000); /* the pen still: the clean-up of what is left */
     int total = r.inverted - f0;
+    printf("test_tbflash: spins %d\n", spins);
+    CHECK(spins == 0); /* the loop never asks for 0 twice with nothing left to do (idle CPU) */
     printf("test_tbflash: flashes show %d hover %d picks %d strokes %d end %d, total %d\n", f_show, f_hover, f_picks, f_strokes, total - f_show - f_hover - f_picks - f_strokes, total);
-    CHECK(f_show == 1);   /* the strip appears clean, once */
+    CHECK(f_show == 0);   /* the strip appears as fast ink: no flash on the drawing page */
     CHECK(f_hover == 0);  /* the arrow and the frame: ink only */
     CHECK(f_picks == 0);  /* the pick inverted and its toast: ink only */
-    CHECK(f_strokes <= 2); /* 20 strokes: the idle clean-up after enough traces, not at every pause */
-    CHECK(total <= 4);
+    CHECK(f_strokes == 0); /* 20 strokes: no idle flash on the drawing page */
+    CHECK(total == 0);
     CHECK(r.s.tb_on);
     rig_end(&r);
 }
 
 int main(void)
 {
+    test_spin();
     test_session();
     return CHECK_DONE("test_tbflash");
 }

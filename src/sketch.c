@@ -174,8 +174,7 @@ void sk_note_hide(sketch_t *s)
     if (!s->note_on) return;
     fb_put(s, &s->note);
     mark(s, &s->note);
-    if (s->mode == SK_DRAW && s->legend) s->ovl_gone = 1; /* the start legend: the page is cleaned once the tip is up (skflash.c) */
-    else if (s->mode == SK_DRAW) s->traces++; /* a toast: its ghost waits for the idle clean-up (owner 2026-11-02 "flashing a lot": every pick flashed the page) */
+    if (!s->legend && s->mode == SK_DRAW) s->traces++;
     s->note_on = s->legend = 0;
 }
 
@@ -290,8 +289,6 @@ void sk_set_shade(sketch_t *s, int shade, uint32_t now)
     sk_picked(s, shade_name(shade), now);
 }
 
-static void tb_flash(sketch_t *s) { sk_flash(s, &s->tb_box); }
-
 static void tb_place(sketch_t *s) /* the strip for the screen in the user's frame, and its box in the framebuffer */
 {
     gfx_t g;
@@ -317,7 +314,7 @@ void sk_toolbar(sketch_t *s, uint32_t now)
         s->tb_on = s->tb_hold = 0;
         s->tb_hot = -1;
         fb_put(s, &s->tb_box); /* (the guide comes back with the page) */
-        s->ovl_gone = 1; /* the whole page is flashed clean (it covers the strip): skflash.c */
+        mark(s, &s->tb_box); /* fast ink only: the drawing page never flashes (skflash.c) */
         return;
     }
     sk_note_hide(s);
@@ -326,7 +323,7 @@ void sk_toolbar(sketch_t *s, uint32_t now)
     tb_place(s);
     s->tb_on = 1;
     sk_tb_paint(s);
-    tb_flash(s);
+    mark(s, &s->tb_box);
 }
 
 static void tb_press(sketch_t *s, int item, uint32_t now)
@@ -544,6 +541,15 @@ uint32_t sk_next_due(const sketch_t *s, uint32_t now)
         if ((uint32_t)(d < 0 ? 0 : d) < due) due = d < 0 ? 0 : (uint32_t)d;
     }
     return due;
+}
+
+uint32_t sk_wait_ms(sketch_t *s, uint32_t now)
+{
+    uint32_t w = sk_next_due(s, now);
+    if (w) return s->wz_zero = 0, w;
+    if (s->wz_zero && s->wz_push == s->last_push) return SK_MIN_SLEEP_MS; /* due, but nothing was pushed since: do not spin */
+    s->wz_zero = 1, s->wz_push = s->last_push;
+    return 0;
 }
 
 /* ---- set up ---- */

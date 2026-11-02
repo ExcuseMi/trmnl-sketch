@@ -159,7 +159,7 @@ static void step(rig_t *r, uint8_t *panel, const stream_t *st, int *i, double ba
     rect_t out[SK_MAX_RECTS];
     do *t = glue(r, panel, sk_flush(&r->s, (uint32_t)*t, out), out, mode, ink, *t, nc); while (sk_flash_busy(&r->s));
     sk_tick(&r->s, (uint32_t)*t);
-    uint32_t wait = sk_next_due(&r->s, (uint32_t)*t);
+    uint32_t wait = sk_wait_ms(&r->s, (uint32_t)*t);
     if (wait > 500) wait = 500;
     int have = st && *i < st->n;
     double next = have ? base + st->ev[*i].t : 1e18;

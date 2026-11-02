@@ -13,7 +13,7 @@ void sk_set_mirror(sketch_t *s, int mode, uint32_t now)
     if (s->mode == SK_DRAW) {
         sk_show_page(s); /* the guide on or off in the framebuffer, the page itself untouched */
         box_t all = { 0, 0, s->fb.w - 1, s->fb.h - 1 };
-        sk_flash(s, &all); /* then a clean whole-screen refresh: the guide leaves no trace */
+        rs_add(&s->pend, &all, s->fb.w, s->fb.h); /* fast ink: the drawing page never flashes */
     }
     sk_picked(s, t, now);
 }

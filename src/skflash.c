@@ -26,16 +26,13 @@ static void fl_rect(const box_t *b, int flash, rect_t *r) { *r = (rect_t){ (int1
 /* May the screen be cleaned now (the pen is not drawing)? */
 static int fl_calm(const sketch_t *s) { return !s->tip && !s->stroke && !s->fl_phase && !s->want_full && box_empty(&s->flash); }
 
-/* Rule a: the legend or the toolbar left the drawing page, none other is up, the tip is up. Rule b: idle, with traces */
-static int fl_overlay_due(const sketch_t *s) { return s->ovl_gone && s->mode == SK_DRAW && !s->note_on && fl_calm(s); }
-/* The arrow, the item frame, the pick and the brush cursor are ink only: on the drawing page only enough
-   traces (strokes, page changes, toasts gone) ask for the idle flash; on a menu screen any partial refresh does */
-static int fl_dirty(const sketch_t *s) { return s->ghost && (s->mode != SK_DRAW || s->traces >= SK_CLEAN_TRACES); }
+/* The drawing page never flashes by itself (owner 2026-11-02: a flash costs 1.1 s and blocks the app): the toolbar, the
+   legend, the arrow and the cursors are ink only. Only a menu or gallery screen with traces gets the idle flash. */
+static int fl_dirty(const sketch_t *s) { return s->ghost && s->mode != SK_DRAW; }
 static int fl_idle_due(const sketch_t *s, uint32_t now) { return s->cleanup_s > 0 && fl_dirty(s) && !s->pend.n && fl_calm(s) && (int32_t)(now - s->last_act - (uint32_t)s->cleanup_s * 1000u) >= 0; }
 
 uint32_t sk_cleanup_due(const sketch_t *s, uint32_t now)
 {
-    if (fl_overlay_due(s)) return 0;
     if (s->cleanup_s > 0 && fl_dirty(s) && !s->pend.n && fl_calm(s)) {
         int32_t d = (int32_t)(s->last_act + (uint32_t)s->cleanup_s * 1000u - now);
         return d < 0 ? 0 : (uint32_t)d;
@@ -50,7 +47,7 @@ int sk_flash_step(sketch_t *s, uint32_t now, rect_t *out)
         s->fl_phase = 0;
         s->last_push = now;
         if (fl_whole(s, &s->fl_box)) {
-            s->ghost = s->ovl_gone = s->traces = 0;
+            s->ghost = s->traces = 0;
             s->pushed_px += (uint32_t)(s->fb.w * s->fb.h);
             s->pushed_rects++;
             return SK_FULL;
@@ -60,7 +57,7 @@ int sk_flash_step(sketch_t *s, uint32_t now, rect_t *out)
         s->pushed_rects++;
         return 1;
     }
-    if (fl_overlay_due(s) || fl_idle_due(s, now)) s->want_full = 1;
+    if (fl_idle_due(s, now)) s->want_full = 1;
     if (s->want_full) {
         s->want_full = 0;
         if (s->mode >= SK_GALLERY && s->ui.px) { /* the screen as it is, then the pointer on it */

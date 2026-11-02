@@ -158,7 +158,7 @@ int app_main(const app_api_t *a)
             pen_check = now;
             read_tablet();
         }
-        uint32_t wait = sk_next_due(&sk, now);
+        uint32_t wait = sk_wait_ms(&sk, now);
         if (wait > 500) wait = 500;
         if (sk.mode == SK_SHARE && wait > 250) wait = 250;
         app_any_event_t u;
