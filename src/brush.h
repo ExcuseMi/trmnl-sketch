@@ -35,6 +35,10 @@ int brush_shape_px(int brush, int size, int dx, int dy);
    inside a square of half side brush_cursor_r. brush_cursor_px says whether the pixel at (dx, dy) is black; a white
    outline BR_CUR_OUT px wide goes around it (ui_cursor) so it shows on black ink too */
 #define BR_CUR_OUT 2
+/* Tool cursors are the ids BR_N + TL_LINE .. BR_N + TL_TEXT (skcursor.c): the shape crosshair with the glyph and a ring of the
+   line width, the text I-beam as tall as the text size */
+int tc_r(int tc, int size);
+int tc_px(int tc, int size, int dx, int dy);
 int brush_cursor_r(int brush, int size);
 int brush_cursor_px(int brush, int size, int dx, int dy);
 #endif

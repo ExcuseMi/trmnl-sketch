@@ -49,7 +49,7 @@ void ui_legend(gfx_t *g, box_t *out)
 }
 
 /* Draws a black shape with a white outline BR_CUR_OUT wide: `in(ctx, dx, dy)` for dx, dy within +-r */
-#define CUR_MAXR 48
+#define CUR_MAXR 100 /* the text I-beam of the largest size */
 typedef int (*cur_in_fn)(const void *ctx, int dx, int dy);
 static uint8_t cur_mask[(2 * (CUR_MAXR + BR_CUR_OUT) + 1) * (2 * (CUR_MAXR + BR_CUR_OUT) + 1)];
 

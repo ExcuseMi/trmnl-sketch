@@ -188,16 +188,17 @@ static int size_for(const sketch_t *s, int br)
 
 static void cursor_show(sketch_t *s, int fx, int fy)
 {
-    int br = eff_brush(s), r = brush_cursor_r(br, size_for(s, br));
+    int tool = s->sty.tool, br = tool != TL_DRAW ? BR_N + tool : eff_brush(s), sz = tool != TL_DRAW ? s->sty.size : size_for(s, br), r = brush_cursor_r(br, sz);
+    if (s->tx_on) return sk_cursor_hide(s); /* the caret is the cursor */
     box_t want = { fx - r - BR_CUR_OUT, fy - r - BR_CUR_OUT, fx + r + BR_CUR_OUT, fy + r + BR_CUR_OUT };
-    if (s->cursor && s->cr == r && s->cb == br && (fx - s->cx) * (fx - s->cx) + (fy - s->cy) * (fy - s->cy) < 9) return;
+    if (s->cursor && s->cr == r && s->cb == br * 64 + sz && (fx - s->cx) * (fx - s->cx) + (fy - s->cy) * (fy - s->cy) < 9) return;
     sk_cursor_hide(s);
     if (s->note_on && hit(&want, &s->note)) return; /* never over a note: restoring the page would eat it */
     if ((s->tb_on && hit(&want, &s->tb_box)) || hit(&want, &s->pl_box)) return; /* nor over the toolbar or the pills */
     box_t b;
-    ui_cursor(&s->fb, fx, fy, br, size_for(s, br), &b);
+    ui_cursor(&s->fb, fx, fy, br, sz, &b);
     mark(s, &b);
-    s->cursor = 1, s->cx = fx, s->cy = fy, s->cr = r, s->cb = br;
+    s->cursor = 1, s->cx = fx, s->cy = fy, s->cr = r, s->cb = br * 64 + sz;
 }
 
 void sk_note_hide(sketch_t *s)

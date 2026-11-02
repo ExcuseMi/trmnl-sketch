@@ -74,7 +74,8 @@ int sk_text_pen(sketch_t *s, int tip, int inside, int fx, int fy, uint32_t now)
     if (s->tx_moved) return 0;
     if (s->tx_on) return sk_text_end(s, now), 0; /* a tap elsewhere ends it */
     if (!s->kbd) return sk_toast(s, "Connect a keyboard", now), s->kbd_req = 1, 0;
-    begin(s, s->tx_dx, s->tx_dy);
+    int y = s->tx_dy - tx_line_h(cls_of(s)) / 2; /* the I-beam was over the line: its middle is where the pen is */
+    begin(s, s->tx_dx, y < 0 ? 0 : y);
     return 0;
 }
 

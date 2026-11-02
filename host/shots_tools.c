@@ -1,6 +1,7 @@
 /* make shots (tools part): shapes, papers, text, the tone slider, cursors, the recent row. SPDX-License-Identifier: MIT */
 #include <math.h>
 #include <stdio.h>
+#include "skui.h"
 #include "util.h"
 
 int png_write(const char *path, const gfx_t *g);
@@ -131,8 +132,36 @@ static void tone_shots(const char *dir, int *bad)
     rig_end(&r);
 }
 
+/* every cursor over a mid tone (left) and over black ink (right), and over paper and white below */
+static void cursor_shots(const char *dir, int *bad)
+{
+    rig_t r;
+    rig_new(&r, APP_ORIENT_BAR_BOTTOM);
+    canvas_t *p = &r.s.page;
+    for (int y = 80; y < 700; y++) cv_span_s(p, y, 60, 920, 0, 5), cv_span_s(p, y, 950, 1810, 0, 0);
+    box_t all = { 0, 0, TW - 1, TH - 1 };
+    sk_set_paper(&r.s, PP_GRID, r.now);
+    r.s.paper_sp = 24;
+    sk_show_page(&r.s);
+    (void)all;
+    static const int ids[] = { BR_FINELINER, BR_MARKER, BR_SPRAY, BR_ERASER, BR_N + TL_LINE, BR_N + TL_RECT, BR_N + TL_OVAL, BR_N + TL_TEXT };
+    for (int row = 0; row < 3; row++)
+        for (int k = 0; k < 8; k++) {
+            int cx = 130 + k * 108 + (row == 1 ? 0 : 0), cy = row == 0 ? 240 : row == 1 ? 520 : 900, size = row == 2 ? 9 : row == 1 ? 40 : 20;
+            if (row == 1 && k >= 4) size = 40;
+            box_t b;
+            ui_cursor(&r.s.fb, cx, cy, ids[k], size, &b);
+            ui_cursor(&r.s.fb, cx + 900 + (row == 2 ? 0 : 0), cy, ids[k], size, &b);
+        }
+    ui_arrow(&r.s.fb, r.s.orient, 400, 1150, &(box_t){ 0 });
+    ui_arrow(&r.s.fb, r.s.orient, 1300, 1150, &(box_t){ 0 });
+    put(&r, dir, "c9-cursors-over-tone-black-paper", bad);
+    rig_end(&r);
+}
+
 void tool_shots(const char *dir, int *bad)
 {
+    cursor_shots(dir, bad);
     tone_shots(dir, bad);
     text_shots(dir, bad);
     shape_shots(dir, bad);

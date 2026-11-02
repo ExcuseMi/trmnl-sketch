@@ -247,11 +247,13 @@ int brush_shape_px(int b, int size, int dx, int dy)
 #define CUR_MIN 16
 int brush_cursor_r(int b, int size)
 {
+    if (b >= BR_N) return tc_r(b, size);
     int r = brush_shape_r(b, size) + 1;
     return r < CUR_MIN ? CUR_MIN : r;
 }
 int brush_cursor_px(int b, int size, int dx, int dy)
 {
+    if (b >= BR_N) return tc_px(b, size, dx, dy);
     int ax = dx < 0 ? -dx : dx, ay = dy < 0 ? -dy : dy, s = brush_shape_r(b, size);
     if (s + 1 < CUR_MIN && ((ax <= 1 && ay <= CUR_MIN) || (ay <= 1 && ax <= CUR_MIN))) return 1;
     if (ax > s + 1 || ay > s + 1) return 0;
