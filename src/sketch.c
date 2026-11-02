@@ -296,7 +296,7 @@ void sk_set_size(sketch_t *s, int cls, uint32_t now)
 void sk_set_brush(sketch_t *s, int brush, uint32_t now)
 {
     if (brush < 0 || brush >= BR_N) return;
-    if (brush != BR_ERASER) s->last_ink = brush, sk_cfg_num(s, "tool", brush);
+    if (brush != BR_ERASER) s->last_ink = brush;
     s->sty.brush = (uint8_t)brush;
     s->sty.size = (uint8_t)brush_size(brush, s->size_cls);
     sk_picked(s, brush_name(brush), now);
@@ -650,10 +650,7 @@ int sk_init(sketch_t *s, const sk_env_t *env, uint8_t *fb, int w, int h, int str
     s->size_cls = cfg_int(s, "size_cls", 1);
     if (s->size_cls >= BR_SIZES) s->size_cls = 1;
     s->sty.shade = (uint8_t)colour_cfg(s);
-    int br = cfg_int(s, "tool", -1);
-    if (br < 0) br = brush_from_old(cfg_int(s, "brush", 0)); /* the earlier ten-brush table: a removed brush becomes the Pen */
-    s->sty.brush = (uint8_t)(br < BR_N ? br : BR_PEN);
-    if (s->sty.brush == BR_ERASER) s->sty.brush = BR_PEN;
+    s->sty.brush = BR_BRUSH; /* owner 2026-11-02: Sketch always opens with the best tool, the Brush */
     s->sty.size = (uint8_t)brush_size(s->sty.brush, s->size_cls);
     s->last_ink = s->sty.brush;
     box_clear(&s->flash);

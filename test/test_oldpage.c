@@ -32,11 +32,12 @@ static void test_old_settings(void)
         rig_cfg(&r, "smooth", "10");
         rig_cfg(&r, "use_tilt", "off");
         rig_cfg(&r, "pressure_curve", "firm");
+        r.keep_tool = 1;
         rig_start(&r, APP_ORIENT_BAR_BOTTOM);
         CHECK(!memcmp(saved, r.s.page.px, sizeof(saved))); /* the page is as it was */
         CHECK(r.s.sty.brush < BR_N && r.s.sty.brush != BR_ERASER && tb_item_of_shade(r.s.sty.shade) >= 0 && r.s.size_cls >= 0 && r.s.size_cls < BR_SIZES);
         CHECK(r.s.sty.size == brush_size(r.s.sty.brush, r.s.size_cls));
-        if (k < 8 && k != 6) CHECK(r.s.sty.brush == brush_from_old((int)k)); /* (the eraser becomes the Pen on start, as it always did) */
+        CHECK(r.s.sty.brush == BR_BRUSH); /* owner 2026-11-02: Sketch opens with the Brush, whatever tool was saved */
         CHECK(r.s.sty.shade == SH_GREY); /* the old tone 5 */
         /* the toolbar draws and works with it, and a new stroke inks */
         sk_toolbar(&r.s, r.now);
@@ -48,16 +49,8 @@ static void test_old_settings(void)
     }
 }
 
-static void test_brush_map(void)
-{
-    CHECK(brush_from_old(0) == BR_PEN && brush_from_old(1) == BR_PEN && brush_from_old(4) == BR_PEN); /* fineliner, brush pen and calligraphy are the Pen */
-    CHECK(brush_from_old(2) == BR_PENCIL && brush_from_old(3) == BR_MARKER && brush_from_old(5) == BR_SPRAY && brush_from_old(6) == BR_ERASER && brush_from_old(7) == BR_FILL);
-    CHECK(brush_from_old(8) == BR_PEN && brush_from_old(-1) == BR_PEN && brush_from_old(1000) == BR_PEN);
-}
-
 int main(void)
 {
-    test_brush_map();
     test_old_settings();
     return CHECK_DONE("test_oldpage");
 }

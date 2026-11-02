@@ -41,6 +41,7 @@ typedef struct {
     int started;
     struct { char k[16], v[16]; } cfg[24]; /* the settings the app stored (cfg_set); a test may pre-set any key with rig_cfg */
     int keep_smooth;    /* a test that wants the app's own stabiliser level (SK_SMOOTH_DEF) sets this before rig_start */
+    int keep_tool;      /* a test that wants the tool the app opens with (the Brush) sets this before rig_start */
     int log_n, log_ev_med, log_ev_p95, log_push_med, log_push_p95, log_samples; /* the latency lines sketch handed to its log */
     int inverted;       /* inverted halves seen (rig_flush) */
     int bare_fulls;     /* full refreshes handed out without their inverted half first: the flash helper was bypassed */
@@ -123,6 +124,7 @@ static inline void rig_start(rig_t *r, int orient)
     sk_env_t env = { &r->fs.fs, r, rig_get, rig_set, { PJ_PWG, fake_post, &r->pr }, rig_log, rig_printer };
     if (sk_init(&r->s, &env, r->fb, TW, TH, TS, orient, &bar)) abort();
     if (!r->keep_smooth) r->s.smooth = 0; /* the stabiliser is off in the tests (the app's is SK_SMOOTH_DEF): the points are exactly the pen's */
+    if (!r->keep_tool) r->s.sty.brush = r->s.last_ink = BR_PEN, r->s.sty.size = (uint8_t)brush_size(BR_PEN, r->s.size_cls); /* the tests draw with the solid Pen (the app opens with the Brush: test_oldpage) */
     sk_set_tablet(&r->s, UM_W, UM_H, 1);
     r->started = 1;
 }

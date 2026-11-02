@@ -13,7 +13,8 @@
 #define TB_CH 104 /* glyph 64 + label */
 enum { TB_BLK = GFX_BLACK, TB_WHT = GFX_WHITE };
 
-static const char *const tb_label[TI_N] = { "Pen", "Brush", "Pencil", "Marker", "Spray", "Eraser", "Fill", "Black", "Grey", "White", "Small", "Medium", "Big", "Mirror" };
+static const char *const tb_other[TI_N - TI_BLACK] = { "Black", "Grey", "White", "Small", "Medium", "Big", "Mirror" };
+const char *tb_label(int i) { return i < TI_BLACK ? brush_name(i) : tb_other[i - TI_BLACK]; } /* the tools named by brush.c, in its order */
 
 int tb_shade_of(int item) { return item == TI_BLACK ? SH_BLACK : item == TI_GREY ? SH_GREY : item == TI_WHITE ? SH_WHITE : -1; }
 int tb_item_of_shade(int shade) { return shade == SH_BLACK ? TI_BLACK : shade == SH_GREY ? TI_GREY : shade == SH_WHITE ? TI_WHITE : -1; }
@@ -49,8 +50,8 @@ int tb_hit(const tb_layout_t *L, int x, int y)
 static void tb_caption(gfx_t *g, const tb_layout_t *L, int i, int x, int y, int c)
 {
     const font_face_t *f = font_get(FONT_BOLD, 24);
-    int w = (int)((font_width64(f, tb_label[i], 0) + 32) >> 6);
-    gfx_text(g, f, (int32_t)(x + (L->cell - w) / 2) * 64, y + TBI_SIZE + 26, tb_label[i], 0, c);
+    int w = (int)((font_width64(f, tb_label(i), 0) + 32) >> 6);
+    gfx_text(g, f, (int32_t)(x + (L->cell - w) / 2) * 64, y + TBI_SIZE + 26, tb_label(i), 0, c);
 }
 
 void tb_draw(gfx_t *g, const tb_layout_t *L, const bstyle_t *cur, int hot)

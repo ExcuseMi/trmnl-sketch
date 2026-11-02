@@ -25,6 +25,7 @@ int tb_hit(const tb_layout_t *L, int x, int y); /* the item under the point, or 
 /* The shade a colour item stands for (Black, Grey, White), or -1 for another item; and the colour item of a shade, or -1 */
 int tb_shade_of(int item);
 int tb_item_of_shade(int shade);
+const char *tb_label(int item); /* the name under a toolbar button */
 /* Draws the strip; the current brush, colour and size are shown inverted, item `hot` (-1: none) has a frame (the pen is over it) */
 void tb_draw(gfx_t *g, const tb_layout_t *L, const bstyle_t *cur, int hot);
 #endif
