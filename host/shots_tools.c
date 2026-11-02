@@ -101,9 +101,42 @@ static void cursor_shots(const char *dir, int *bad)
     rig_end(&r);
 }
 
+/* The paintbrush at a light, a medium and a hard touch (three sizes each): black over white above, white over black below, and a crossing pass */
+static void brush_wave(rig_t *r, int x0, int x1, int y, int amp, unsigned pressure)
+{
+    int p[2 * 25];
+    for (int k = 0; k < 25; k++) p[2 * k] = x0 + (x1 - x0) * k / 24, p[2 * k + 1] = y + (int)(amp * sin(k * 0.52));
+    rig_stroke(r, p, 25, pressure, 0);
+}
+static void paintbrush_shots(const char *dir, int *bad)
+{
+    static const unsigned pr[3] = { 8000, 30000, 65000 };
+    rig_t r;
+    rig_new(&r, APP_ORIENT_BAR_BOTTOM);
+    for (int y = 700; y < 1404; y++) cv_span_s(&r.s.page, y, 0, 1871, 0, 0);
+    sk_show_page(&r.s);
+    sk_set_brush(&r.s, BR_BRUSH, r.now += 50);
+    for (int half = 0; half < 2; half++) {
+        sk_set_shade(&r.s, half ? SH_WHITE : SH_BLACK, r.now += 50);
+        for (int sz = 0; sz < 3; sz++) {
+            sk_set_size(&r.s, sz, r.now += 50);
+            for (int k = 0; k < 3; k++) brush_wave(&r, 100 + sz * 600, 600 + sz * 600, 120 + half * 700 + k * 190 + sz * 20, 30, pr[k]);
+        }
+    }
+    sk_set_shade(&r.s, SH_BLACK, r.now += 50); /* overlap: a light pass over a hard one and a hard over a light, in grey too */
+    sk_set_shade(&r.s, SH_GREY, r.now += 50);
+    sk_set_size(&r.s, 2, r.now += 50);
+    brush_wave(&r, 1300, 1800, 620, 20, pr[0]);
+    brush_wave(&r, 1300, 1800, 640, 20, pr[2]);
+    frames(&r);
+    put(&r, dir, "br1-paintbrush-pressure-black-white-grey", bad);
+    rig_end(&r);
+}
+
 void tool_shots(const char *dir, int *bad)
 {
     cursor_shots(dir, bad);
     tone_shots(dir, bad);
     paper_shots(dir, bad);
+    paintbrush_shots(dir, bad);
 }

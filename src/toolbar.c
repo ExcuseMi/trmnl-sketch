@@ -8,12 +8,12 @@
 
 #define TB_PAD 8
 #define TB_MARGIN 16
-#define TB_GAP 24
+#define TB_GAP 18
 #define TB_LINE 4
 #define TB_CH 104 /* glyph 64 + label */
 enum { TB_BLK = GFX_BLACK, TB_WHT = GFX_WHITE };
 
-static const char *const tb_label[TI_N] = { "Pen", "Pencil", "Marker", "Spray", "Eraser", "Fill", "Black", "Grey", "White", "Small", "Medium", "Big", "Mirror" };
+static const char *const tb_label[TI_N] = { "Pen", "Brush", "Pencil", "Marker", "Spray", "Eraser", "Fill", "Black", "Grey", "White", "Small", "Medium", "Big", "Mirror" };
 
 int tb_shade_of(int item) { return item == TI_BLACK ? SH_BLACK : item == TI_GREY ? SH_GREY : item == TI_WHITE ? SH_WHITE : -1; }
 int tb_item_of_shade(int shade) { return shade == SH_BLACK ? TI_BLACK : shade == SH_GREY ? TI_GREY : shade == SH_WHITE ? TI_WHITE : -1; }

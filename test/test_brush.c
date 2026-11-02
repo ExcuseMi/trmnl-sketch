@@ -54,7 +54,7 @@ static void test_table(void)
         b = brush_next(b);
     }
     CHECK(b == 0);
-    CHECK(BR_N == 6 && brush_is_eraser(BR_ERASER) && !brush_is_eraser(BR_PENCIL) && brush_is_fill(BR_FILL) && !brush_is_fill(BR_ERASER) && !strcmp(brush_name(BR_FILL), "Fill"));
+    CHECK(BR_N == 7 && brush_is_eraser(BR_ERASER) && !brush_is_eraser(BR_PENCIL) && brush_is_fill(BR_FILL) && !brush_is_fill(BR_ERASER) && !strcmp(brush_name(BR_FILL), "Fill"));
     CHECK(!strcmp(brush_name(BR_PEN), "Pen") && !strcmp(brush_name(BR_ERASER), "Eraser"));
 }
 
@@ -206,7 +206,7 @@ static void test_cursors(void)
     CHECK(gaps > 10);
     /* brush pen: a drop, pointed to the upper right; pencil: a tip with the body to the upper right */
     int ext_ur = -99, ext_ll = -99;
-    for (int br = BR_PEN; br <= BR_PENCIL; br++) { /* (ids 0 and 1) */
+    for (int br = BR_PEN; br <= BR_PENCIL; br += BR_PENCIL - BR_PEN) { /* (the Pen and the Pencil) */
         ext_ur = ext_ll = -99;
         r = brush_shape_r(br, 1);
         for (int dy = -r; dy <= r; dy++)

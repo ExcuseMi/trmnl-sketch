@@ -1,4 +1,4 @@
-/* The toolbar: one row along one edge of the screen (the top, or the bottom when the touch bar is on top): the six tools,
+/* The toolbar: one row along one edge of the screen (the top, or the bottom when the touch bar is on top): the seven tools,
    the three colours, the three sizes and Mirror, each a glyph with a short label. Undo, Redo and Clear are the tablet's
    buttons only. Layout and hit test are pure (user frame, tested in every position); the drawing goes through gfx.h.
    SPDX-License-Identifier: MIT */

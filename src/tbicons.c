@@ -55,6 +55,18 @@ static void tbi_pen(const tbi_tool_t *t)
     tbi_shape(t, bristle, 7, t->ink, 0);
 }
 
+/* The Pen: a nib on a barrel (the fountain pen's), apart from the Brush's tuft */
+static void tbi_nib(const tbi_tool_t *t)
+{
+    const float nib[] = { 0, 0, 14, -8, 24, -8, 24, 8, 14, 8 }, grip[] = { 24, -6, 36, -6, 36, 6, 24, 6 }, barrel[] = { 36, -9, 58, -9, 58, 9, 36, 9 };
+    tbi_shape(t, barrel, 4, t->bg, 1);
+    tbi_bar(t, 42, 52, 0, 3, t->ink);
+    tbi_shape(t, grip, 4, t->ink, 0);
+    tbi_shape(t, nib, 5, t->ink, 0);
+    tbi_bar(t, 1, 14, 0, 2, t->bg); /* the slit */
+    tbi_bar(t, 14, 14, 0, 6, t->bg); /* the breather hole */
+}
+
 static void tbi_pencil(const tbi_tool_t *t)
 {
     const float wood[] = { 0, 0, 14, -7, 14, 7 }, lead[] = { 0, 0, 5, -2.6f, 5, 2.6f }, body[] = { 14, -7, 50, -7, 50, 7, 14, 7 },
@@ -120,7 +132,8 @@ void tbi_brush(gfx_t *g, int brush, int x, int y, int ink, int bg)
 {
     tbi_tool_t t = { g, (float)x + 8, (float)y + 56, ink, bg };
     switch (brush) {
-    case BR_PEN: tbi_pen(&t); break;
+    case BR_PEN: tbi_nib(&t); break;
+    case BR_BRUSH: tbi_pen(&t); break;
     case BR_PENCIL: tbi_pencil(&t); break;
     case BR_MARKER: tbi_marker(&t); break;
     case BR_SPRAY: tbi_spray(&t, x, y); break;

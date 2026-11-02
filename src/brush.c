@@ -5,7 +5,7 @@
 #include "penmap.h"
 #include "sk_cfg.h"
 
-static const char *const names[BR_N] = { "Pen", "Pencil", "Marker", "Spray", "Eraser", "Fill" };
+static const char *const names[BR_N] = { "Pen", "Brush", "Pencil", "Marker", "Spray", "Eraser", "Fill" };
 
 const char *brush_name(int b) { return names[b < 0 || b >= BR_N ? 0 : b]; }
 const char *shade_name(int sh) { return sh == SH_BLACK ? "Black" : sh == SH_WHITE ? "White" : "Grey"; }
@@ -15,7 +15,7 @@ int brush_is_fill(int b) { return b == BR_FILL; }
 int brush_tail(int b) { return b == BR_PEN; }
 
 /* Small, Medium, Big per brush (pen size = the diameter in px; the eraser's is its side). Fill has no size: it shares the pen's row so the buttons keep their pick */
-static const uint8_t sizes[BR_N][BR_SIZES] = { { 5, 9, 17 }, { 5, 9, 17 }, { 6, 10, 18 }, { 8, 14, 26 }, { 14, 27, 44 }, { 5, 9, 17 } };
+static const uint8_t sizes[BR_N][BR_SIZES] = { { 5, 9, 17 }, { 12, 22, 40 }, { 5, 9, 17 }, { 6, 10, 18 }, { 8, 14, 26 }, { 14, 27, 44 }, { 5, 9, 17 } };
 int brush_size(int b, int cls) { return sizes[b < 0 || b >= BR_N ? 0 : b][cls < 0 ? 0 : cls >= BR_SIZES ? BR_SIZES - 1 : cls]; }
 int brush_size_cls(int b, int size)
 {
@@ -60,7 +60,7 @@ int brush_param(int b, int size, unsigned pressure)
         if (q > 65535) q = 65535;
         return 1 + (int)((unsigned long long)(LZ(size, 8, 15, 26, 60) - 1) * q / 65535);
     }
-    case BR_PENCIL: case BR_SPRAY: return p8(pressure);
+    case BR_BRUSH: case BR_PENCIL: case BR_SPRAY: return p8(pressure);
     case BR_MARKER: return LZ(size, 8, 14, 24, 90);
     case BR_ERASER: return pen_erase_d(size);
     default: return 1; /* the bucket draws no stroke */
@@ -148,6 +148,24 @@ static void stamp_pencil(const bctx_t *k, int x, int y, int p) /* grain: a page-
     add_box(k, x - R, y - R, x + R, y + R);
 }
 
+/* The paintbrush: a soft round mark. Pressure sets how dark it lays (a page-fixed noise under a threshold, the pencil's
+   way: the same pixel is ink or not whatever stroke reaches it, so overlapping passes only add) and widens it a little;
+   the threshold falls off from a solid core to nothing at the rim, so the edge thins to sparse dots. Full pressure is
+   solid in the core. The shade does the rest: Grey caps at its own dots, White lays white (cv_px_s) */
+static void stamp_brush(const bctx_t *k, int x, int y, int p)
+{
+    int rb = k->size / 2, r = rb * (80 + p * 40 / 255) / 100, thr = 30 + p * 240 / 255;
+    int R2 = r * r + r, C2 = R2 * 16 / 100; /* the core: 40 % of the radius is solid at full pressure */
+    for (int dy = -r; dy <= r; dy++)
+        for (int dx = -r; dx <= r; dx++) {
+            int d2 = dx * dx + dy * dy;
+            if (d2 > R2) continue;
+            int f = d2 <= C2 ? 256 : 256 * (R2 - d2) / (R2 - C2);
+            if ((int)(hash3(x + dx, y + dy, 0) & 255) < thr * f / 256) px(k, x + dx, y + dy);
+        }
+    add_box(k, x - r, y - r, x + r, y + r);
+}
+
 static void stamp_pen(const bctx_t *k, int x, int y, int p) /* the swelling disc; a tilted pen lays a little more down */
 {
     int X, Y, d = p + p * tilt_m(k) / 160;
@@ -168,7 +186,7 @@ static void stamp_spray(const bctx_t *k, int x, int y, int p) /* dots about the 
 
 static void stamp_none(const bctx_t *k, int x, int y, int p) { (void)k, (void)x, (void)y, (void)p; } /* the bucket draws no stroke */
 
-static const stamp_fn stamps[BR_N] = { stamp_pen, stamp_pencil, stamp_square, stamp_spray, stamp_square, stamp_none };
+static const stamp_fn stamps[BR_N] = { stamp_pen, stamp_brush, stamp_pencil, stamp_square, stamp_spray, stamp_square, stamp_none };
 
 static void seg_img(const bstyle_t *st, int img, int colour, canvas_t *c, int x0, int y0, int p0, int t0, int x1, int y1, int p1, int t1, box_t *dirty);
 
@@ -212,6 +230,7 @@ int brush_shape_r(int b, int size)
     size = sz(size);
     switch (b) {
     case BR_PEN: return LZ(size, 3, 5, 8, 15) * 3 + 2;
+    case BR_BRUSH: return size * 6 / 10 + 2;
     case BR_PENCIL: return LZ(size, 14, 20, 28, 58) * 3 / 4 + 3;
     case BR_MARKER: return LZ(size, 8, 14, 24, 90) / 2 + 2;
     case BR_SPRAY: return LZ(size, 10, 18, 30, 46);
@@ -253,6 +272,10 @@ int brush_shape_px(int b, int size, int dx, int dy)
     case BR_PEN: {
         int rr = LZ(size, 3, 5, 8, 15);
         return in_drop(rr, dx, dy) && !(in_drop(rr, dx - 1, dy) && in_drop(rr, dx + 1, dy) && in_drop(rr, dx, dy - 1) && in_drop(rr, dx, dy + 1));
+    }
+    case BR_BRUSH: { /* a ring of the soft mark's size */
+        int r = size / 2, d2 = dx * dx + dy * dy;
+        return d2 <= r * r + r && d2 >= (r - 1) * (r - 1);
     }
     case BR_PENCIL: {
         int l = LZ(size, 14, 20, 28, 58);
