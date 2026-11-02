@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: MIT */
 #include "skcfg.h"
 #include <string.h>
+#include "skpress.h"
 
 /* Not a device setting of the X (its keys are fixed): always Sketch's own */
 static const app_setting_decl_t decl_turn = { "tablet_turn", "Tablet in portrait (auto: used turned a quarter, long side up and down; off: as it lies)", "auto|off", 0, 0, APP_SETTING_CHOICE };
@@ -8,10 +9,19 @@ static const app_setting_decl_t decl_gap = { "fill_gap", "Bucket fill: close gap
 static const app_setting_decl_t decl_paper = { "paper", "Paper for new pages (the page menu's Paper changes one page)", "blank|grid|lines|dots", 0, 0, APP_SETTING_CHOICE };
 static const app_setting_decl_t decl_psp = { "paper_sp", "Paper spacing in px (16..200, default 48)", 0, 0, 200, APP_SETTING_NUMBER };
 static const app_setting_decl_t decl_smooth = { "smooth", "Stabiliser: smooths shaky lines while drawing (0 off, default 3, 10 most); the line ends where the pen ended", 0, 0, 10, APP_SETTING_NUMBER };
+static char pc_text[160];
+static app_setting_decl_t decl_pc = { "pressure_curve", pc_text, "soft|normal|firm", 0, 0, APP_SETTING_CHOICE };
 static const app_setting_decl_t decl[] = {
     { "cleanup_s", "Clean the screen after this many idle seconds (0: never)", 0, 0, 600, APP_SETTING_NUMBER },
     { "pen_area", "Tablet area on the page (fill: every tablet edge is a screen edge; keep: no stretching)", "fill|keep", 0, 0, APP_SETTING_CHOICE },
 };
+
+static void sk_cpy_text(char *d, size_t cap, const char *s)
+{
+    size_t n = strlen(s) < cap - 1 ? strlen(s) : cap - 1;
+    memcpy(d, s, n);
+    d[n] = 0;
+}
 
 static int has_dev(const app_api_t *api) { return api->size >= APP_API_SLOT(58) && api->device_setting_get; }
 
@@ -30,13 +40,16 @@ int skcfg_get(const app_api_t *api, const char *key, char *buf, int cap)
 void skcfg_declare(const app_api_t *api)
 {
     if (api->size < APP_API_SLOT(47)) return;
-    app_setting_decl_t all[8];
+    app_setting_decl_t all[10];
     uint32_t n = 0;
     all[n++] = decl_turn;
     all[n++] = decl_gap;
     all[n++] = decl_paper;
     all[n++] = decl_psp;
     all[n++] = decl_smooth;
+    sk_cpy_text(pc_text, sizeof(pc_text), "Pen pressure curve: ");
+    pc_preview(pc_text + 20, sizeof(pc_text) - 20);
+    all[n++] = decl_pc;
     if (!has_dev(api)) all[n++] = decl[0], all[n++] = decl[1];
     api->settings_declare(all, n);
 }

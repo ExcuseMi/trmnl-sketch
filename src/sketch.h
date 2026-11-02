@@ -19,6 +19,7 @@
 #include "skmenu.h"
 #include "skpills.h"
 #include "sk_cfg.h"
+#include "skpress.h"
 #include "skstab.h"
 #include "skui.h"
 #include "toolbar.h"
@@ -68,6 +69,7 @@ typedef struct {
     int tablet;          /* a tablet is connected (pen_info) */
     int stroke, barrel;  /* a stroke is open; a pen button is held */
     stab_t stab;         /* the stabiliser of the open stroke (skstab.h) */
+    int pcurve;          /* setting pressure_curve: PC_SOFT, PC_NORMAL (default), PC_FIRM (skpress.h) */
     int smooth;          /* the stabiliser 0..10 (setting smooth, default 3; the toolbar's Smooth cell) */
     int rx, ry, stroke_pts; /* the pen's own last point of the open stroke, and how many points it has had */
     int sh_on, sh_x0, sh_y0, sh_x1, sh_y1, sh_barrel; /* a shape is being dragged (skshape.c): start, end, constrain was on at the last preview */

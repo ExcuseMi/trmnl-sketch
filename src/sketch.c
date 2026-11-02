@@ -452,6 +452,7 @@ void sk_pen(sketch_t *s, unsigned flags, unsigned x, unsigned y, unsigned pressu
     if (sk_shape_pen(s, tip, inside, fx, fy, now)) return;
     if (sk_text_pen(s, tip, inside, fx, fy, now)) return;
     if (tip && inside) {
+        pressure = pc_apply(s->pcurve, pressure); /* before any brush uses it for width or tone */
         if (!s->stroke) {
             int br = eff_brush(s);
             sk_cursor_hide(s);
@@ -605,6 +606,8 @@ void sk_cfg_reload(sketch_t *s)
     s->fill = !(n == 4 && !memcmp(b, "keep", 4)); /* fill unless it says keep */
     s->turn = !(s->env.cfg_get && (n = s->env.cfg_get(s->env.user, "tablet_turn", b, 7)) == 3 && !memcmp(b, "off", 3)); /* auto unless off */
     s->bk_gap = cfg_int(s, "fill_gap", 3);
+    n = s->env.cfg_get ? s->env.cfg_get(s->env.user, "pressure_curve", b, 7) : -1;
+    s->pcurve = n > 0 ? pc_parse(b, n) : PC_NORMAL;
     s->smooth = cfg_int(s, "smooth", 3) > SK_SMOOTH_MAX ? SK_SMOOTH_MAX : cfg_int(s, "smooth", 3);
     if (s->bk_gap > 6) s->bk_gap = 6;
     n = s->env.cfg_get ? s->env.cfg_get(s->env.user, "paper", b, 7) : -1;
