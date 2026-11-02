@@ -107,7 +107,7 @@ static void test_menu_and_exact_back(void)
         CHECK(!memcmp(r.s.page.px, keep, sizeof(keep))); /* the page is still in memory, untouched */
         if (way == 0 || way == 3) btn(&r, 5);              /* tablet 5 */
         else if (way == 1) btn(&r, 7);                     /* the menu button again */
-        else if (way == 2) { for (int i = 0; i < 6; i++) tap(&r, APP_TOUCH_RIGHT); tap(&r, APP_TOUCH_MIDDLE); } /* the Back row */
+        else if (way == 2) { tap(&r, APP_TOUCH_LEFT); tap(&r, APP_TOUCH_MIDDLE); } /* the Back row, on top (owner 2026-11-02) */
         else if (way == 4) pen_ctl(&r, CTL_BACK);          /* the Back pill */
         else btn(&r, 8);
         CHECK(r.s.mode == SK_DRAW && r.s.cur == cur);
@@ -361,25 +361,25 @@ static void test_walk_with_the_pen_only(void)
         pen_pill(&r, PL_MENU);
         CHECK(r.s.mode == SK_PAGEMENU);
         rig_frame(&r, (rect_t[SK_MAX_RECTS]){ 0 });
-        pen_row(&r, 6); /* Back */
+        pen_row(&r, 0); /* Back, the top row (owner 2026-11-02) */
         CHECK(r.s.mode == SK_DRAW);
         pen_pill(&r, PL_MENU);
         pen_ctl(&r, CTL_BACK);
         CHECK(r.s.mode == SK_DRAW);
         pen_pill(&r, PL_MENU);
-        pen_row(&r, 0); /* Print */
+        pen_row(&r, 1); /* Print */
         CHECK(r.s.mode == SK_CONFIRM);
         pen_ctl(&r, CTL_BACK);
         CHECK(r.s.mode == SK_PAGEMENU);
-        pen_row(&r, 0);
-        pen_row(&r, 0); /* the Print row of the confirm list */
+        pen_row(&r, 1);
+        pen_row(&r, 1); /* the Print row of the confirm list */
         CHECK(r.s.mode == SK_BUSY);
         run_print(&r);
         CHECK(r.s.mode == SK_RESULT);
         pen_ctl(&r, CTL_SEL); /* OK */
         CHECK(r.s.mode == SK_PAGEMENU);
         r.pr_rc = PJ_NO_PRINTER;
-        pen_row(&r, 0);
+        pen_row(&r, 1);
         CHECK(r.s.mode == SK_RESULT && r.s.need_setup);
         pen_ctl(&r, CTL_SETUP);
         CHECK(r.s.setup_req);
@@ -387,20 +387,20 @@ static void test_walk_with_the_pen_only(void)
         pen_ctl(&r, CTL_BACK);
         CHECK(r.s.mode == SK_PAGEMENU);
         r.pr_rc = 0;
-        pen_row(&r, 1); /* Send to phone */
+        pen_row(&r, 2); /* Send to phone */
         CHECK(r.s.mode == SK_SHARE && r.s.share_req == 1);
         pen_anywhere(&r);
         CHECK(r.s.mode == SK_PAGEMENU);
-        pen_row(&r, 2); /* Settings */
+        pen_row(&r, 3); /* Settings */
         CHECK(r.s.mode == SK_SHARE && r.s.share_req == 2);
         pen_anywhere(&r);
         CHECK(r.s.mode == SK_PAGEMENU);
-        pen_row(&r, 5); /* Gallery */
+        pen_row(&r, 6); /* Gallery */
         CHECK(r.s.mode == SK_GALLERY);
         rig_frame(&r, (rect_t[SK_MAX_RECTS]){ 0 });
         pen_tile(&r, 1); /* the damaged one */
         CHECK(r.s.mode == SK_ACTIONS);
-        pen_row(&r, 0);
+        pen_row(&r, 1);
         CHECK(r.s.mode == SK_SHARE);
         pen_anywhere(&r);
         CHECK(r.s.mode == SK_ACTIONS);
@@ -409,11 +409,11 @@ static void test_walk_with_the_pen_only(void)
         pen_ctl(&r, CTL_BACK);
         CHECK(r.s.mode == SK_DRAW);
         pen_pill(&r, PL_MENU);
-        pen_row(&r, 5);
+        pen_row(&r, 6);
         pen_tile(&r, 3); /* page 1 */
         CHECK(r.s.mode == SK_DRAW && r.s.cur == 1);
         pen_pill(&r, PL_MENU);
-        pen_row(&r, 4); /* New page */
+        pen_row(&r, 5); /* New page */
         CHECK(r.s.mode == SK_DRAW && r.s.cur == 4);
         pen_pill(&r, PL_MENU);
         pen_row(&r, 7); /* Exit Sketch */
@@ -445,7 +445,7 @@ static void test_walk_with_the_tablet_buttons_only(void)
         btn(&r, 8); /* the menu button again */
         CHECK(r.s.mode == SK_DRAW);
         btn(&r, 7);
-        row_button(&r, 0);
+        row_button(&r, 1);
         btn(&r, 4);
         CHECK(r.s.mode == SK_CONFIRM);
         btn(&r, 5);
@@ -464,16 +464,16 @@ static void test_walk_with_the_tablet_buttons_only(void)
         r.s.setup_req = 0;
         btn(&r, 5);
         r.pr_rc = 0;
-        row_button(&r, 1);
+        row_button(&r, 2);
         btn(&r, 4);
         CHECK(r.s.mode == SK_SHARE);
         btn(&r, 1);
         CHECK(r.s.mode == SK_PAGEMENU);
-        row_button(&r, 2);
+        row_button(&r, 3);
         btn(&r, 4);
         CHECK(r.s.mode == SK_SHARE && r.s.share_req == 2);
         btn(&r, 1);
-        row_button(&r, 5);
+        row_button(&r, 6);
         btn(&r, 4);
         CHECK(r.s.mode == SK_GALLERY);
         rig_frame(&r, (rect_t[SK_MAX_RECTS]){ 0 });

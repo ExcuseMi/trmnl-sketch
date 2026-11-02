@@ -40,6 +40,13 @@ enum { SK_DRAW, SK_SHARE, SK_GALLERY, SK_ACTIONS, SK_CONFIRM, SK_BUSY, SK_RESULT
 #define SK_BLITS 40
 enum { SK_NONE = 0, SK_FULL = -1, SK_NOFLASH = -2 }; /* sk_flush: nothing due / a full refresh; SK_NOFLASH: only inside (sk_flash_step) */
 
+/* The inputs of a strip paint: the same key, the same pixels (sktbimg.c) */
+typedef struct {
+    bstyle_t sty, rc[SK_RECENT];
+    int hot, rc_n, smooth, orient;
+    box_t box;
+} tb_key_t;
+
 typedef struct {
     sk_env_t env;
     canvas_t fb, page;
@@ -59,6 +66,12 @@ typedef struct {
     int tb_on, tb_hold;  /* the toolbar is up; a pen press that began on it is still down */
     tb_layout_t tb;
     box_t tb_box;        /* the strip in the framebuffer, whole bytes */
+    box_t tb_px;         /* the strip in the framebuffer, exact pixels (tb_box without the byte rounding) */
+    tb_key_t tb_key;     /* what the strip image was painted from (sktbimg.c) */
+    uint8_t *tb_img;     /* the painted strip, tb_box's bytes (NULL: none, paint again) */
+    size_t tb_img_cap;
+    int tb_img_ok;
+    uint32_t tb_paints;  /* statistics: whole-strip paints (tb_draw); a pen move over the strip must not cost one */
     box_t flash;         /* to flash (sk_flash), empty: none */
     box_t fl_box;        /* the flash under way: its inverted half was pushed, the clean half is next */
     int fl_phase;
@@ -133,6 +146,7 @@ typedef struct {
     pills_t pl;          /* the Tools and Menu pills on the drawing page (overlay, like the toolbar) */
     box_t pl_box;
     int pl_hold;         /* a pen press that began on a pill (1 Tools, 2 Menu) is still down */
+    int pl_on;           /* the pills are shown (skplvis.c: only while the pen hovers near them) */
     struct { int num, x, y; } blit[SK_BLITS]; /* thumbnails to lay over `ui` */
     int blit_n;
     int hot, ptr_ctl;    /* the control (CTL_*) the pen hovers over / a press began on */
@@ -162,7 +176,14 @@ void sk_slider_drag(sketch_t *s, int ux);
 /* sketch.c's own, shared with sksize.c: a setting's number, a toast with the strip repainted, the strip repainted in the framebuffer */
 void sk_cfg_num(sketch_t *s, const char *key, int v);
 void sk_picked(sketch_t *s, const char *text, uint32_t now);
-void sk_tb_paint(sketch_t *s);
+void sk_tb_paint(sketch_t *s);                    /* the whole strip in the framebuffer (drawn only when its inputs changed: sktbimg.c) */
+void sk_tb_restore(sketch_t *s, const box_t *b);  /* the strip's pixels back inside b (an arrow or the page laid over them) */
+void sk_tb_img_free(sketch_t *s);
+/* The pills follow the pen (skplvis.c): shown while it hovers near them, hidden while it draws or hovers elsewhere;
+   out of range: as they were. tip, range, inside: the pen event; ux, uy: the user frame */
+void sk_pills_follow(sketch_t *s, int tip, int range, int inside, int ux, int uy);
+void sk_pills_show(sketch_t *s, int on);
+void sk_pl_paint(sketch_t *s);
 /* Shows the toolbar, or hides it again (the same tablet button): only the strip is refreshed, clean; the page under it is
    kept and comes back as it was */
 void sk_toolbar(sketch_t *s, uint32_t now);

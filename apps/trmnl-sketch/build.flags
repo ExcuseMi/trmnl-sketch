@@ -43,6 +43,8 @@
 ../../src/sklat.c
 ../../src/sklatency.c
 ../../src/skcursor.c
+../../src/sktbimg.c
+../../src/skplvis.c
 ../../src/textdraw.c
 ../../src/paper.c
 ../../src/skpaper.c

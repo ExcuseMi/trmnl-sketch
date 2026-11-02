@@ -157,7 +157,7 @@ static void menu_draw(sketch_t *s)
     case SK_PAGEMENU: {
         char pap[24] = "Paper: ";
         sk_cpy(pap + 7, sizeof(pap) - 7, pp_name(s->paper));
-        const char *const items[] = { "Print", "Send to phone", "Settings", pap, "New page", "Gallery", "Back", "Exit Sketch" };
+        const char *const items[] = { "Back", "Print", "Send to phone", "Settings", pap, "New page", "Gallery", "Exit Sketch" }; /* Back on top (owner 2026-11-02) */
         num_text(t, "Page ", s->act_num);
         ui_list(&g, &s->L, t, items, 8, s->act_sel, &s->lg);
         s->list_n = 8;
@@ -167,7 +167,7 @@ static void menu_draw(sketch_t *s)
         break;
     }
     case SK_ACTIONS: { /* a damaged page: the file can be rescued through the phone page */
-        static const char *const items[] = { "Send to phone", "Back" };
+        static const char *const items[] = { "Back", "Send to phone" };
         num_text(t, "Damaged ", s->act_num);
         ui_list(&g, &s->L, t, items, 2, s->act_sel, &s->lg);
         s->list_n = 2;
@@ -179,7 +179,7 @@ static void menu_draw(sketch_t *s)
         break;
     }
     case SK_CONFIRM: {
-        static const char *const items[] = { "Print", "Back" }, *const items2[] = { "Exit without saving", "Back" };
+        static const char *const items[] = { "Back", "Print" }, *const items2[] = { "Back", "Exit without saving" };
         ui_list(&g, &s->L, s->exit_unsaved ? "Could not save this page" : "Print this drawing?", s->exit_unsaved ? items2 : items, 2, s->act_sel, &s->lg);
         s->list_n = 2;
         gfx_rrect(&g, px - 10, py - 10, px + s->L.tw + 9, py + s->L.th + 9, 12, 2, MWHT_, MBLK_);
@@ -327,7 +327,7 @@ void sk_to_pagemenu(sketch_t *s, uint32_t now)
     s->act_num = s->cur;
     s->exit_unsaved = s->need_setup = 0;
     s->ptr_down = 0;
-    to_menu(s, SK_PAGEMENU, 0);
+    to_menu(s, SK_PAGEMENU, 1); /* row 0 is Back: Print is selected first */
 }
 
 /* The gallery, from the page menu: the page on screen is not left until another one is picked */
@@ -367,7 +367,7 @@ static void gal_activate(sketch_t *s, uint32_t now)
     }
     if (is_dmg(s, num)) { /* cannot be opened for drawing; its one action rescues the file */
         s->act_num = num;
-        return to_menu(s, SK_ACTIONS, 0);
+        return to_menu(s, SK_ACTIONS, 1);
     }
     to_draw(s);
     if (num == s->cur) return;
@@ -381,8 +381,8 @@ static void menu_back(sketch_t *s)
 {
     switch (s->mode) {
     case SK_ACTIONS: to_menu(s, SK_GALLERY, s->act_sel); break;
-    case SK_CONFIRM: to_menu(s, SK_PAGEMENU, s->exit_unsaved ? 7 : 0); break;
-    case SK_RESULT: to_menu(s, SK_PAGEMENU, 0); break;
+    case SK_CONFIRM: to_menu(s, SK_PAGEMENU, s->exit_unsaved ? 7 : 1); break;
+    case SK_RESULT: to_menu(s, SK_PAGEMENU, 1); break;
     default: to_draw(s); /* the page menu, the gallery */
     }
 }
@@ -409,28 +409,28 @@ static void print_start(sketch_t *s)
     }
     if (sk_print_check(s) < 0) return to_menu(s, SK_RESULT, 0);
     s->exit_unsaved = 0;
-    to_menu(s, SK_CONFIRM, 0);
+    to_menu(s, SK_CONFIRM, 1);
 }
 
 static void list_select(sketch_t *s, uint32_t now)
 {
     if (s->mode == SK_PAGEMENU) {
-        switch (s->act_sel) {
-        case 0: print_start(s); break;
-        case 1: case 2: share_from(s, s->act_sel); break;
-        case 3: sk_set_paper(s, (s->paper + 1) % PP_N, now), to_menu(s, SK_PAGEMENU, 3); break; /* Paper cycles in place */
-        case 4: to_draw(s), sk_new_page(s, now); break;
-        case 5: sk_to_gallery(s, now); break;
-        case 6: to_draw(s); break;
+        switch (s->act_sel) { /* the rows: Back on top, then the actions */
+        case 0: to_draw(s); break;
+        case 1: print_start(s); break;
+        case 2: case 3: share_from(s, s->act_sel - 1); break;
+        case 4: sk_set_paper(s, (s->paper + 1) % PP_N, now), to_menu(s, SK_PAGEMENU, 4); break; /* Paper cycles in place */
+        case 5: to_draw(s), sk_new_page(s, now); break;
+        case 6: sk_to_gallery(s, now); break;
         default: /* Exit Sketch: the page is saved, the app returns as after a long press; only a failed save asks first */
             if (sk_save_page(s, now)) s->exit_req = 1;
-            else s->exit_unsaved = 1, to_menu(s, SK_CONFIRM, 0);
+            else s->exit_unsaved = 1, to_menu(s, SK_CONFIRM, 1);
         }
     } else if (s->mode == SK_ACTIONS) {
-        if (s->act_sel == 0) share_from(s, 1);
+        if (s->act_sel == 1) share_from(s, 1);
         else menu_back(s);
     } else if (s->mode == SK_CONFIRM) {
-        if (s->act_sel != 0) return menu_back(s);
+        if (s->act_sel == 0) return menu_back(s); /* Back, the top row */
         if (s->exit_unsaved) s->exit_req = 1;
         else s->mode = SK_BUSY, s->print_req = 1, sk_screen_render(s);
     }

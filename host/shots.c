@@ -208,6 +208,14 @@ static void brush_shots(const char *dir)
             rig_frame(&r, o);
             save(&r, dir, "t4-slider-dragging");
             rig_pen_user(&r, tb_slider_x(&r.s.tb, 30), r.s.tb.sl_y, APP_PEN_IN_RANGE, 0);
+            rig_pen_user(&r, 900, 800, APP_PEN_IN_RANGE, 0); /* the pen over the page: the pills are hidden (skplvis.c) */
+            r.now += 200;
+            rig_frame(&r, o);
+            save(&r, dir, "t6-pills-hidden");
+            rig_pen_user(&r, r.s.pl.x0[0] - 100, r.s.pl.y0 + 20, APP_PEN_IN_RANGE, 0); /* near them: back */
+            r.now += 200;
+            rig_frame(&r, o);
+            save(&r, dir, "t7-pills-near-pen");
         }
         rig_end(&r);
     }

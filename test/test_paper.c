@@ -150,7 +150,7 @@ static void test_default_and_menu(void)
     CHECK(r.s.mode == SK_PAGEMENU && r.s.list_n == 8);
     for (int i = 0; i < 3; i++) btn(&r, 2);
     btn(&r, 4);
-    CHECK(r.s.mode == SK_PAGEMENU && r.s.paper == PP_LINES && r.s.act_sel == 3);
+    CHECK(r.s.mode == SK_PAGEMENU && r.s.paper == PP_LINES && r.s.act_sel == 4); /* the Paper row (Back on top) */
     btn(&r, 4);
     btn(&r, 4);
     CHECK(r.s.paper == PP_BLANK);

@@ -37,15 +37,9 @@ static int cfg_int(sketch_t *s, const char *key, int def)
 
 static void whole(box_t *b, const canvas_t *c) { *b = (box_t){ 0, 0, c->w - 1, c->h - 1 }; }
 static void tb_place(sketch_t *s);
-void sk_tb_paint(sketch_t *s)
+void sk_pl_paint(sketch_t *s)
 {
-    gfx_t g;
-    mkg(s, &g);
-    tb_draw(&g, &s->tb, &s->sty, s->tb_hot, s->rc, s->rc_n, s->smooth);
-}
-
-static void pl_paint(sketch_t *s)
-{
+    if (!s->pl_on) return;
     gfx_t g;
     mkg(s, &g);
     pl_draw(&g, &s->pl);
@@ -70,8 +64,8 @@ static void fb_put(sketch_t *s, const box_t *b)
     cv_copy_box(&s->fb, &s->page, b);
     sk_paper_blit(s, b);
     mr_guide(&s->fb, s->sty.mirror, b); /* the screen-only guide of the mirror (mirror.h) */
-    if (s->tb_on && hit(b, &s->tb_box)) sk_tb_paint(s);
-    if (hit(b, &s->pl_box)) pl_paint(s);
+    if (s->tb_on && hit(b, &s->tb_box)) sk_tb_restore(s, b); /* from the strip's image: no tb_draw (sktbimg.c) */
+    if (hit(b, &s->pl_box)) sk_pl_paint(s);
 }
 
 void sk_fb_restore(sketch_t *s, const box_t *b)
@@ -89,13 +83,14 @@ void sk_show_page(sketch_t *s)
     sk_paper_blit(s, &b);
     mr_guide(&s->fb, s->sty.mirror, &b);
     if (s->tb_on) sk_tb_paint(s);
-    pl_paint(s);
+    sk_pl_paint(s);
 }
 
 void sk_resume_draw(sketch_t *s) /* back from a menu screen: the toolbar as it was, the pills, the page */
 {
     if (s->tb_back) tb_place(s), s->tb_on = 1, s->tb_hot = -1;
     s->tb_back = 0;
+    s->pl_on = 0; /* the pills come back when the pen hovers near them (skplvis.c) */
     sk_show_page(s);
 }
 
@@ -139,8 +134,8 @@ static void tb_pointer(sketch_t *s, int ux, int uy)
     app_orient_to_fb(s->orient, s->fb.w, s->fb.h, ux, uy, &fx, &fy);
     if (s->tb_ptr && item == old && (fx - s->cx) * (fx - s->cx) + (fy - s->cy) * (fy - s->cy) < 9) return;
     s->tb_hot = item;
-    sk_cursor_hide(s);
-    sk_tb_paint(s);
+    sk_cursor_hide(s); /* the arrow's old box: the strip comes back from its image */
+    if (item != old) sk_tb_paint(s); /* the frame moved: the strip is drawn again, never for a move inside one item */
     box_t b;
     if (item != old)
         for (int k = 0; k < 2; k++) {
@@ -194,7 +189,7 @@ static void cursor_show(sketch_t *s, int fx, int fy)
     if (s->cursor && s->cr == r && s->cb == br && s->csz == sz && (fx - s->cx) * (fx - s->cx) + (fy - s->cy) * (fy - s->cy) < 9) return;
     sk_cursor_hide(s);
     if (s->note_on && hit(&want, &s->note)) return; /* never over a note: restoring the page would eat it */
-    if ((s->tb_on && hit(&want, &s->tb_box)) || hit(&want, &s->pl_box)) return; /* nor over the toolbar or the pills */
+    if ((s->tb_on && hit(&want, &s->tb_box)) || (s->pl_on && hit(&want, &s->pl_box))) return; /* nor over the toolbar or the pills */
     box_t b;
     ui_cursor(&s->fb, fx, fy, br, sz, &b);
     mark(s, &b);
@@ -331,6 +326,8 @@ static void tb_place(sketch_t *s) /* the strip for the screen in the user's fram
     mkg(s, &g);
     tb_layout(&s->tb, s->orient, g.SW, g.SH);
     ui_fb_box(&g, s->tb.x0, s->tb.y0, s->tb.x1, s->tb.y1, &b);
+    box_clip(&b, s->fb.w, s->fb.h);
+    s->tb_px = b;
     b.x0 &= ~7;
     b.x1 |= 7;
     box_clip(&b, s->fb.w, s->fb.h);
@@ -416,7 +413,8 @@ void sk_pen(sketch_t *s, unsigned flags, unsigned x, unsigned y, unsigned pressu
     int on_bar = 0, ux, uy;
     gal_from_fb(s->orient, s->fb.w, s->fb.h, fx, fy, &ux, &uy);
     if (s->tb_on && inside) on_bar = tb_in(&s->tb, ux, uy);
-    int on_pl = inside ? pl_hit(&s->pl, ux, uy) : PL_NONE;
+    sk_pills_follow(s, tip, range, inside, ux, uy);
+    int on_pl = inside && s->pl_on ? pl_hit(&s->pl, ux, uy) : PL_NONE;
     if (!tip && s->tb_drag) { /* the knob is let go: the size or the tone is kept */
         int tone = s->tb_drag == 2;
         s->tb_drag = 0;
@@ -706,6 +704,7 @@ int sk_init(sketch_t *s, const sk_env_t *env, uint8_t *fb, int w, int h, int str
     if (s->pg.n && pg_index(&s->pg, num) >= 0) sk_open_page(s, num, 0); /* none: the blank one is written with its first ink */
     else cv_fill(&s->page, 1), sk_paper_new(s);
     pl_place(s);
+    s->pl_on = 1;
     sk_show_page(s);
     s->want_full = 1;
     gfx_t g;
@@ -719,6 +718,7 @@ int sk_init(sketch_t *s, const sk_env_t *env, uint8_t *fb, int w, int h, int str
 
 void sk_free(sketch_t *s)
 {
+    sk_tb_img_free(s);
     free(s->ui.px);
     gal_cache_free(&s->cache);
     free(s->page.px);

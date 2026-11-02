@@ -166,12 +166,9 @@ static void test_full_refresh_only_when_a_screen_opens_or_closes(void)
     r.now += 1000;
     tap(&r, APP_TOUCH_RIGHT);
     CHECK(rig_frame(&r, out) > 0 && r.fulls == f + 3);
-    tap(&r, APP_TOUCH_RIGHT);
-    tap(&r, APP_TOUCH_RIGHT);
-    tap(&r, APP_TOUCH_RIGHT);
-    tap(&r, APP_TOUCH_RIGHT);
-    tap(&r, APP_TOUCH_RIGHT);
-    tap(&r, APP_TOUCH_MIDDLE); /* Back */
+    tap(&r, APP_TOUCH_LEFT);
+    tap(&r, APP_TOUCH_LEFT);
+    tap(&r, APP_TOUCH_MIDDLE); /* Back, the top row */
     CHECK(rig_frame(&r, out) == SK_FULL && r.fulls == f + 4 && r.s.mode == SK_DRAW);
     sk_goto_page(&r.s, 0, r.now += 50); /* another page */
     CHECK(rig_frame(&r, out) == SK_FULL && r.fulls == f + 5); /* a page change flashes */

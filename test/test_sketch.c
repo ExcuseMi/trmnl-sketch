@@ -287,7 +287,8 @@ static void test_menu_and_share(void)
     for (int i = 0; i < 7; i++) touch(&r, APP_TOUCH_LEFT, APP_GESTURE_TAP); /* the pen may have hovered a row: to the first */
     CHECK(r.s.mode == SK_PAGEMENU && r.s.act_sel == 0); /* the menu of the page on screen */
     touch(&r, APP_TOUCH_RIGHT, APP_GESTURE_TAP);
-    touch(&r, APP_TOUCH_MIDDLE, APP_GESTURE_TAP); /* Send to phone */
+    touch(&r, APP_TOUCH_RIGHT, APP_GESTURE_TAP);
+    touch(&r, APP_TOUCH_MIDDLE, APP_GESTURE_TAP); /* Send to phone (row 0 is Back) */
     CHECK(r.s.mode == SK_SHARE && r.s.share_req == 1);
     app_webshare_status_t st = { .running = 1, .mode = APP_WEBSHARE_AP };
     strcpy(st.code, "123456"), strcpy(st.network, "Writer"), strcpy(st.address, "http://4.3.2.1"), strcpy(st.ip, "4.3.2.1");
@@ -302,8 +303,8 @@ static void test_menu_and_share(void)
     CHECK(r.s.want_full); /* a change is drawn */
     touch(&r, APP_TOUCH_MIDDLE, APP_GESTURE_TAP);
     CHECK(r.s.share_req == -1 && r.s.mode == SK_PAGEMENU);
-    for (int i = 0; i < 5; i++) touch(&r, APP_TOUCH_RIGHT, APP_GESTURE_TAP);
-    touch(&r, APP_TOUCH_MIDDLE, APP_GESTURE_TAP); /* Back */
+    for (int i = 0; i < 2; i++) touch(&r, APP_TOUCH_LEFT, APP_GESTURE_TAP);
+    touch(&r, APP_TOUCH_MIDDLE, APP_GESTURE_TAP); /* Back, the top row */
     CHECK(r.s.mode == SK_DRAW && same_page_and_fb(&r)); /* back to the page */
     CHECK(rig_frame(&r, out) == SK_FULL && same_page_and_fb(&r));
     share_view_t v;
