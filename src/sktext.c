@@ -38,8 +38,8 @@ void sk_text_end(sketch_t *s, uint32_t now)
     bstyle_t st = { BR_FINELINER, s->sty.shade, s->sty.size, 0, 0 };
     hpt_t *slots = hist_text_begin(&s->hist, (uint32_t)s->tx_n + 1, &st);
     if (!slots) return sk_toast(s, "Not enough room to keep this text", now);
-    slots[0] = (hpt_t){ (int16_t)s->tx_x, (int16_t)s->tx_y, (uint8_t)s->tx_cls };
-    for (int i = 0; i < s->tx_n; i++) slots[1 + i] = (hpt_t){ (int16_t)s->tx_cp[i], 0, 0 };
+    slots[0] = (hpt_t){ (int16_t)s->tx_x, (int16_t)s->tx_y, (uint8_t)s->tx_cls, 0 };
+    for (int i = 0; i < s->tx_n; i++) slots[1 + i] = (hpt_t){ (int16_t)s->tx_cp[i], 0, 0, 0 };
     box_t bb;
     tx_draw(0, 0, 0, s->tx_x, s->tx_y, s->tx_cls, s->tx_cp, s->tx_n, &bb, 0, 0);
     box_clip(&bb, s->page.w, s->page.h);

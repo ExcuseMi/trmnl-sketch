@@ -21,6 +21,18 @@ static int sz(int size) { return size < SK_SIZE_MIN ? SK_SIZE_MIN : size > SK_SI
 /* ---- the byte a point carries ---- */
 
 
+int bt_code(int tx, int ty)
+{
+    int a = fm_round((float)tx / BT_STEP), b = fm_round((float)ty / BT_STEP);
+    a = a < -8 ? -8 : a > 7 ? 7 : a, b = b < -8 ? -8 : b > 7 ? 7 : b;
+    return (a & 15) << 4 | (b & 15);
+}
+void bt_decode(int code, int *tx, int *ty)
+{
+    int a = code >> 4 & 15, b = code & 15;
+    *tx = (a > 7 ? a - 16 : a) * BT_STEP, *ty = (b > 7 ? b - 16 : b) * BT_STEP;
+}
+
 static int p8(unsigned pressure) { return pressure > 65535 ? 255 : (int)(pressure >> 8); }
 
 int brush_param(int b, int size, unsigned pressure)
@@ -48,6 +60,7 @@ typedef struct {
     int colour, shade, size;
     box_t *dirty;
     int mode, img; /* the mirror's symmetry and which image this pass draws (0: the pen's own, no map) */
+    int tx, ty;    /* the pen's tilt at the stamp, degrees (bt_decode), in the page's frame */
 } bctx_t;
 
 /* Where the stamp's pixel (x, y) lands: the mirror image of it (every pixel is mapped, so a stamp's own shape and its
@@ -102,13 +115,35 @@ static void stamp_square(const bctx_t *k, int x, int y, int p) /* marker, eraser
     if (k->dirty) box_add(k->dirty, x0, y0), box_add(k->dirty, x0 + w - 1, y0 + w - 1);
 }
 
+/* The tilt's size m in degrees (the pen's lean from upright, 0 .. about 68) */
+static int tilt_m(const bctx_t *k) { return fm_round(fm_sqrt((float)(k->tx * k->tx + k->ty * k->ty))); }
+
 static void stamp_pencil(const bctx_t *k, int x, int y, int p) /* grain: a page-fixed noise under a pressure threshold */
 {
-    int d = LZ(k->size, 3, 5, 8, 40), r = d / 2, thr = 60 + p * 195 / 255;
-    for (int dy = -r; dy <= r; dy++)
-        for (int dx = -r; dx <= r; dx++)
-            if (dx * dx + dy * dy <= r * r + r && (int)(hash3(x + dx, y + dy, 0) & 255) < thr) px(k, x + dx, y + dy);
-    add_box(k, x - r, y - r, x + r, y + r);
+    int d = LZ(k->size, 3, 5, 8, 40), r = d / 2, thr = 60 + p * 195 / 255, m = tilt_m(k);
+    if (m == 0) { /* upright: the round mark, as it always was */
+        for (int dy = -r; dy <= r; dy++)
+            for (int dx = -r; dx <= r; dx++)
+                if (dx * dx + dy * dy <= r * r + r && (int)(hash3(x + dx, y + dy, 0) & 255) < thr) px(k, x + dx, y + dy);
+        add_box(k, x - r, y - r, x + r, y + r);
+        return;
+    }
+    /* tilted, like shading with the side of a real pencil: the mark stretches along the lean (never across it) and is lighter */
+    float ux = (float)k->tx / (float)m, uy = (float)k->ty / (float)m, stretch = 1.0f + (float)m / 40.0f;
+    float across2 = (float)(r * r + r), along2 = across2 * stretch * stretch;
+    thr = thr * (100 - m * 3 / 4) / 100;
+    int R = (int)(fm_sqrt(along2)) + 2;
+    for (int dy = -R; dy <= R; dy++)
+        for (int dx = -R; dx <= R; dx++) {
+            float u = (float)dx * ux + (float)dy * uy, v = -(float)dx * uy + (float)dy * ux; /* along and across the lean */
+            if (u * u / along2 + v * v / across2 <= 1.0f && (int)(hash3(x + dx, y + dy, 0) & 255) < thr) px(k, x + dx, y + dy);
+        }
+    add_box(k, x - R, y - R, x + R, y + R);
+}
+
+static void stamp_brushpen(const bctx_t *k, int x, int y, int p) /* the swelling disc; a tilted pen lays a little more down */
+{
+    stamp_disc(k, x, y, p + p * tilt_m(k) / 160);
 }
 
 static void stamp_nib(const bctx_t *k, int x, int y, int p) /* a flat nib slanted 45 degrees: a thin line along "/" */
@@ -134,28 +169,37 @@ static void stamp_spray(const bctx_t *k, int x, int y, int p) /* dots about the 
 
 static void stamp_none(const bctx_t *k, int x, int y, int p) { (void)k, (void)x, (void)y, (void)p; } /* the bucket draws no stroke */
 
-static const stamp_fn stamps[BR_N] = { stamp_disc, stamp_disc, stamp_pencil, stamp_square, stamp_nib, stamp_spray, stamp_square, stamp_none };
+static const stamp_fn stamps[BR_N] = { stamp_disc, stamp_brushpen, stamp_pencil, stamp_square, stamp_nib, stamp_spray, stamp_square, stamp_none };
 
-static void seg_img(const bstyle_t *st, int img, int colour, canvas_t *c, int x0, int y0, int p0, int x1, int y1, int p1, box_t *dirty);
+static void seg_img(const bstyle_t *st, int img, int colour, canvas_t *c, int x0, int y0, int p0, int t0, int x1, int y1, int p1, int t1, box_t *dirty);
 
 /* A stamp every pixel along the longer axis, the byte interpolated: no gaps whatever the speed */
-void brush_seg(const bstyle_t *st, int colour, canvas_t *c, int x0, int y0, int p0, int x1, int y1, int p1, box_t *dirty)
+void brush_segt(const bstyle_t *st, int colour, canvas_t *c, int x0, int y0, int p0, int t0, int x1, int y1, int p1, int t1, box_t *dirty)
 {
     int imgs = mr_images(st->mirror);
-    for (int img = 0; img < imgs; img++) seg_img(st, img, colour, c, x0, y0, p0, x1, y1, p1, dirty);
+    for (int img = 0; img < imgs; img++) seg_img(st, img, colour, c, x0, y0, p0, t0, x1, y1, p1, t1, dirty);
+}
+void brush_seg(const bstyle_t *st, int colour, canvas_t *c, int x0, int y0, int p0, int x1, int y1, int p1, box_t *dirty)
+{
+    brush_segt(st, colour, c, x0, y0, p0, 0, x1, y1, p1, 0, dirty);
 }
 
-static void seg_img(const bstyle_t *st, int img, int colour, canvas_t *c, int x0, int y0, int p0, int x1, int y1, int p1, box_t *dirty)
+static void seg_img(const bstyle_t *st, int img, int colour, canvas_t *c, int x0, int y0, int p0, int t0, int x1, int y1, int p1, int t1, box_t *dirty)
 {
     int b = st->brush < BR_N ? st->brush : 0;
-    bctx_t k = { c, colour, st->shade < SH_N ? st->shade : 0, sz(st->size), dirty, st->mirror, img };
+    bctx_t k = { c, colour, st->shade < SH_N ? st->shade : 0, sz(st->size), dirty, st->mirror, img, 0, 0 };
     stamp_fn fn = stamps[b];
     int dx = x1 - x0, dy = y1 - y0, adx = dx < 0 ? -dx : dx, ady = dy < 0 ? -dy : dy, n = adx > ady ? adx : ady;
-    if (n == 0) return fn(&k, x0, y0, p1);
+    int ax, ay, bx, by; /* the tilt at each end; the stamps read it from k */
+    bt_decode(t0, &ax, &ay);
+    bt_decode(t1, &bx, &by);
+    if (n == 0) return k.tx = bx, k.ty = by, fn(&k, x0, y0, p1);
     for (int i = 0; i <= n; i++) {
         int x = x0 + (dx * i + (dx < 0 ? -n / 2 : n / 2)) / n;
         int y = y0 + (dy * i + (dy < 0 ? -n / 2 : n / 2)) / n;
         int q = p0 + ((p1 - p0) * i + ((p1 - p0) < 0 ? -n / 2 : n / 2)) / n;
+        k.tx = ax + ((bx - ax) * i + ((bx - ax) < 0 ? -n / 2 : n / 2)) / n;
+        k.ty = ay + ((by - ay) * i + ((by - ay) < 0 ? -n / 2 : n / 2)) / n;
         fn(&k, x, y, q);
     }
 }

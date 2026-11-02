@@ -161,7 +161,7 @@ int app_main(const app_api_t *a)
             now = api->millis();
             switch (u.ev.type) {
             case APP_EVENT_EXIT: exit_now = 1; break;
-            case APP_EVENT_PEN: sk_pen(&sk, u.pen.flags, u.pen.x, u.pen.y, u.pen.pressure, now); break;
+            case APP_EVENT_PEN: sk_pen_tilt(&sk, u.pen.tilt_x, u.pen.tilt_y); sk_pen(&sk, u.pen.flags, u.pen.x, u.pen.y, u.pen.pressure, now); break;
             case APP_EVENT_PEN_KEY: sk_pen_key(&sk, u.pen.keys, u.pen.changed, now); break;
             case APP_EVENT_TOUCH: sk_touch(&sk, u.ev.zone, u.ev.gesture, now); break;
             case APP_EVENT_KEY_DOWN: case APP_EVENT_KEY_UP:

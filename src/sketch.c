@@ -382,7 +382,7 @@ static void stroke_add(sketch_t *s, int fx, int fy, int p, uint32_t now)
 {
     box_t dirty;
     box_clear(&dirty);
-    hist_add(&s->hist, fx, fy, p, &dirty);
+    hist_add_t(&s->hist, fx, fy, p, s->tilt, &dirty);
     if (!box_empty(&dirty)) {
         fb_put(s, &dirty);
         mark(s, &dirty);
@@ -608,6 +608,8 @@ void sk_cfg_reload(sketch_t *s)
     s->bk_gap = cfg_int(s, "fill_gap", 3);
     n = s->env.cfg_get ? s->env.cfg_get(s->env.user, "pressure_curve", b, 7) : -1;
     s->pcurve = n > 0 ? pc_parse(b, n) : PC_NORMAL;
+    n = s->env.cfg_get ? s->env.cfg_get(s->env.user, "use_tilt", b, 7) : -1;
+    s->use_tilt = !(n == 3 && !memcmp(b, "off", 3)); /* on unless it says off */
     s->smooth = cfg_int(s, "smooth", 3) > SK_SMOOTH_MAX ? SK_SMOOTH_MAX : cfg_int(s, "smooth", 3);
     if (s->bk_gap > 6) s->bk_gap = 6;
     n = s->env.cfg_get ? s->env.cfg_get(s->env.user, "paper", b, 7) : -1;

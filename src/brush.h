@@ -23,8 +23,15 @@ int brush_next(int brush);       /* the next in the cycle (wraps) */
 int brush_is_fill(int brush);    /* the bucket: a tap fills (fill.h), no stroke */
 int brush_is_eraser(int brush);  /* draws white, ignores the shade */
 int brush_tail(int brush);       /* the end of a stroke tapers out (brush pen) */
+/* The pen's tilt on a point: one byte, the tilt of x and of y in 6 degree steps (-48..42 degrees) as two signed nibbles; 0 is upright.
+   Only the pencil (a wider, lighter mark along the tilt, like shading) and, lightly, the brush pen (a little wider) read it */
+#define BT_STEP 6
+int bt_code(int tilt_x, int tilt_y);                  /* degrees to the byte */
+void bt_decode(int code, int *tilt_x, int *tilt_y);   /* the byte to degrees */
 /* The byte a point carries for a pressure 0..65535 */
 int brush_param(int brush, int size, unsigned pressure);
+/* The same with the pen's tilt code on each end (interpolated like p); brush_seg is upright */
+void brush_segt(const bstyle_t *st, int colour, canvas_t *c, int x0, int y0, int p0, int t0, int x1, int y1, int p1, int t1, box_t *dirty);
 /* The stroke from (x0, y0, p0) to (x1, y1, p1); one stamp when both are the same. colour 1: white (an erasing stroke) */
 void brush_seg(const bstyle_t *st, int colour, canvas_t *c, int x0, int y0, int p0, int x1, int y1, int p1, box_t *dirty);
 

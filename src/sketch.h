@@ -69,6 +69,7 @@ typedef struct {
     int tablet;          /* a tablet is connected (pen_info) */
     int stroke, barrel;  /* a stroke is open; a pen button is held */
     stab_t stab;         /* the stabiliser of the open stroke (skstab.h) */
+    int use_tilt, tilt;  /* setting use_tilt (default on); the tilt code of the pen's last event (sk_pen_tilt) */
     int pcurve;          /* setting pressure_curve: PC_SOFT, PC_NORMAL (default), PC_FIRM (skpress.h) */
     int smooth;          /* the stabiliser 0..10 (setting smooth, default 3; the toolbar's Smooth cell) */
     int rx, ry, stroke_pts; /* the pen's own last point of the open stroke, and how many points it has had */
@@ -160,6 +161,9 @@ void sk_tb_paint(sketch_t *s);
 /* Shows the toolbar, or hides it again (the same tablet button): only the strip is refreshed, clean; the page under it is
    kept and comes back as it was */
 void sk_toolbar(sketch_t *s, uint32_t now);
+/* The tilt of the pen event that sk_pen takes next (degrees, as the tablet reports; 0 0 for a mouse or a tablet that does not tell) */
+void sk_pen_tilt(sketch_t *s, int tilt_x, int tilt_y);
+int sk_tilt_code(const penmap_t *m, int tilt_x, int tilt_y); /* the same, as the byte a point carries */
 void sk_pen(sketch_t *s, unsigned flags, unsigned x, unsigned y, unsigned pressure, uint32_t now);
 void sk_pen_key(sketch_t *s, unsigned keys, unsigned changed, uint32_t now);
 void sk_touch(sketch_t *s, int zone, int gesture, uint32_t now);

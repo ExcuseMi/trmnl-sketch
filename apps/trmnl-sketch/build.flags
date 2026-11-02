@@ -39,6 +39,7 @@
 ../../src/skrecent.c
 ../../src/skstab.c
 ../../src/skpress.c
+../../src/sktilt.c
 ../../src/skcursor.c
 ../../src/textdraw.c
 ../../src/paper.c

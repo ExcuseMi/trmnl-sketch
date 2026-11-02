@@ -298,10 +298,10 @@ static uint32_t bf_walk(const bf_t *r, hpt_t *out)
             int x1 = x;
             while (x1 + 1 <= r->bb.x1 && (row[(x1 + 1) >> 3] >> (7 - ((x1 + 1) & 7)) & 1)) x1++;
             while (y - prev > 255) {
-                if (out) out[n] = (hpt_t){ -1, -1, 255 };
+                if (out) out[n] = (hpt_t){ -1, -1, 255, 0 };
                 n++, prev += 255;
             }
-            if (out) out[n] = (hpt_t){ (int16_t)x, (int16_t)x1, (uint8_t)(y - prev) };
+            if (out) out[n] = (hpt_t){ (int16_t)x, (int16_t)x1, (uint8_t)(y - prev), 0 };
             n++, prev = y;
             x = x1 + 1;
         }

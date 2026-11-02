@@ -39,7 +39,7 @@ static void apply(canvas_t *c, const hstroke_t *s, const hpt_t *p)
     int colour = s->kind == HK_ERASE;
     for (uint32_t i = 0; i < s->n; i++) {
         const hpt_t *a = i ? &p[i - 1] : &p[i];
-        brush_seg(&s->style, colour, c, a->x, a->y, a->d, p[i].x, p[i].y, p[i].d, 0);
+        brush_segt(&s->style, colour, c, a->x, a->y, a->d, a->t, p[i].x, p[i].y, p[i].d, p[i].t, 0);
     }
 }
 
@@ -87,12 +87,14 @@ void hist_begin_style(hist_t *h, int kind, const bstyle_t *style)
     h->open = 1;
 }
 
-void hist_add(hist_t *h, int x, int y, int d, box_t *dirty)
+void hist_add(hist_t *h, int x, int y, int d, box_t *dirty) { hist_add_t(h, x, y, d, 0, dirty); }
+
+void hist_add_t(hist_t *h, int x, int y, int d, int tilt, box_t *dirty)
 {
     if (!h->open) return;
     hstroke_t *s = &h->st[h->st_cur - 1];
     const hpt_t *last = s->n ? &h->pts[s->first + s->n - 1] : 0;
-    if (last && last->x == x && last->y == y && last->d == d) return;
+    if (last && last->x == x && last->y == y && last->d == d && last->t == tilt) return;
     if (h->pt_n >= h->pt_cap) {
         /* full: older strokes go into the base; if the open stroke alone fills the log, it goes too and continues
            from its last point as a stroke of its own */
@@ -116,9 +118,9 @@ void hist_add(hist_t *h, int x, int y, int d, box_t *dirty)
     int colour = s->kind == HK_ERASE;
     box_t b;
     box_clear(&b);
-    if (!last) brush_seg(&s->style, colour, h->page, x, y, d, x, y, d, &b);
-    else brush_seg(&s->style, colour, h->page, last->x, last->y, last->d, x, y, d, &b);
-    h->pts[h->pt_n++] = (hpt_t){ (int16_t)x, (int16_t)y, (uint8_t)d };
+    if (!last) brush_segt(&s->style, colour, h->page, x, y, d, tilt, x, y, d, tilt, &b);
+    else brush_segt(&s->style, colour, h->page, last->x, last->y, last->d, last->t, x, y, d, tilt, &b);
+    h->pts[h->pt_n++] = (hpt_t){ (int16_t)x, (int16_t)y, (uint8_t)d, (uint8_t)tilt };
     s->n++;
     box_union(&s->bb, &b);
     if (dirty) box_union(dirty, &b);

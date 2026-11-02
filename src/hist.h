@@ -13,6 +13,7 @@ enum { HK_INK, HK_ERASE, HK_CLEAR, HK_FILL, HK_TEXT }; /* HK_FILL: the points ar
 typedef struct {
     int16_t x, y;
     uint8_t d; /* the brush's byte for this point (brush.h): a diameter, a side or a pressure */
+    uint8_t t; /* the pen's tilt at this point (brush.h bt_code); 0 upright. Fill runs and text leave it 0 */
 } hpt_t;
 
 typedef struct {
@@ -40,6 +41,7 @@ void hist_begin(hist_t *h, int kind); /* the fineliner in black (HK_ERASE: a rou
 void hist_begin_style(hist_t *h, int kind, const bstyle_t *style);
 /* A point of the open stroke: draws it on the page and adds the touched box to *dirty */
 void hist_add(hist_t *h, int x, int y, int d, box_t *dirty);
+void hist_add_t(hist_t *h, int x, int y, int d, int tilt, box_t *dirty); /* with the pen's tilt code */
 void hist_end(hist_t *h);
 /* 1 and the box of changed pixels, or 0 when there is nothing to undo / redo */
 int hist_undo(hist_t *h, box_t *changed);
