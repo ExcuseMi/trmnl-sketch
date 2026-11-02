@@ -36,6 +36,7 @@ int brush_param(int brush, int size, unsigned pressure);
 /* The same with the pen's tilt code on each end (interpolated like p); brush_seg is upright */
 void brush_segt(const bstyle_t *st, int colour, canvas_t *c, int x0, int y0, int p0, int t0, int x1, int y1, int p1, int t1, box_t *dirty);
 /* The stroke from (x0, y0, p0) to (x1, y1, p1); one stamp when both are the same. colour 1: white (an erasing stroke) */
+int brush_stamp_step(int b, int size); /* pixels between the stamps of a segment */
 void brush_seg(const bstyle_t *st, int colour, canvas_t *c, int x0, int y0, int p0, int x1, int y1, int p1, box_t *dirty);
 
 /* The brush's footprint outline about its hot spot (0, 0) inside a square of half side brush_shape_r */

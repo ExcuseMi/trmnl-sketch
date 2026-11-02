@@ -20,7 +20,7 @@ build/tbfw.o: host/tbfw.cpp $(FW)/lib/trmnl/src/touchbar_layout.cpp
 build/%: test/%.c $(CORE) $(HOST) test/check.h test/util.h $(wildcard src/*.h host/*.h)
 	@mkdir -p build
 	$(CC) $(CFLAGS) $< $(CORE) $(HOST) -o $@ -lm -lz -lstdc++
-test: $(TESTS) speed
+test: $(TESTS) speed cost
 	@for t in $(TESTS); do ./$$t || exit 1; done
 build/shots: host/shots.c host/shots_fill.c host/shots_mirror.c host/shots_tools.c host/shots_pro.c host/png.c $(CORE) $(HOST) test/util.h $(wildcard src/*.h host/*.h)
 	@mkdir -p build
@@ -41,6 +41,19 @@ speed: build/speed
 speed-table: build/speed
 	./build/speed
 .PHONY: speed speed-table
+# What a pen event costs the app per tool (host/cost.c): without the sanitizers, -O2 as the app; fails over test/cost.bounds
+COSTFLAGS = -Itest -std=c11 -O2 -g -Wall -Wextra -Werror -Wshadow -Isrc -I$(PRINT) -Ihost -Igen -I$(FW)/include
+build/tbfw_cost.o: host/tbfw.cpp $(FW)/lib/trmnl/src/touchbar_layout.cpp
+	@mkdir -p build
+	g++ -std=gnu++11 -O2 -g -Wall -Wextra -Werror -I$(FW)/include -I$(FW)/lib/trmnl/include -I$(FW)/lib/trmnl/src -c $< -o $@
+build/cost: host/cost.c $(CORE) host/memfs.c build/tbfw_cost.o test/util.h $(wildcard src/*.h host/*.h)
+	@mkdir -p build
+	$(CC) $(COSTFLAGS) host/cost.c $(CORE) host/memfs.c build/tbfw_cost.o -o $@ -lm -lz -lstdc++
+cost: build/cost
+	./build/cost --check test/cost.bounds
+cost-table: build/cost
+	./build/cost
+.PHONY: cost cost-table
 # The app ELF with the firmware fork's import check (every libc call must be in the loader's table); the sources are
 # listed in apps/trmnl-sketch/build.flags. apps/build.sh links one path for every app (its libgcc copy is the linker fix).
 elf: gen/fonts_gen.c

@@ -146,17 +146,24 @@ static void stamp_pencil(const bctx_t *k, int x, int y, int p) /* grain: a page-
    way: the same pixel is ink or not whatever stroke reaches it, so overlapping passes only add) and widens it a little;
    the threshold falls off from a solid core to nothing at the rim, so the edge thins to sparse dots. Full pressure is
    solid in the core. The shade does the rest: Grey caps at its own dots, White lays white (cv_px_s) */
+/* The soft mark: a dither by a page-fixed hash under a threshold that falls from the core to the rim. The hash is
+   per page pixel, so stamps that overlap put down the same pixels: the segment stamps it every STEP_BRUSH pixels
+   (seg_img), not every pixel (2026-11-02: 73 us an event on a PC, about 3 ms on the X, the app behind the pen).
+   No division per pixel: the rim's slope as a fixed-point reciprocal */
 static void stamp_brush(const bctx_t *k, int x, int y, int p)
 {
     int rb = k->size / 2, r = rb * (80 + p * 40 / 255) / 100, thr = 30 + p * 240 / 255;
     int R2 = r * r + r, C2 = R2 * 16 / 100; /* the core: 40 % of the radius is solid at full pressure */
-    for (int dy = -r; dy <= r; dy++)
+    int slope = R2 > C2 ? (256 << 12) / (R2 - C2) : 0; /* f = (R2 - d2) * slope >> 12, 256 at the core's edge */
+    for (int dy = -r; dy <= r; dy++) {
+        int dy2 = dy * dy, Y = y + dy;
         for (int dx = -r; dx <= r; dx++) {
-            int d2 = dx * dx + dy * dy;
+            int d2 = dx * dx + dy2;
             if (d2 > R2) continue;
-            int f = d2 <= C2 ? 256 : 256 * (R2 - d2) / (R2 - C2);
-            if ((int)(hash3(x + dx, y + dy, 0) & 255) < thr * f / 256) px(k, x + dx, y + dy);
+            int f = d2 <= C2 ? 256 : ((R2 - d2) * slope) >> 12;
+            if ((int)(hash3(x + dx, Y, 0) & 255) < (thr * f) >> 8) px(k, x + dx, Y);
         }
+    }
     add_box(k, x - r, y - r, x + r, y + r);
 }
 
@@ -184,7 +191,20 @@ static const stamp_fn stamps[BR_N] = { stamp_brush, stamp_pen, stamp_pencil, sta
 
 static void seg_img(const bstyle_t *st, int img, int colour, canvas_t *c, int x0, int y0, int p0, int t0, int x1, int y1, int p1, int t1, box_t *dirty);
 
-/* A stamp every pixel along the longer axis, the byte interpolated: no gaps whatever the speed */
+/* Pixels between stamps along the longer axis: 1 for the shapes whose stamps must touch (the pen's disc, the pencil's
+   grain, the spray); the soft Brush's overlapping stamps draw the same page pixels (stamp_brush), so a stamp every
+   sixth of its size is the same mark; the Eraser's and Marker's squares cover a path without gaps while the step is
+   under their side */
+int brush_stamp_step(int b, int size)
+{
+    switch (b) {
+    case BR_BRUSH: return size / 6 > 1 ? size / 6 : 1;
+    case BR_ERASER: case BR_MARKER: return size / 4 > 1 ? size / 4 : 1;
+    default: return 1;
+    }
+}
+
+/* A stamp every brush_stamp_step pixels along the longer axis, the byte interpolated: no gaps whatever the speed */
 void brush_segt(const bstyle_t *st, int colour, canvas_t *c, int x0, int y0, int p0, int t0, int x1, int y1, int p1, int t1, box_t *dirty)
 {
     int imgs = mr_images(st->mirror);
@@ -206,7 +226,8 @@ static void seg_img(const bstyle_t *st, int img, int colour, canvas_t *c, int x0
     bt_decode(t0, &ax, &ay);
     bt_decode(t1, &bx, &by);
     if (n == 0) return k.tx = bx, k.ty = by, fn(&k, x0, y0, p1);
-    for (int i = 0; i <= n; i++) {
+    const int step = brush_stamp_step(b, k.size);
+    for (int i = 0; i <= n; i += i + step > n && i < n ? n - i : step) { /* the end point always gets its stamp */
         int x = x0 + (dx * i + (dx < 0 ? -n / 2 : n / 2)) / n;
         int y = y0 + (dy * i + (dy < 0 ? -n / 2 : n / 2)) / n;
         int q = p0 + ((p1 - p0) * i + ((p1 - p0) < 0 ? -n / 2 : n / 2)) / n;

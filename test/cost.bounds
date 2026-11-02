@@ -1,0 +1,21 @@
+# Host microseconds per pen event, by tool and size (host/cost.c, make cost fails above; x40 is the X). Lower them when a
+# change makes a tool cheaper; never raise them to pass. The X has 3.9 ms a report at 255 a second: 50 us here is 2 ms.
+# 2026-11-02 before the stamp spacing: Brush 24.8/73.5/217.0, Eraser 10.5/27.7/37.8; after: Brush 10.0/19.0/38.4, Eraser 4.1/7.4/7.5.
+Brush small=20
+Brush medium=35
+Brush big=60
+Pen small=15
+Pen medium=15
+Pen big=15
+Pencil small=15
+Pencil medium=15
+Pencil big=15
+Marker small=15
+Marker medium=15
+Marker big=15
+Spray small=15
+Spray medium=15
+Spray big=15
+Eraser small=15
+Eraser medium=15
+Eraser big=15
