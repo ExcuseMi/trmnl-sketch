@@ -26,9 +26,9 @@ int skcfg_get(const app_api_t *api, const char *key, char *buf, int cap)
     return api->setting_get(key, buf, (size_t)cap);
 }
 
-void skcfg_declare(const app_api_t *api)
+int skcfg_declare(const app_api_t *api)
 {
-    if (api->size < APP_API_SLOT(47)) return;
+    if (api->size < APP_API_SLOT(47) || !api->settings_declare) return 0;
     app_setting_decl_t all[12];
     uint32_t n = 0;
     all[n++] = decl_turn;
@@ -36,5 +36,7 @@ void skcfg_declare(const app_api_t *api)
     all[n++] = decl_paper;
     all[n++] = decl_psp;
     if (!has_dev(api)) all[n++] = decl[0], all[n++] = decl[1];
-    api->settings_declare(all, n);
+    int rc = api->settings_declare(all, n);
+    if (rc != 0 && api->log) api->log("sketch: the settings form was refused (rc %d)", rc); /* old firmware refused labels over 48 bytes */
+    return rc;
 }

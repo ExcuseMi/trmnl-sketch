@@ -38,14 +38,14 @@ void ui_toast(gfx_t *g, const char *s, int y, box_t *out)
 void ui_legend(gfx_t *g, box_t *out)
 {
     static const char *const lines[] = { "Tablet buttons: 1 undo, 2 redo, 3 eraser, 4 toolbar,", "5 clear, 6 new page, 7 and 8 page menu.",
-        "Pen button: eraser while held. Toolbar: tools, colours, sizes.", "Menu: print, send, new page, gallery, exit.", "Tools and Menu: tap with the pen." };
+        "Pen button: eraser while held. Toolbar: tools, colours, sizes.", "Menu: print, send, new page, gallery, exit." };
     const font_face_t *f = face(0, 34);
     int w = 0;
-    for (int i = 0; i < 5; i++)
+    for (int i = 0; i < 4; i++)
         if (text_w(f, lines[i]) > w) w = text_w(f, lines[i]);
     w += 40;
-    panel(g, 24, w, 20 + 5 * 44, out);
-    for (int i = 0; i < 5; i++) text(g, f, 44, 24 + 46 + i * 44, lines[i], BLK);
+    panel(g, 24, w, 20 + 4 * 44, out);
+    for (int i = 0; i < 4; i++) text(g, f, 44, 24 + 46 + i * 44, lines[i], BLK);
 }
 
 /* Draws a black shape with a white outline BR_CUR_OUT wide: `in(ctx, dx, dy)` for dx, dy within +-r */
@@ -128,7 +128,11 @@ void share_view(share_view_t *v, int rc, const app_webshare_status_t *st)
     memset(v, 0, sizeof(*v));
     if (rc != 0) {
         put(v->note, sizeof(v->note),
-            rc == APP_ENOMEM ? "Not enough memory for the phone page." : rc == APP_ENONET ? "No network could be started." : "The Wi-Fi page could not start.");
+            rc == APP_ENOMEM ? "Not enough memory for the phone page."
+            : rc == APP_ENONET ? "No network could be started."
+            : rc == APP_ENOENT ? "The X refused this app's settings."
+            : rc == APP_EBUSY ? "The Wi-Fi is still closing. Try again in a moment."
+                              : "The Wi-Fi page could not start.");
         return;
     }
     if (!st->running) {

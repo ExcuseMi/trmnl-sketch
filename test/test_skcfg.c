@@ -17,13 +17,15 @@ static int dev_get(const char *k, char *b, size_t cap)
     if (!strcmp(k, "pen_area")) return snprintf(b, cap, "keep");
     return APP_ENOENT;
 }
+static int refuse, logged;
+static void log_fn(const char *fmt, ...) { (void)fmt; logged++; }
 static int removed_declared; /* a setting of a removed feature in the form */
 static int decl_fn(const app_setting_decl_t *d, uint32_t n)
 {
     for (uint32_t i = 0; i < n; i++)
         if (!strcmp(d[i].key, "smooth") || !strcmp(d[i].key, "pressure_curve") || !strcmp(d[i].key, "use_tilt")) removed_declared++;
     declares++, declared_n = (int)n;
-    return 0;
+    return refuse;
 }
 
 int main(void)
@@ -46,5 +48,12 @@ int main(void)
     CHECK(skcfg_get(&a, "cleanup_s", b, sizeof(b)) > 0 && !strcmp(b, "own-cleanup_s") && dev_calls == dc);
     skcfg_declare(&a);
     CHECK(declares == 2 && declared_n == 6 && !removed_declared); /* the own form: tablet_turn, fill_gap, paper, paper_sp, cleanup_s and pen_area */
+    /* a refused form is returned and logged, never ignored (old firmware refused labels over 48 bytes) */
+    refuse = APP_ENOENT;
+    a.log = log_fn;
+    a.size = sizeof(a);
+    CHECK(skcfg_declare(&a) == APP_ENOENT && logged == 1);
+    refuse = 0;
+    CHECK(skcfg_declare(&a) == 0 && logged == 1);
     return CHECK_DONE("test_skcfg");
 }

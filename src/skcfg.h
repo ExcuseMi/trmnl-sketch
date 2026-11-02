@@ -8,5 +8,5 @@ int skcfg_is_device_key(const char *key);
 /* The value of `key`: length, or < 0 (none) */
 int skcfg_get(const app_api_t *api, const char *key, char *buf, int cap);
 /* Sketch's own settings form: pen_area and cleanup_s before API 2.11, none after (nothing else is left in it) */
-void skcfg_declare(const app_api_t *api);
+int skcfg_declare(const app_api_t *api); /* 0, or the firmware's refusal (logged) */
 #endif
