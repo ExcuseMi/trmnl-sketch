@@ -1,7 +1,7 @@
 /* Flashing with the toolbar up (owner 2026-11-02: "It's flashing a lot with the full toolbar on there"). A flash is the
    black/white blink of sk_flash (an inverted half, then a clean FULL refresh): rig_t.inverted counts them. A scripted
    session with the strip shown: the pen hovers 400 moves over it, picks 5 buttons (looking 3 s at each), draws 20
-   strokes near it with a pause every 5. The arrow, the item frame, the pick shown inverted, the pills, the brush cursor
+   strokes near it with a pause every 5. The arrow, the item frame, the pick shown inverted, the brush cursor
    and a toast change only black and white pixels: they go as fast ink and never ask for a flash. Strokes leave traces:
    the idle clean-up (rule b) flashes the page once enough of them were drawn (SK_CLEAN_TRACES), not after every pause.
    Before the fix: 11 flashes (a whole-page flash after every toast, one at every pause). SPDX-License-Identifier: MIT */

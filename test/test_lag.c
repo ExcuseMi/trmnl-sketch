@@ -1,7 +1,7 @@
 /* The toolbar lag of 2026-11-02 ("super laggy", "the toolbar causing huge lag"): a pen move over the open strip drew the
    whole strip twice (tb_draw, 0.87 ms a move on a PC, tens of ms on the X at ~100 moves a second, so the app fell behind
    the pen and the arrow pointer never kept up). The strip is drawn only when what it shows changes (src/sktbimg.c); the
-   pills hide while the pen draws or hovers away from them (src/skplvis.c). SPDX-License-Identifier: MIT */
+   no pills on the page. SPDX-License-Identifier: MIT */
 #include "check.h"
 #include "util.h"
 
@@ -16,14 +16,6 @@ static void frames(rig_t *r)
     rect_t out[SK_MAX_RECTS];
     while (rig_frame(r, out) != 0) {}
 }
-static int pills_px_black(const rig_t *r) /* black pixels of the framebuffer inside the pills' box */
-{
-    int n = 0;
-    for (int y = r->s.pl_box.y0; y <= r->s.pl_box.y1; y++)
-        for (int x = r->s.pl_box.x0; x <= r->s.pl_box.x1; x++) n += !cv_get(&r->s.fb, x, y);
-    return n;
-}
-
 /* a hover across the whole strip: the strip is drawn once per item entered, never per move */
 static void test_hover_over_strip_draws_it_per_item_only(void)
 {
@@ -69,33 +61,34 @@ static void test_ink_by_the_strip_draws_no_strip(void)
     rig_end(&r);
 }
 
-/* The pills: shown at the start, gone while the pen draws or hovers elsewhere, back when it hovers near them; a hover
-   then a tap on Tools still opens the toolbar */
-static void test_pills_hide_and_come_back(void)
+/* No pills (owner 2026-11-02: "just remove them"): the page never shows a Tools or Menu button, in any position, at the
+   start, with the pen hovering at the corners or drawing there. The tablet buttons are the way in: 4 toggles the toolbar,
+   7 opens the page menu. Red-checked by drawing a rounded box in sk_show_page */
+static void test_no_pills_buttons_remain(void)
 {
     for (int o = 0; o < 4; o++) {
         rig_t r;
         rig_new(&r, o);
         frames(&r);
-        CHECK(r.s.pl_on && pills_px_black(&r) > 0);
+        sk_note_hide(&r.s);
+        frames(&r);
+        CHECK(same_page_and_fb(&r)); /* nothing but the page on the glass */
         int sw = o % 2 ? TH : TW, sh = o % 2 ? TW : TH;
-        rig_pen_user(&r, sw / 3, sh / 2, APP_PEN_IN_RANGE, 0); /* hover mid page */
-        frames(&r);
-        CHECK(!r.s.pl_on && pills_px_black(&r) == 0);
-        int px = (r.s.pl.x0[0] + r.s.pl.x1[0]) / 2, py = (r.s.pl.y0 + r.s.pl.y1) / 2;
-        rig_pen_user(&r, px - 120, py, APP_PEN_IN_RANGE, 0); /* near them */
-        frames(&r);
-        CHECK(r.s.pl_on && pills_px_black(&r) > 0);
-        rig_pen_user(&r, px - 120, py, APP_PEN_TIP | APP_PEN_IN_RANGE, 40000); /* a stroke through their corner */
-        CHECK(!r.s.pl_on);
-        rig_pen_user(&r, px, py, APP_PEN_TIP | APP_PEN_IN_RANGE, 40000);
-        rig_pen_user(&r, px, py, APP_PEN_IN_RANGE, 0);
-        CHECK(r.s.pl_on && r.s.mode == SK_DRAW && !r.s.tb_on); /* the stroke never pressed a pill */
+        for (int c = 0; c < 4; c++) { /* the pen hovers at each corner: nothing appears there */
+            int x = c & 1 ? sw - 80 : 80, y = c & 2 ? sh - 80 : 80;
+            rig_pen_user(&r, x, y, APP_PEN_IN_RANGE, 0);
+            frames(&r);
+            CHECK(!r.s.tb_on && r.s.mode == SK_DRAW);
+        }
+        rig_pen_user(&r, 5, 5, 0, 0);
         frames(&r);
         CHECK(same_page_and_fb(&r));
-        rig_pen_user(&r, px, py, APP_PEN_TIP | APP_PEN_IN_RANGE, 20000); /* a tap on Tools */
-        rig_pen_user(&r, px, py, APP_PEN_IN_RANGE, 0);
+        key(&r, 3);
         CHECK(r.s.tb_on);
+        key(&r, 3);
+        CHECK(!r.s.tb_on);
+        key(&r, 6);
+        CHECK(r.s.mode == SK_PAGEMENU);
         rig_end(&r);
     }
 }
@@ -104,6 +97,6 @@ int main(void)
 {
     test_hover_over_strip_draws_it_per_item_only();
     test_ink_by_the_strip_draws_no_strip();
-    test_pills_hide_and_come_back();
+    test_no_pills_buttons_remain();
     return CHECK_DONE("test_lag");
 }

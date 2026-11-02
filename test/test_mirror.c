@@ -308,7 +308,7 @@ static void test_cursor_and_toolbar(void)
     sk_pen_key(&r.s, 0, 1u << 3, r.now);
     rig_pen_user(&r, r.s.tb.cx[TI_MIRROR] + 20, r.s.tb.cyi[TI_MIRROR] + 20, APP_PEN_TIP | APP_PEN_IN_RANGE, 30000);
     rig_pen_user(&r, r.s.tb.cx[TI_MIRROR] + 20, r.s.tb.cyi[TI_MIRROR] + 20, APP_PEN_IN_RANGE, 0);
-    CHECK(r.s.sty.mirror == MR_LR && r.s.note_on); /* a tap cycles, a toast names it */
+    CHECK(r.s.mp_on && r.s.sty.mirror == MR_OFF); /* a tap opens the picker (test_mrpick.c) */
     CHECK(TI_MIRROR == TI_N - 1 && r.s.tb.cx[TI_MIRROR] > r.s.tb.cx[TI_BIG]); /* Mirror ends the row */
     for (int o = 0; o < 2; o++) {
         tb_layout_t L;

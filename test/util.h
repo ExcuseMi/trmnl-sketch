@@ -224,15 +224,6 @@ static inline int fb_black(const rig_t *r) /* black pixels on the framebuffer */
         for (int b = 0; b < 8; b++) n += !((r->fb[i] >> b) & 1);
     return n;
 }
-/* the framebuffer is the page, except the Tools and Menu pills drawn over it */
-static inline int same_page_and_fb(const rig_t *r)
-{
-    const box_t *p = &r->s.pl_box;
-    for (int y = 0; y < TH; y++) {
-        int in = y >= p->y0 && y <= p->y1;
-        for (int x = 0; x < TS; x++)
-            if (!(in && x >= p->x0 / 8 && x <= p->x1 / 8) && r->fb[y * TS + x] != r->s.page.px[y * TS + x]) return 0;
-    }
-    return 1;
-}
+/* the framebuffer is the page (no pills: nothing is drawn over it but the toolbar, notes and cursors, which the callers exclude by their state) */
+static inline int same_page_and_fb(const rig_t *r) { return !memcmp(r->fb, r->s.page.px, (size_t)TS * TH); }
 #endif

@@ -17,12 +17,12 @@
 #include "penmap.h"
 #include "rects.h"
 #include "skmenu.h"
-#include "skpills.h"
 #include "sk_cfg.h"
 #include "sklat.h"
 #include "skstab.h"
 #include "skui.h"
 #include "toolbar.h"
+#include "mrpick.h"
 
 typedef struct {
     const sk_fs_t *fs;
@@ -132,10 +132,9 @@ typedef struct {
     int tb_back;         /* the toolbar was up when the page menu opened */
     uint16_t dmg[SK_DMG_MAX]; /* pages found damaged in the gallery (file does not decode) */
     int dmg_n;
-    pills_t pl;          /* the Tools and Menu pills on the drawing page (overlay, like the toolbar) */
-    box_t pl_box;
-    int pl_hold;         /* a pen press that began on a pill (1 Tools, 2 Menu) is still down */
-    int pl_on;           /* the pills are shown (skplvis.c: only while the pen hovers near them) */
+    int mp_on, mp_hold;  /* the mirror picker is open (skmirror.c); a pen press that began on it, or opened it, is still down */
+    mp_layout_t mp;
+    box_t mp_box;        /* the picker in the framebuffer, whole bytes */
     struct { int num, x, y; } blit[SK_BLITS]; /* thumbnails to lay over `ui` */
     int blit_n;
     int hot, ptr_ctl;    /* the control (CTL_*) the pen hovers over / a press began on */
@@ -158,17 +157,16 @@ void sk_set_shade(sketch_t *s, int shade, uint32_t now);
 void sk_set_size(sketch_t *s, int cls, uint32_t now); /* the size button 0 Small .. 2 Big */
 /* The symmetry (skmirror.c): off, left-right, top-bottom, 4-way, kaleidoscope; the guide is on the screen only */
 void sk_set_mirror(sketch_t *s, int mode, uint32_t now);
+void sk_mp_open(sketch_t *s);                     /* the mirror picker under the strip: fast ink only, no flash */
+void sk_mp_close(sketch_t *s);                    /* the page and strip come back under it */
+void sk_mp_paint(sketch_t *s);                    /* draws it into the framebuffer (when open) */
+int sk_mp_pen(sketch_t *s, int tip, int range, int inside, int ux, int uy, uint32_t now); /* 1: the event is used up */
 /* sketch.c's own, shared with sksize.c: a setting's number, a toast with the strip repainted, the strip repainted in the framebuffer */
 void sk_cfg_num(sketch_t *s, const char *key, int v);
 void sk_picked(sketch_t *s, const char *text, uint32_t now);
 void sk_tb_paint(sketch_t *s);                    /* the whole strip in the framebuffer (drawn only when its inputs changed: sktbimg.c) */
 void sk_tb_restore(sketch_t *s, const box_t *b);  /* the strip's pixels back inside b (an arrow or the page laid over them) */
 void sk_tb_img_free(sketch_t *s);
-/* The pills follow the pen (skplvis.c): shown while it hovers near them, hidden while it draws or hovers elsewhere;
-   out of range: as they were. tip, range, inside: the pen event; ux, uy: the user frame */
-void sk_pills_follow(sketch_t *s, int tip, int range, int inside, int ux, int uy);
-void sk_pills_show(sketch_t *s, int on);
-void sk_pl_paint(sketch_t *s);
 /* Shows the toolbar, or hides it again (the same tablet button): only the strip is refreshed, clean; the page under it is
    kept and comes back as it was */
 void sk_toolbar(sketch_t *s, uint32_t now);
@@ -194,7 +192,7 @@ void sk_save_now(sketch_t *s);
 void sk_run_print(sketch_t *s);
 /* Sends page `num`'s saved file to the printer; 0 or < 0 with s->pres.msg set (skprint.c) */
 int sk_print_page(sketch_t *s, int num);
-void sk_fb_restore(sketch_t *s, const box_t *b); /* the page (and strip, pills) back on the screen in b, and pushed */
+void sk_fb_restore(sketch_t *s, const box_t *b); /* the page (and strip) back on the screen in b, and pushed */
 void sk_mark(sketch_t *s, const box_t *b);       /* b is to be pushed */
 /* The paper (skpaper.c) */
 void sk_paper_new(sketch_t *s);               /* the default for a new page */
@@ -240,7 +238,7 @@ void sk_to_gallery(sketch_t *s, uint32_t now); /* from the page menu */
 void sk_to_pagemenu(sketch_t *s, uint32_t now); /* from the drawing: the menu of the current page */
 int sk_do_save(sketch_t *s, uint32_t now); /* writes the page; 0 or the pages.h error (skpage.c) */
 int sk_save_page(sketch_t *s, uint32_t now); /* writes the page on screen if changed; 0 when it could not */
-void sk_resume_draw(sketch_t *s); /* the toolbar and pills as they were, for the page coming back */
+void sk_resume_draw(sketch_t *s); /* the toolbar as it was, for the page coming back */
 int sk_print_check(sketch_t *s); /* the default printer into s->prn: 0, or -1 with the result words set */
 void sk_menu_touch(sketch_t *s, int zone, int gesture, uint32_t now);
 void sk_menu_key(sketch_t *s, unsigned down, uint32_t now); /* tablet buttons (bit 0 is button 1) in a menu screen */

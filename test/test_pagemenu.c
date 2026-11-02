@@ -43,11 +43,6 @@ static void pen_xy(rig_t *r, int x, int y)
     rig_pen_user(r, x + 2, y + 1, APP_PEN_IN_RANGE, 0);
     rig_pen_user(r, 5, 5, 0, 0); /* out of range again: nothing is hovered between taps */
 }
-static void pen_pill(rig_t *r, int which) /* PL_TOOLS / PL_MENU on the drawing page */
-{
-    const pills_t *p = &r->s.pl;
-    pen_xy(r, (p->x0[which - 1] + p->x1[which - 1]) / 2, (p->y0 + p->y1) / 2);
-}
 static void pen_row(rig_t *r, int i) { pen_xy(r, r->s.lg.x + 50, r->s.lg.y0 + i * LIST_PITCH - 25); }
 static void pen_ctl(rig_t *r, int c) /* CTL_BACK, CTL_SETUP, or CTL_SEL (the OK of a result screen) */
 {
@@ -84,7 +79,7 @@ static void test_menu_and_exact_back(void)
         sk_set_shade(&r.s, 1, r.now += 50);
         sk_set_size(&r.s, 2, r.now += 50);
         rig_line(&r, 300, 800, 1200, 900, 40000, 0); /* ink not yet saved by the autosave */
-        rig_pen_user(&r, 5, 5, 0, 0); /* the pen leaves; the notes run out: nothing but page, toolbar and pills is on the screen */
+        rig_pen_user(&r, 5, 5, 0, 0); /* the pen leaves; the notes run out: nothing but page and toolbar is on the screen */
         r.now += 4000;
         r.s.save_at = r.now + 100000; /* the autosave stays out of it: the menu writes the page */
         sk_tick(&r.s, r.now);
@@ -97,8 +92,8 @@ static void test_menu_and_exact_back(void)
         if (way == 0) btn(&r, 7);
         else if (way == 1) btn(&r, 8);
         else if (way == 2) tap(&r, APP_TOUCH_MIDDLE);
-        else pen_pill(&r, PL_MENU);
-        CHECK(r.s.mode == SK_PAGEMENU && r.s.act_num == cur && r.s.pl_hold == 0);
+        else btn(&r, 7);
+        CHECK(r.s.mode == SK_PAGEMENU && r.s.act_num == cur);
         frames(&r);
         CHECK(r.s.list_n == 8 && !r.s.dirty); /* the page is written first: Print and Send work on the file */
         char path[48];
@@ -353,20 +348,20 @@ static void test_walk_with_the_pen_only(void)
     static rig_t r;
     for (int o = 0; o < 4; o += 3) {
         setup_walk(&r, o);
-        pen_pill(&r, PL_TOOLS);
+        btn(&r, 4);
         CHECK(r.s.mode == SK_DRAW && r.s.tb_on);
-        pen_pill(&r, PL_TOOLS);
+        btn(&r, 4);
         CHECK(!r.s.tb_on);
         CHECK(!r.s.dirty || r.s.stroke == 0); /* no pill tap inked */
-        pen_pill(&r, PL_MENU);
+        btn(&r, 7);
         CHECK(r.s.mode == SK_PAGEMENU);
         rig_frame(&r, (rect_t[SK_MAX_RECTS]){ 0 });
         pen_row(&r, 0); /* Back, the top row (owner 2026-11-02) */
         CHECK(r.s.mode == SK_DRAW);
-        pen_pill(&r, PL_MENU);
+        btn(&r, 7);
         pen_ctl(&r, CTL_BACK);
         CHECK(r.s.mode == SK_DRAW);
-        pen_pill(&r, PL_MENU);
+        btn(&r, 7);
         pen_row(&r, 1); /* Print */
         CHECK(r.s.mode == SK_CONFIRM);
         pen_ctl(&r, CTL_BACK);
@@ -408,14 +403,14 @@ static void test_walk_with_the_pen_only(void)
         CHECK(r.s.mode == SK_GALLERY);
         pen_ctl(&r, CTL_BACK);
         CHECK(r.s.mode == SK_DRAW);
-        pen_pill(&r, PL_MENU);
+        btn(&r, 7);
         pen_row(&r, 6);
         pen_tile(&r, 3); /* page 1 */
         CHECK(r.s.mode == SK_DRAW && r.s.cur == 1);
-        pen_pill(&r, PL_MENU);
+        btn(&r, 7);
         pen_row(&r, 5); /* New page */
         CHECK(r.s.mode == SK_DRAW && r.s.cur == 4);
-        pen_pill(&r, PL_MENU);
+        btn(&r, 7);
         pen_row(&r, 7); /* Exit Sketch */
         CHECK(r.s.exit_req);
         rig_end(&r);

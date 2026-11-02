@@ -313,6 +313,7 @@ static void to_menu(sketch_t *s, int mode, int sel)
 void sk_to_pagemenu(sketch_t *s, uint32_t now)
 {
     if (s->mode != SK_DRAW) return;
+    sk_mp_close(s);
     if (!sk_save_page(s, now)) return sk_toast(s, "Could not save this page", now);
     if (!s->ui.px) {
         s->ui.px = malloc((size_t)s->fb.stride * (size_t)s->fb.h);
@@ -323,7 +324,7 @@ void sk_to_pagemenu(sketch_t *s, uint32_t now)
     sk_note_hide(s);
     s->cursor = 0;
     s->tb_back = s->tb_on;
-    s->tb_on = s->tb_hold = s->pl_hold = 0; /* the toolbar and the pills are for drawing only */
+    s->tb_on = s->tb_hold = 0; /* the toolbar is for drawing only */
     s->act_num = s->cur;
     s->exit_unsaved = s->need_setup = 0;
     s->ptr_down = 0;

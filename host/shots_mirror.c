@@ -84,4 +84,18 @@ void mirror_shots(const char *dir, int *bad)
         put(&r, dir, n, bad);
         rig_end(&r);
     }
+    for (int o = 0; o < 2; o++) { /* the open picker: landscape (bar bottom, strip on top) and portrait */
+        rig_new(&r, o ? APP_ORIENT_BAR_LEFT : APP_ORIENT_BAR_BOTTOM);
+        sk_set_mirror(&r.s, MR_4, r.now += 50);
+        sk_pen_key(&r.s, 1u << 3, 1u << 3, r.now += 50);
+        sk_pen_key(&r.s, 0, 1u << 3, r.now);
+        frames(&r);
+        int x = r.s.tb.cx[TI_MIRROR] + r.s.tb.cell / 2, y = r.s.tb.cyi[TI_MIRROR] + 30;
+        rig_pen_user(&r, x, y, APP_PEN_TIP | APP_PEN_IN_RANGE, 30000);
+        rig_pen_user(&r, x, y, APP_PEN_IN_RANGE, 0);
+        rig_pen_user(&r, r.s.mp.cx[3] + 50, r.s.mp.cy + 40, APP_PEN_IN_RANGE, 0);
+        frames(&r);
+        put(&r, dir, o ? "m5-mirror-picker-portrait" : "m5-mirror-picker-landscape", bad);
+        rig_end(&r);
+    }
 }

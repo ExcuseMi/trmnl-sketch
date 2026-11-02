@@ -5,6 +5,7 @@
 ../../src/canvas.c
 ../../src/brush.c
 ../../src/tbicons.c
+../../src/mrpick.c
 ../../src/toolbar.c
 ../../src/penmap.c
 ../../src/hist.c
@@ -13,7 +14,6 @@
 ../../src/rects.c
 ../../src/skpush.c
 ../../src/skui.c
-../../src/skpills.c
 ../../src/skmenu.c
 ../../src/gallery.c
 ../../src/skprint.c
@@ -38,7 +38,6 @@
 ../../src/sklat.c
 ../../src/sklatency.c
 ../../src/sktbimg.c
-../../src/skplvis.c
 ../../src/paper.c
 ../../src/skpaper.c
 ../../src/font.c

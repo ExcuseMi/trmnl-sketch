@@ -70,7 +70,7 @@ static void test_toggle_and_restore(void)
         int outside = 0; /* the screen differs from the page inside the strip only */
         for (int y = 0; y < TH; y++)
             for (int x = 0; x < TW; x++)
-                if (cv_get(&r.s.page, x, y) != ((r.fb[y * TS + x / 8] >> (7 - x % 8)) & 1) && !in_box(tb, x, y) && !in_box(&r.s.pl_box, x, y)) outside++; /* the pills are over the page too */
+                if (cv_get(&r.s.page, x, y) != ((r.fb[y * TS + x / 8] >> (7 - x % 8)) & 1) && !in_box(tb, x, y)) outside++;
         CHECK(outside == 0);
         int bw = tb->x1 - tb->x0 + 1, bh = tb->y1 - tb->y0 + 1, lng = bw > bh ? bw : bh, sht = bw > bh ? bh : bw;
         CHECK(lng >= 1404 && sht < 320 && sht > 60); /* a thin strip along one edge */
@@ -122,14 +122,12 @@ static void test_taps_never_ink(void)
         tap(&r, i);
         CHECK(!memcmp(page, r.s.page.px, sizeof(page))); /* a tap on the strip never inks */
         CHECK(!r.s.stroke);
-        CHECK(r.s.note_on); /* a toast names the choice ... */
+        CHECK(r.s.note_on || i == TI_MIRROR); /* a toast names the choice (Mirror opens its picker instead: test_mrpick.c) ... */
+        if (i == TI_MIRROR) {
+            CHECK(r.s.mp_on);
+            sk_mp_close(&r.s);
+        }
         idle(&r, 3000);
-        if (i == TI_MIRROR) /* the symmetry cycles through its modes and is off again after the last (test_mirror.c) */
-            for (int k = 1; k < MR_N; k++) {
-                tap(&r, i);
-                CHECK(r.s.sty.mirror == (k + 1) % MR_N);
-                idle(&r, 3000);
-            }
         CHECK(i != TI_MIRROR || r.s.sty.mirror == MR_OFF);
     }
     /* ... below the strip, never over it */

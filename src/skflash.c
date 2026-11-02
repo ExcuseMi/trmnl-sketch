@@ -28,7 +28,7 @@ static int fl_calm(const sketch_t *s) { return !s->tip && !s->stroke && !s->fl_p
 
 /* Rule a: the legend or the toolbar left the drawing page, none other is up, the tip is up. Rule b: idle, with traces */
 static int fl_overlay_due(const sketch_t *s) { return s->ovl_gone && s->mode == SK_DRAW && !s->note_on && fl_calm(s); }
-/* The arrow, the item frame, the pick, the pills and the brush cursor are ink only: on the drawing page only enough
+/* The arrow, the item frame, the pick and the brush cursor are ink only: on the drawing page only enough
    traces (strokes, page changes, toasts gone) ask for the idle flash; on a menu screen any partial refresh does */
 static int fl_dirty(const sketch_t *s) { return s->ghost && (s->mode != SK_DRAW || s->traces >= SK_CLEAN_TRACES); }
 static int fl_idle_due(const sketch_t *s, uint32_t now) { return s->cleanup_s > 0 && fl_dirty(s) && !s->pend.n && fl_calm(s) && (int32_t)(now - s->last_act - (uint32_t)s->cleanup_s * 1000u) >= 0; }

@@ -199,16 +199,6 @@ static void brush_shots(const char *dir)
             rect_t o[SK_MAX_RECTS];
             rig_frame(&r, o);
             save(&r, dir, "t3-toolbar-pointer");
-            rect_t o2[SK_MAX_RECTS];
-            (void)o2;
-            rig_pen_user(&r, 900, 800, APP_PEN_IN_RANGE, 0); /* the pen over the page: the pills are hidden (skplvis.c) */
-            r.now += 200;
-            rig_frame(&r, o);
-            save(&r, dir, "t6-pills-hidden");
-            rig_pen_user(&r, r.s.pl.x0[0] - 100, r.s.pl.y0 + 20, APP_PEN_IN_RANGE, 0); /* near them: back */
-            r.now += 200;
-            rig_frame(&r, o);
-            save(&r, dir, "t7-pills-near-pen");
         }
         rig_end(&r);
     }

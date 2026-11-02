@@ -37,35 +37,14 @@ static int cfg_int(sketch_t *s, const char *key, int def)
 
 static void whole(box_t *b, const canvas_t *c) { *b = (box_t){ 0, 0, c->w - 1, c->h - 1 }; }
 static void tb_place(sketch_t *s);
-void sk_pl_paint(sketch_t *s)
-{
-    if (!s->pl_on) return;
-    gfx_t g;
-    mkg(s, &g);
-    pl_draw(&g, &s->pl);
-}
-
-static void pl_place(sketch_t *s) /* the Tools and Menu pills for the screen in the user's frame, and their box in the framebuffer */
-{
-    gfx_t g;
-    box_t b;
-    mkg(s, &g);
-    pl_layout(&s->pl, s->orient, g.SW, g.SH);
-    ui_fb_box(&g, s->pl.x0[0], s->pl.y0, s->pl.x1[1], s->pl.y1, &b);
-    b.x0 &= ~7;
-    b.x1 |= 7;
-    box_clip(&b, s->fb.w, s->fb.h);
-    s->pl_box = b;
-}
-
-/* The page in box b goes to the screen; the strip of an open toolbar and the pills are drawn over it again if the box touched them */
+/* The page in box b goes to the screen; the strip of an open toolbar is drawn over it again if the box touched it */
 static void fb_put(sketch_t *s, const box_t *b)
 {
     cv_copy_box(&s->fb, &s->page, b);
     sk_paper_blit(s, b);
     mr_guide(&s->fb, s->sty.mirror, b); /* the screen-only guide of the mirror (mirror.h) */
     if (s->tb_on && hit(b, &s->tb_box)) sk_tb_restore(s, b); /* from the strip's image: no tb_draw (sktbimg.c) */
-    if (hit(b, &s->pl_box)) sk_pl_paint(s);
+    if (s->mp_on && hit(b, &s->mp_box)) sk_mp_paint(s);
 }
 
 void sk_fb_restore(sketch_t *s, const box_t *b)
@@ -83,14 +62,13 @@ void sk_show_page(sketch_t *s)
     sk_paper_blit(s, &b);
     mr_guide(&s->fb, s->sty.mirror, &b);
     if (s->tb_on) sk_tb_paint(s);
-    sk_pl_paint(s);
+    sk_mp_paint(s);
 }
 
-void sk_resume_draw(sketch_t *s) /* back from a menu screen: the toolbar as it was, the pills, the page */
+void sk_resume_draw(sketch_t *s) /* back from a menu screen: the toolbar as it was, the page */
 {
     if (s->tb_back) tb_place(s), s->tb_on = 1, s->tb_hot = -1;
     s->tb_back = 0;
-    s->pl_on = 0; /* the pills come back when the pen hovers near them (skplvis.c) */
     sk_show_page(s);
 }
 
@@ -184,7 +162,7 @@ static void cursor_show(sketch_t *s, int fx, int fy)
     if (s->cursor && s->cr == r && s->cb == br && s->csz == sz && (fx - s->cx) * (fx - s->cx) + (fy - s->cy) * (fy - s->cy) < 9) return;
     sk_cursor_hide(s);
     if (s->note_on && hit(&want, &s->note)) return; /* never over a note: restoring the page would eat it */
-    if ((s->tb_on && hit(&want, &s->tb_box)) || (s->pl_on && hit(&want, &s->pl_box))) return; /* nor over the toolbar or the pills */
+    if ((s->tb_on && hit(&want, &s->tb_box)) || (s->mp_on && hit(&want, &s->mp_box))) return; /* nor over the toolbar or the mirror picker */
     box_t b;
     ui_cursor(&s->fb, fx, fy, br, sz, &b);
     mark(s, &b);
@@ -334,6 +312,7 @@ void sk_toolbar(sketch_t *s, uint32_t now)
     (void)now;
     if (s->mode != SK_DRAW) return;
     sk_cursor_hide(s);
+    sk_mp_close(s);
     if (s->tb_on) { /* the page under the strip comes back as it was */
         s->tb_on = s->tb_hold = 0;
         s->tb_hot = -1;
@@ -356,7 +335,7 @@ static void tb_press(sketch_t *s, int item, uint32_t now)
     if (item < TI_BLACK) sk_set_brush(s, item - TI_BRUSH, now);
     else if (item < TI_SMALL) sk_set_shade(s, tb_shade_of(item), now);
     else if (item < TI_MIRROR) sk_set_size(s, item - TI_SMALL, now);
-    else sk_set_mirror(s, (s->sty.mirror + 1) % MR_N, now);
+    else sk_mp_open(s); /* the five modes in a row: one tap picks (skmirror.c) */
 }
 
 /* ---- input ---- */
@@ -400,18 +379,8 @@ void sk_pen(sketch_t *s, unsigned flags, unsigned x, unsigned y, unsigned pressu
     int on_bar = 0, ux, uy;
     gal_from_fb(s->orient, s->fb.w, s->fb.h, fx, fy, &ux, &uy);
     if (s->tb_on && inside) on_bar = tb_in(&s->tb, ux, uy);
-    sk_pills_follow(s, tip, range, inside, ux, uy);
-    int on_pl = inside && s->pl_on ? pl_hit(&s->pl, ux, uy) : PL_NONE;
+    if ((s->mp_on || s->mp_hold) && sk_mp_pen(s, tip, range, inside, ux, uy, now)) return;
     if (!tip) s->tb_hold = 0;
-    if (!tip && s->pl_hold) { /* a pill is tapped when the pen lifts over the pill it came down on */
-        int w = s->pl_hold;
-        s->pl_hold = 0;
-        if (on_pl == w) return w == PL_TOOLS ? sk_toolbar(s, now) : sk_to_pagemenu(s, now);
-    }
-    if (tip && (s->pl_hold || (on_pl && !s->stroke && !s->tb_hold))) { /* a press on a pill never inks */
-        if (!s->pl_hold) s->pl_hold = on_pl, sk_cursor_hide(s);
-        return;
-    }
     if (tip && on_bar) { /* a press on the strip picks, never inks; a stroke dragged onto it just ends */
         int was = s->stroke || s->bk_down;
         s->bk_down = 0;
@@ -476,6 +445,7 @@ void sk_pen_key(sketch_t *s, unsigned keys, unsigned changed, uint32_t now)
         if (down) sk_menu_key(s, down, now);
         return;
     }
+    if (down) sk_mp_close(s); /* any tablet button closes the mirror picker unchanged */
     if (changed >> 7 & 1) { /* button 8: the menu when let go, the debug toast after a long press */
         if (down >> 7 & 1) s->k8_down = now | 1;
         else if (s->k8_down) {
@@ -604,14 +574,13 @@ void sk_set_orient(sketch_t *s, int orient, const app_touchbar_t *bar)
 {
     s->orient = orient;
     s->bar = *bar;
-    pl_place(s);
     pm_init(&s->map, orient, s->fb.w, s->fb.h, s->um_w, s->um_h, s->fill, s->turn);
     s->hover_valid = 0;
+    s->mp_on = s->mp_hold = 0; /* the picker is placed again when it is opened (the page is drawn whole below) */
     if (s->mode == SK_DRAW) {
         sk_cursor_hide(s);
         sk_note_hide(s);
         if (s->tb_on) tb_place(s);
-        pl_place(s);
         sk_show_page(s); /* nothing but the page (and the toolbar, if it is up) is left on the screen */
     } else if (s->mode >= SK_GALLERY) {
         if (s->tb_back) tb_place(s);
@@ -671,8 +640,6 @@ int sk_init(sketch_t *s, const sk_env_t *env, uint8_t *fb, int w, int h, int str
     s->cur = num;
     if (s->pg.n && pg_index(&s->pg, num) >= 0) sk_open_page(s, num, 0); /* none: the blank one is written with its first ink */
     else cv_fill(&s->page, 1), sk_paper_new(s);
-    pl_place(s);
-    s->pl_on = 1;
     sk_show_page(s);
     s->want_full = 1;
     gfx_t g;
