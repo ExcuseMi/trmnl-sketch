@@ -184,18 +184,20 @@ static void brush_page(rig_t *r, const char *dir, const char *name, int shade)
 static void brush_shots(const char *dir)
 {
     static rig_t r;
-    const char *const names[SH_N] = { "b1-brushes-black", "b2-brushes-dark", "b3-brushes-light" };
-    for (int sh = 0; sh < SH_N; sh++) {
+    const char *const names[3] = { "b1-brushes-black", "b2-brushes-dark", "b3-brushes-light" };
+    static const int tones[3] = { SH_BLACK, SH_DARK, SH_LIGHT };
+    for (int k = 0; k < 3; k++) {
+        int sh = tones[k];
         rig_new(&r, APP_ORIENT_BAR_BOTTOM);
-        brush_page(&r, dir, names[sh], sh);
-        if (sh == 0) { /* the toolbar over this drawing (landscape), then the same page with it hidden again */
+        brush_page(&r, dir, names[k], sh);
+        if (k == 0) { /* the toolbar over this drawing (landscape), then the same page with it hidden again */
             sk_set_brush(&r.s, BR_BRUSHPEN, r.now += 50);
             sk_pen_key(&r.s, 1u << 3, 1u << 3, r.now += 50);
             sk_pen_key(&r.s, 0, 1u << 3, r.now);
             r.now += 3000;
             sk_tick(&r.s, r.now);
             save(&r, dir, "t1-toolbar-landscape");
-            rig_pen_user(&r, r.s.tb.cx[TI_SHADE + 1] + r.s.tb.cell / 2, r.s.tb.cy + r.s.tb.cell / 2, APP_PEN_IN_RANGE, 0); /* the pointer over an icon */
+            rig_pen_user(&r, r.s.tb.cx[3] + r.s.tb.cell / 2, r.s.tb.cy + r.s.tb.cell / 2, APP_PEN_IN_RANGE, 0); /* the pointer over an icon */
             r.now += 200;
             rect_t o[SK_MAX_RECTS];
             rig_frame(&r, o);

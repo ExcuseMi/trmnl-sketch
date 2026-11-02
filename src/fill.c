@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Classes of look: 0 white, 1 black, 2 dark dither, 3 light dither (a shade + 1) */
+/* Classes of look: 0 white, then a shade + 1 (1 black, 2 .. SH_N the dithers, darkest first) */
 typedef struct {
     const canvas_t *pg;
     uint8_t *dil, *vis;
@@ -162,9 +162,10 @@ static int bf_class(const canvas_t *pg, int x, int y)
 {
     int seed_black = !cv_get(pg, x, y);
     int best = -1, best_score = -1;
-    static const int order[4] = { 0, 3, 2, 1 }; /* white first on a tie */
+    int order[SH_N + 1]; /* white first on a tie, then the lightest dither */
+    for (int i = 0; i <= SH_N; i++) order[i] = i ? SH_N + 1 - i : 0;
     int x0 = (x & ~3) - 2, y0 = (y & ~3) - 2;
-    for (int oi = 0; oi < 4; oi++) {
+    for (int oi = 0; oi <= SH_N; oi++) {
         int c = order[oi];
         if (bf_pat_black(c, x, y) != seed_black) continue;
         int cell = 1, score = 0;

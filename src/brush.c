@@ -6,7 +6,7 @@
 #include "sk_cfg.h"
 
 static const char *const names[BR_N] = { "Fineliner", "Brush pen", "Pencil", "Marker", "Calligraphy", "Spray", "Eraser", "Fill" };
-static const char *const shades[SH_N] = { "Black", "Dark gray", "Light gray" };
+static const char *const shades[SH_N] = { "Black", "Tone 15/16", "Tone 14/16", "Tone 12/16", "Tone 10/16", "Tone 8/16", "Tone 6/16", "Tone 4/16", "Tone 2/16" };
 
 const char *brush_name(int b) { return names[b < 0 || b >= BR_N ? 0 : b]; }
 const char *shade_name(int sh) { return shades[sh < 0 || sh >= SH_N ? 0 : sh]; }

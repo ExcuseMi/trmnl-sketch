@@ -48,7 +48,7 @@ typedef struct {
     bstyle_t sty;        /* the brush, shade and size picked (brush may be the eraser) */
     int last_ink;        /* the brush before the eraser was picked */
     uint8_t ink_size, era_size; /* the size of the ink brushes and of the eraser (sty.size is the one of the brush picked) */
-    int tb_drag;         /* a press on the size slider is still down: the knob follows the pen, no ink */
+    int tb_drag;         /* a press on a slider is still down (1 size, 2 tone): the knob follows the pen, no ink */
     bstyle_t stk;        /* the open stroke's style */
     int tb_hot, tb_ptr;  /* the toolbar item the pen is over (-1 none); the arrow pointer is drawn over the strip */
     box_t tb_ptr_box;

@@ -234,7 +234,7 @@ static void test_log(void)
     }
     hist_reset(&h);
     cv_fill(&spage, 1);
-    for (int y = 0; y < H; y += 2) for (int x = 0; x < W; x += 2) cv_px_s(&spage, x, y, 0, 0); /* dots: 3 x as many runs as 300 slots */
+    for (int y = 0; y < H; y += 2) for (int x = 0; x < W - 1; x += 2) cv_px_s(&spage, x + (y / 2 % 2), y, 0, 0); /* staggered dots (not a Bayer level, which the bucket would take for a tone): 3 x as many runs as 300 slots */
     memcpy(ssnap[0], sp, sizeof(sp));
     hist_reset(&h);
     CHECK(fill_in(&h, 1, 1, SH_BLACK) == -1 && !memcmp(sp, ssnap[0], sizeof(sp)) && !hist_can_undo(&h)); /* too intricate: nothing happens */

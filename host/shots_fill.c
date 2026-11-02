@@ -66,12 +66,14 @@ static void colour(rig_t *r, int roof, int wall, int door, int sun, int win)
 void fill_shots(const char *dir, int *bad)
 {
     static rig_t r;
-    static const char *const names[SH_N] = { "f1-fill-house-black", "f2-fill-house-dark", "f3-fill-house-light" };
-    for (int sh = 0; sh < SH_N; sh++) {
+    static const char *const names[3] = { "f1-fill-house-black", "f2-fill-house-dark", "f3-fill-house-light" };
+    static const int tones[3] = { SH_BLACK, SH_DARK, SH_LIGHT };
+    for (int k = 0; k < 3; k++) {
+        int sh = tones[k];
         rig_new(&r, APP_ORIENT_BAR_BOTTOM);
         house(&r);
         colour(&r, sh, sh, sh, sh, sh);
-        put(&r, dir, names[sh], bad);
+        put(&r, dir, names[k], bad);
         rig_end(&r);
     }
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);

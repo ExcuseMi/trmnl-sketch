@@ -14,11 +14,11 @@
 #define TB_CH 104 /* glyph 64 + label */
 enum { TB_BLK = GFX_BLACK, TB_WHT = GFX_WHITE };
 
-static const char *const tb_label[TI_N] = { "Fine", "Brush", "Pencil", "Marker", "Calli", "Spray", "Eraser", "Fill", "Line", "Box", "Oval", "Text", "Black", "Dark", "Light", "", "", "", "Mirror", "Undo", "Redo", "Clear" };
+static const char *const tb_label[TI_N] = { "Fine", "Brush", "Pencil", "Marker", "Calli", "Spray", "Eraser", "Fill", "Line", "Box", "Oval", "Text", "Tone", "", "", "", "", "", "Mirror", "Undo", "Redo", "Clear" };
 
 void tb_layout(tb_layout_t *L, int orient, int sw, int sh)
 {
-    static const int row_n[TB_ROWS] = { TI_SHADE, TI_N - TI_SHADE }, row_gaps[TB_ROWS] = { 1, 2 };
+    static const int row_n[TB_ROWS] = { TI_TONE, TI_N - TI_TONE }, row_gaps[TB_ROWS] = { 1, 2 };
     int cell = 100;
     for (int r = 0; r < TB_ROWS; r++) {
         int c = (sw - 2 * TB_MARGIN - row_gaps[r] * TB_GAP) / row_n[r];
@@ -33,13 +33,14 @@ void tb_layout(tb_layout_t *L, int orient, int sw, int sh)
     L->cy = L->top ? TB_PAD : L->y0 + TB_PAD + TB_LINE;
     int g = 0;
     for (int r = 0; r < TB_ROWS; r++) {
-        int first = r ? TI_SHADE : 0, last = r ? TI_N : TI_SHADE, x = (sw - (row_n[r] * cell + row_gaps[r] * TB_GAP)) / 2;
+        int first = r ? TI_TONE : 0, last = r ? TI_N : TI_TONE, x = (sw - (row_n[r] * cell + row_gaps[r] * TB_GAP)) / 2;
         for (int i = first; i < last; i++) {
             if (i == TI_LINE || i == TI_SIZE || i == TI_MIRROR) L->gap_x[g] = x + TB_GAP / 2, L->gap_row[g++] = r, x += TB_GAP;
             L->cx[i] = x, L->cyi[i] = L->cy + r * TB_CH;
             x += cell;
         }
     }
+    L->tn_x0 = L->cx[TI_TONE] + 36, L->tn_x1 = L->cx[TI_TONE + 2] + cell - 36, L->tn_y = L->cyi[TI_TONE] + 44;
     L->sl_x0 = L->cx[TI_SIZE] + 28, L->sl_x1 = L->cx[TI_SIZE + 2] + cell - 28;
     L->sl_y = L->cyi[TI_SIZE] + 44;
 }
@@ -49,7 +50,7 @@ int tb_in(const tb_layout_t *L, int x, int y) { return x >= L->x0 && x <= L->x1 
 int tb_hit(const tb_layout_t *L, int x, int y)
 {
     for (int i = 0; i < TI_N; i++)
-        if (y >= L->cyi[i] && y < L->cyi[i] + L->ch && x >= L->cx[i] && x < L->cx[i] + L->cell) return i > TI_SIZE && i < TI_MIRROR ? TI_SIZE : i;
+        if (y >= L->cyi[i] && y < L->cyi[i] + L->ch && x >= L->cx[i] && x < L->cx[i] + L->cell) return i > TI_SIZE && i < TI_MIRROR ? TI_SIZE : i > TI_TONE && i < TI_SIZE ? TI_TONE : i;
     return -1;
 }
 
@@ -61,6 +62,24 @@ static int sl_size(const tb_layout_t *L, int dx)
     if (dx > w) dx = (int)w;
     return SK_SIZE_MIN + (int)(((long)(SK_SIZE_MAX - SK_SIZE_MIN) * dx * dx + w * w / 2) / (w * w));
 }
+/* 8 steps along the track, the shade of the nearest: the left end is the lightest (shade SH_N - 1) */
+int tb_tone_of(const tb_layout_t *L, int x)
+{
+    long w = L->tn_x1 - L->tn_x0;
+    int dx = x < L->tn_x0 ? 0 : x > L->tn_x1 ? (int)w : x - L->tn_x0, step = (int)(((long)dx * (SH_N - 1) + w / 2) / w);
+    return SH_N - 1 - step;
+}
+int tb_tone_x(const tb_layout_t *L, int shade)
+{
+    long w = L->tn_x1 - L->tn_x0;
+    int step = SH_N - 1 - (shade < 0 ? 0 : shade >= SH_N ? SH_N - 1 : shade);
+    return L->tn_x0 + (int)(((long)step * w + (SH_N - 1) / 2) / (SH_N - 1));
+}
+void tb_tone_box(const tb_layout_t *L, int *x0, int *y0, int *x1, int *y1)
+{
+    *x0 = L->cx[TI_TONE], *x1 = L->cx[TI_TONE + 2] + L->cell - 1, *y0 = L->cyi[TI_TONE], *y1 = L->cyi[TI_TONE] + L->ch - 1;
+}
+
 int tb_slider_size(const tb_layout_t *L, int x) { return sl_size(L, x - L->sl_x0); }
 int tb_slider_x(const tb_layout_t *L, int size)
 {
@@ -98,13 +117,30 @@ static void tb_slider(gfx_t *g, const tb_layout_t *L, const bstyle_t *cur, int h
     gfx_text(g, f, (int32_t)((x0 + x1 - w) / 2) * 64, L->cyi[TI_SIZE] + 4 + TBI_SIZE + 26, t, 0, TB_BLK);
 }
 
-/* The pattern as it will be inked (black dots on paper), in a bordered swatch; picked: a white border on the black cell */
-static void tb_swatch(gfx_t *g, int shade, int x, int y, int sel)
+/* The tone slider: a track with a tick for each of the 9 steps, the knob a swatch of the tone as it will be inked */
+static void tb_tone(gfx_t *g, const tb_layout_t *L, const bstyle_t *cur)
 {
-    int q = 44, sx = x + (TBI_SIZE - q) / 2, sy = y + (TBI_SIZE - q) / 2;
-    gfx_rrect(g, (float)(sx - 4), (float)(sy - 4), (float)(sx + q + 3), (float)(sy + q + 3), 3, 3, TB_WHT, sel ? TB_WHT : TB_BLK);
+    int x0, y0, x1, y1, y = L->tn_y, kx = tb_tone_x(L, cur->shade), q = 44, sx = kx - q / 2, sy = y - q / 2;
+    tb_tone_box(L, &x0, &y0, &x1, &y1);
+    gfx_fill_rect(g, (float)L->tn_x0, (float)(y - 2), (float)L->tn_x1, (float)(y + 2), TB_BLK);
+    for (int k = 0; k < SH_N; k++) { /* the steps */
+        int tx = tb_tone_x(L, SH_N - 1 - k);
+        gfx_fill_rect(g, (float)(tx - 1), (float)(y - 7), (float)tx, (float)(y + 7), TB_BLK);
+    }
+    gfx_rrect(g, (float)(sx - 4), (float)(sy - 4), (float)(sx + q + 3), (float)(sy + q + 3), 3, 3, TB_WHT, TB_BLK);
     for (int py = 0; py < q; py++)
-        for (int px = 0; px < q; px++) gfx_px(g, sx + px, sy + py, cv_shade_black(shade, sx + px, sy + py) ? TB_BLK : TB_WHT);
+        for (int px = 0; px < q; px++) gfx_px(g, sx + px, sy + py, cv_shade_black(cur->shade, sx + px, sy + py) ? TB_BLK : TB_WHT);
+    char t[16] = "Tone ";
+    int n = 5, lv = cv_shade_level(cur->shade);
+    if (lv == 16) t[n++] = 'B', t[n++] = 'l', t[n++] = 'a', t[n++] = 'c', t[n++] = 'k';
+    else {
+        if (lv >= 10) t[n++] = '1';
+        t[n++] = (char)('0' + lv % 10), t[n++] = '/', t[n++] = '1', t[n++] = '6';
+    }
+    t[n] = 0;
+    const font_face_t *f = font_get(FONT_BOLD, 24);
+    int w = (int)((font_width64(f, t, 0) + 32) >> 6);
+    gfx_text(g, f, (int32_t)((x0 + x1 - w) / 2) * 64, L->cyi[TI_TONE] + 4 + TBI_SIZE + 26, t, 0, TB_BLK);
 }
 
 static void tb_caption(gfx_t *g, const tb_layout_t *L, int i, int x, int y, int c)
@@ -127,9 +163,8 @@ void tb_draw(gfx_t *g, const tb_layout_t *L, const bstyle_t *cur, int hot)
     for (int i = 0; i < TI_N; i++) {
         int x = L->cx[i], y = L->cyi[i], sel = 0, gx = x + (L->cell - TBI_SIZE) / 2, gy = y + 4;
         if (i < TI_LINE) sel = cur->brush == i && cur->tool == TL_DRAW;
-        else if (i < TI_SHADE) sel = cur->tool == i - TI_LINE + TL_LINE;
-        else if (i < TI_SIZE) sel = cur->shade == i - TI_SHADE;
-        else if (i < TI_MIRROR) continue; /* the slider */
+        else if (i < TI_TONE) sel = cur->tool == i - TI_LINE + TL_LINE;
+        else if (i < TI_MIRROR) continue; /* the sliders */
         else if (i == TI_MIRROR) sel = cur->mirror != 0;
         int x1 = x + L->cell - 1, y1 = y + L->ch - 1;
         if (sel) gfx_rrect(g, (float)x, (float)y, (float)x1, (float)y1, 12, 0, TB_BLK, TB_BLK);
@@ -139,14 +174,14 @@ void tb_draw(gfx_t *g, const tb_layout_t *L, const bstyle_t *cur, int hot)
         }
         int c = sel ? TB_WHT : TB_BLK, bg = sel ? TB_BLK : TB_WHT;
         if (i < TI_LINE) tbi_brush(g, i, gx, gy, c, bg);
-        else if (i < TI_SHADE) tbi_tool(g, i - TI_LINE + TL_LINE, gx, gy, c, bg);
-        else if (i < TI_SIZE) tb_swatch(g, i - TI_SHADE, gx, gy, sel);
+        else if (i < TI_TONE) tbi_tool(g, i - TI_LINE + TL_LINE, gx, gy, c, bg);
         else if (i == TI_MIRROR) tbi_mirror(g, cur->mirror, gx, gy, c, bg);
         else if (i == TI_UNDO) tbi_undo(g, gx, gy, c, bg);
         else if (i == TI_REDO) tbi_redo(g, gx, gy, c, bg);
         else tbi_clear(g, gx, gy, c, bg);
         tb_caption(g, L, i, x, y, c);
     }
+    tb_tone(g, L, cur);
     tb_slider(g, L, cur, hot);
     gfx_noclip(g);
 }

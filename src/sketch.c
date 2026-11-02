@@ -317,7 +317,7 @@ void sk_set_shade(sketch_t *s, int shade, uint32_t now)
 {
     if (shade < 0 || shade >= SH_N) return;
     s->sty.shade = (uint8_t)shade;
-    sk_cfg_num(s, "shade", shade);
+    sk_cfg_num(s, "tone", shade);
     sk_picked(s, shade_name(shade), now);
 }
 
@@ -363,8 +363,8 @@ static void tb_press(sketch_t *s, int item, uint32_t now)
 {
     if (item < 0) return;
     if (item < TI_LINE) sk_set_brush(s, item - TI_BRUSH, now);
-    else if (item < TI_SHADE) sk_set_tool(s, item - TI_LINE + TL_LINE, now);
-    else if (item < TI_SIZE) sk_set_shade(s, item - TI_SHADE, now);
+    else if (item < TI_TONE) sk_set_tool(s, item - TI_LINE + TL_LINE, now);
+    else if (item < TI_SIZE) s->tb_drag = 2; /* the tone slider: the first x comes with the same event */
     else if (item == TI_MIRROR) sk_set_mirror(s, (s->sty.mirror + 1) % MR_N, now);
     else if (item == TI_SIZE) s->tb_drag = 1; /* the first x comes with the same event: slider_drag */
     else if (item == TI_UNDO) sk_undo(s, now);
@@ -411,9 +411,11 @@ void sk_pen(sketch_t *s, unsigned flags, unsigned x, unsigned y, unsigned pressu
     gal_from_fb(s->orient, s->fb.w, s->fb.h, fx, fy, &ux, &uy);
     if (s->tb_on && inside) on_bar = tb_in(&s->tb, ux, uy);
     int on_pl = inside ? pl_hit(&s->pl, ux, uy) : PL_NONE;
-    if (!tip && s->tb_drag) { /* the knob is let go: the size is kept */
+    if (!tip && s->tb_drag) { /* the knob is let go: the size or the tone is kept */
+        int tone = s->tb_drag == 2;
         s->tb_drag = 0;
-        sk_set_size(s, s->sty.size, now); /* stored, and the toast names it */
+        if (tone) sk_set_shade(s, s->sty.shade, now); /* stored, and the toast names it */
+        else sk_set_size(s, s->sty.size, now);
     }
     if (!tip) s->tb_hold = 0;
     if (!tip && s->pl_hold) { /* a pill is tapped when the pen lifts over the pill it came down on */
@@ -622,6 +624,14 @@ void sk_set_orient(sketch_t *s, int orient, const app_touchbar_t *bar)
     s->want_full = 1;
 }
 
+/* The saved tone; the earlier three shades (key "shade": 0 black, 1 dark gray, 2 light gray) become their steps of the scale */
+static int tone_cfg(sketch_t *s)
+{
+    int t = cfg_int(s, "tone", -1), old = cfg_int(s, "shade", 0);
+    if (t >= 0 && t < SH_N) return t;
+    return old == 1 ? SH_DARK : old == 2 ? SH_LIGHT : SH_BLACK;
+}
+
 int sk_init(sketch_t *s, const sk_env_t *env, uint8_t *fb, int w, int h, int stride, int orient, const app_touchbar_t *bar)
 {
     memset(s, 0, sizeof(*s));
@@ -645,7 +655,7 @@ int sk_init(sketch_t *s, const sk_env_t *env, uint8_t *fb, int w, int h, int str
     s->ink_size = (uint8_t)(sz0 < 3 ? old[sz0] : sz0 > SK_SIZE_MAX ? SK_SIZE_MAX : sz0);
     s->era_size = (uint8_t)(sz1 < SK_SIZE_MIN ? SK_SIZE_DEF : sz1 > SK_SIZE_MAX ? SK_SIZE_MAX : sz1);
     s->sty.size = s->ink_size;
-    s->sty.shade = (uint8_t)(cfg_int(s, "shade", 0) % SH_N);
+    s->sty.shade = (uint8_t)tone_cfg(s);
     s->sty.brush = (uint8_t)(cfg_int(s, "brush", 0) % BR_N);
     if (s->sty.brush == BR_ERASER) s->sty.brush = BR_FINELINER;
     s->last_ink = s->sty.brush;

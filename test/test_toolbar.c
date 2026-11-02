@@ -118,8 +118,8 @@ static void test_taps_never_ink(void)
         CHECK(!memcmp(page, r.s.page.px, sizeof(page))); /* a tap on the strip never inks */
         CHECK(!r.s.stroke);
         if (i < TI_LINE) CHECK(r.s.sty.brush == i - TI_BRUSH);
-        else if (i < TI_SHADE) CHECK(r.s.sty.tool == i - TI_LINE + TL_LINE);
-        else if (i < TI_SIZE) CHECK(r.s.sty.shade == i - TI_SHADE);
+        else if (i < TI_TONE) CHECK(r.s.sty.tool == i - TI_LINE + TL_LINE);
+        else if (i < TI_SIZE) CHECK(r.s.sty.shade == tb_tone_of(&r.s.tb, r.s.tb.cx[i] + r.s.tb.cell / 2 + 1)); /* a tap on the slider puts the knob there */
         else CHECK(1);
         CHECK(r.s.note_on); /* a toast names the choice ... */
         idle(&r, 3000);
@@ -208,13 +208,13 @@ static void test_layout_all_positions(void)
         CHECK(L.top == (o != APP_ORIENT_BAR_TOP)); /* away from the touch bar */
         CHECK(L.top ? L.y0 == 0 : L.y1 == sh - 1);
         for (int i = 0; i < TI_N; i++) {
-            CHECK(L.cx[i] >= 0 && L.cx[i] + L.cell <= sw && (i == 0 || i == TI_SHADE || L.cx[i] >= L.cx[i - 1] + L.cell)); /* inside, in order, no overlap */
+            CHECK(L.cx[i] >= 0 && L.cx[i] + L.cell <= sw && (i == 0 || i == TI_TONE || L.cx[i] >= L.cx[i - 1] + L.cell)); /* inside, in order, no overlap */
             int cx = L.cx[i] + L.cell / 2, cy = L.cyi[i] + L.ch / 2, fx, fy, ux, uy;
-            CHECK(tb_in(&L, cx, cy) && tb_hit(&L, cx, cy) == (i > TI_SIZE && i < TI_MIRROR ? TI_SIZE : i));
+            CHECK(tb_in(&L, cx, cy) && tb_hit(&L, cx, cy) == (i > TI_SIZE && i < TI_MIRROR ? TI_SIZE : i > TI_TONE && i < TI_SIZE ? TI_TONE : i));
             /* through the panel and back: what a pen on the panel hits */
             app_orient_to_fb(o, TW, TH, cx, cy, &fx, &fy);
             gal_from_fb(o, TW, TH, fx, fy, &ux, &uy);
-            CHECK(ux == cx && uy == cy && tb_hit(&L, ux, uy) == (i > TI_SIZE && i < TI_MIRROR ? TI_SIZE : i));
+            CHECK(ux == cx && uy == cy && tb_hit(&L, ux, uy) == (i > TI_SIZE && i < TI_MIRROR ? TI_SIZE : i > TI_TONE && i < TI_SIZE ? TI_TONE : i));
         }
         CHECK(!tb_in(&L, sw / 2, L.top ? L.y1 + 1 : L.y0 - 1) && tb_hit(&L, sw / 2, L.top ? L.y1 + 1 : L.y0 - 1) == -1);
         CHECK(tb_hit(&L, 2, L.cy + 2) == -1); /* the margin is not an item */

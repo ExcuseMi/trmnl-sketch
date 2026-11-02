@@ -39,11 +39,13 @@ int cv_get(const canvas_t *c, int x, int y)
 
 /* The 4 x 4 ordered dither (Bayer) of the shades: a pixel is black where its threshold is below the level */
 static const uint8_t bayer[4][4] = { { 0, 8, 2, 10 }, { 12, 4, 14, 6 }, { 3, 11, 1, 9 }, { 15, 7, 13, 5 } };
-static const uint8_t shade_level[SH_N] = { 16, 11, 5 };
+static const uint8_t shade_level[SH_N] = { 16, 15, 14, 12, 10, 8, 6, 4, 2 };
+
+int cv_shade_level(int shade) { return shade < 0 || shade >= SH_N ? 16 : shade_level[shade]; }
 
 int cv_shade_black(int shade, int x, int y)
 {
-    if (shade <= 0 || shade >= SH_N) return 1;
+    if (shade < 0 || shade >= SH_N) return 1;
     return bayer[y & 3][x & 3] < shade_level[shade];
 }
 

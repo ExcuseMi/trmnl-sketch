@@ -71,8 +71,8 @@ static void test_shades(void)
         CHECK(cv_get(&page, 19, 40) && cv_get(&page, 84, 40) && cv_get(&page, 40, 19) && cv_get(&page, 40, 84)); /* nothing outside */
     }
     CHECK(cnt[SH_BLACK] == 64 * 64);
-    CHECK(cnt[SH_DARK] == 64 * 64 * 11 / 16);
-    CHECK(cnt[SH_LIGHT] == 64 * 64 * 5 / 16);
+    CHECK(cnt[SH_DARK] == 64 * 64 * 12 / 16);
+    CHECK(cnt[SH_LIGHT] == 64 * 64 * 6 / 16);
     /* the pattern is fixed to the page: the same square drawn by another brush, or twice, or after an eraser, is the same */
     blank();
     line(BR_MARKER, SH_DARK, 1, 100, 100, 160, 100, 30000);

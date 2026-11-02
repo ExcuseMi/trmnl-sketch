@@ -114,8 +114,26 @@ static void text_shots(const char *dir, int *bad)
     rig_end(&r);
 }
 
+static void tone_shots(const char *dir, int *bad)
+{
+    rig_t r;
+    rig_new(&r, APP_ORIENT_BAR_BOTTOM);
+    sk_toolbar(&r.s, r.now);
+    sk_set_size(&r.s, 20, r.now);
+    sk_set_tool(&r.s, TL_LINE, r.now);
+    for (int k = 0; k < SH_N; k++) { /* one stroke of every tone */
+        sk_set_shade(&r.s, SH_N - 1 - k, r.now);
+        drag(&r, 200 + k * 170, 400, 200 + k * 170, 1200, 0, 1);
+    }
+    sk_set_shade(&r.s, 5, r.now);
+    frames(&r);
+    put(&r, dir, "k1-toolbar-tone-and-size", bad);
+    rig_end(&r);
+}
+
 void tool_shots(const char *dir, int *bad)
 {
+    tone_shots(dir, bad);
     text_shots(dir, bad);
     shape_shots(dir, bad);
     paper_shots(dir, bad);

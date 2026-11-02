@@ -22,7 +22,10 @@ void box_clip(box_t *b, int w, int h);
 /* Pen shades: black, and two grays as 4 x 4 ordered-dither patterns fixed to the page (the same pixel is black or not
    whatever stroke draws it, so erasing and redrawing, undo and redo give the same pattern). Only ink (colour 0) is
    shaded; white (the eraser) is always solid. */
-enum { SH_BLACK, SH_DARK, SH_LIGHT, SH_N };
+/* The tone: 9 steps, 0 black then lighter to 8, the 4 x 4 Bayer levels 16 (black), 15, 14, 12, 10, 8, 6, 4 and 2 of 16 dots.
+   SH_DARK and SH_LIGHT are what the earlier Dark gray (11 of 16) and Light gray (5 of 16) became (settings migrate: skcfg.c) */
+enum { SH_BLACK = 0, SH_DARK = 3, SH_LIGHT = 6, SH_N = 9 };
+int cv_shade_level(int shade); /* the dots of 16 that are black */
 int cv_shade_black(int shade, int x, int y); /* 1: the pattern is black at this page pixel */
 void cv_span_s(canvas_t *c, int y, int x0, int x1, int colour, int shade); /* clipped */
 void cv_span_pat(canvas_t *c, int y, int x0, int x1, int shade); /* the shade's pattern exactly, white dots too */

@@ -24,16 +24,18 @@ void sk_set_size(sketch_t *s, int size, uint32_t now)
 /* The knob follows the pen along the track: the strip is repainted in the framebuffer, only the slider's box is pushed */
 void sk_slider_drag(sketch_t *s, int ux)
 {
-    int size = tb_slider_size(&s->tb, ux);
-    if (size == s->sty.size && s->tb_hot == TI_SIZE) return;
-    s->sty.size = (uint8_t)size;
-    s->tb_hot = TI_SIZE;
+    int tone = s->tb_drag == 2, size = tone ? 0 : tb_slider_size(&s->tb, ux), sh = tone ? tb_tone_of(&s->tb, ux) : 0, item = tone ? TI_TONE : TI_SIZE;
+    if ((tone ? sh == s->sty.shade : size == s->sty.size) && s->tb_hot == item) return;
+    if (tone) s->sty.shade = (uint8_t)sh;
+    else s->sty.size = (uint8_t)size;
+    s->tb_hot = item;
     sk_tb_paint(s);
     int x0, y0, x1, y1;
     box_t b;
     gfx_t g;
     gfx_init(&g, s->fb.px, s->fb.w, s->fb.h, s->fb.stride, s->orient);
-    tb_slider_box(&s->tb, &x0, &y0, &x1, &y1);
+    if (tone) tb_tone_box(&s->tb, &x0, &y0, &x1, &y1);
+    else tb_slider_box(&s->tb, &x0, &y0, &x1, &y1);
     ui_fb_box(&g, x0, y0, x1, y1, &b);
     box_clip(&b, s->fb.w, s->fb.h);
     rs_add(&s->pend, &b, s->fb.w, s->fb.h);
