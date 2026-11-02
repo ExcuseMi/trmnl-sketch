@@ -34,6 +34,7 @@
 ../../src/sketch.c
 ../../src/skpage.c
 ../../src/skstab.c
+../../src/skframe.c
 ../../src/sktilt.c
 ../../src/sklat.c
 ../../src/sklatency.c

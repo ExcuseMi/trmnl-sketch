@@ -28,7 +28,7 @@ static fp_t stamp(int brush, int size, int tx, int ty, int shade)
     static uint8_t px[200 * 25];
     canvas_t c = { px, 200, 200, 25 };
     cv_fill(&c, 1);
-    bstyle_t st = { (uint8_t)brush, (uint8_t)shade, (uint8_t)size, 0 };
+    bstyle_t st = { (uint8_t)brush, (uint8_t)shade, (uint8_t)size, 0, 0 };
     brush_segt(&st, 0, &c, 100, 100, brush == BR_PENCIL || brush == BR_SPRAY ? 200 : 14, bt_code(tx, ty), 100, 100, brush == BR_PENCIL || brush == BR_SPRAY ? 200 : 14, bt_code(tx, ty), 0);
     int x0 = 999, x1 = -1, y0 = 999, y1 = -1, n = 0;
     for (int y = 0; y < 200; y++)

@@ -170,13 +170,17 @@ static void step(rig_t *r, uint8_t *panel, const stream_t *st, int *i, double ba
         }
         *t = next;
     }
-    for (int k = 0; k < 64 && st && *i < st->n && base + st->ev[*i].t <= *t; k++, (*i)++) {
+    double frame_end = *t + SK_FRAME_MS; /* as main.c: the frame takes every event of SK_FRAME_MS after the first */
+    int took = 0;
+    for (; st && *i < st->n && base + st->ev[*i].t <= frame_end; (*i)++, took++) {
         const pev_t *e = &st->ev[*i];
         unsigned x, y;
         rig_pt(r, e->x, e->y, &x, &y);
+        if (base + e->t > *t) *t = base + e->t;
         sk_pen(&r->s, e->flags, x, y, e->pressure, (uint32_t)*t);
         deliv[*i] = *t;
     }
+    if (took) sk_frame(&r->s, (uint32_t)*t);
 }
 
 static result_t run(const stream_t *st, int mode, int ink, int batch, int verbose)

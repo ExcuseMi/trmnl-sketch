@@ -163,8 +163,18 @@ int app_main(const app_api_t *a)
         if (sk.mode == SK_SHARE && wait > 250) wait = 250;
         app_any_event_t u;
         int exit_now = 0;
-        for (int k = 0; k < 64 && !exit_now && api->input_poll(&u.ev, k ? 0 : wait); k++) {
+        uint32_t frame_end = 0;
+        /* the first event ends the wait; the frame then takes every event of the next SK_FRAME_MS (skframe.h) */
+        for (int k = 0; !exit_now; k++) {
+            uint32_t w = wait;
+            if (k) {
+                int32_t left = (int32_t)(frame_end - api->millis());
+                if (left <= 0) break;
+                w = (uint32_t)left;
+            }
+            if (!api->input_poll(&u.ev, w)) break;
             now = api->millis();
+            if (!k) frame_end = now + SK_FRAME_MS;
             switch (u.ev.type) {
             case APP_EVENT_EXIT: exit_now = 1; break;
             case APP_EVENT_PEN: sk_pen_tilt(&sk, u.pen.tilt_x, u.pen.tilt_y); sk_pen(&sk, u.pen.flags, u.pen.x, u.pen.y, u.pen.pressure, now); break;
@@ -179,6 +189,11 @@ int app_main(const app_api_t *a)
                 break;
             default: break;
             }
+        }
+        {
+            uint32_t t0 = api->millis();
+            sk_frame(&sk, t0); /* the stroke's points of this frame: thinned, stamped, one push */
+            sk_frame_cost(&sk, api->millis() - t0);
         }
         if (exit_now || sk.exit_req) break;
         if (sk.setup_req) { /* "Set up printer": Print starts after this app returns, and hands back here with an empty argument */

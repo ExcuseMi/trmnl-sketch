@@ -338,19 +338,45 @@ static void tb_press(sketch_t *s, int item, uint32_t now)
 /* ---- input ---- */
 
 /* A point of the open stroke: drawn on the page, then on the screen */
+/* A point of the open stroke: queued for the frame (skframe.h); a full queue is stamped now */
 static void stroke_add(sketch_t *s, int fx, int fy, int p, uint32_t now)
 {
-    box_t dirty;
-    box_clear(&dirty);
-    hist_add_t(&s->hist, fx, fy, p, s->tilt, &dirty);
-    if (!box_empty(&dirty)) {
-        fb_put(s, &dirty);
-        mark(s, &dirty);
-        sk_lat_ink(s, now);
-    }
+    sk_frame_t *f = &s->frame;
+    if (f->n >= SK_QUEUE_MAX) sk_frame(s, now);
+    f->q[f->n++] = (sk_qpt_t){ (int16_t)fx, (int16_t)fy, p, s->tilt };
+    sk_lat_ink(s, now); /* the latency counts from the report, not from the frame that stamps it */
     s->px = s->lx, s->py = s->ly, s->lx = fx, s->ly = fy, s->lp = p;
     s->dirty = 1;
     s->save_at = now + SK_AUTOSAVE_MS;
+}
+
+void sk_frame(sketch_t *s, uint32_t now)
+{
+    sk_frame_t *f = &s->frame;
+    (void)now; /* the latency was noted when the point was queued */
+    if (!f->n) return;
+    int brush = s->stk.brush == BR_BRUSH, step = brush ? brush_stamp_step(BR_BRUSH, s->stk.size) : 1;
+    int scale = brush && s->stk.scale > 1 ? s->stk.scale : 1, keep[SK_QUEUE_MAX];
+    int k = sk_thin(f->q, f->n, brush ? step * scale / 2 : 1, keep);
+    /* the stroke keeps its step: undo and redo replay it exactly; sk_frame_cost sets the next stroke's */
+    box_t dirty;
+    box_clear(&dirty);
+    for (int i = 0; i < k; i++) {
+        const sk_qpt_t *q = &f->q[keep[i]];
+        hist_add_t(&s->hist, q->x, q->y, q->p, q->tilt, &dirty);
+    }
+    f->n = 0;
+    if (!box_empty(&dirty)) {
+        fb_put(s, &dirty);
+        mark(s, &dirty);
+    }
+}
+
+void sk_frame_cost(sketch_t *s, uint32_t ms)
+{
+    s->frame.cost_ms = ms;
+    s->frame.scale = sk_scale_next(s->frame.scale, ms, &s->frame.cheap);
+    hist_bake_step(&s->hist, SK_BAKE_PTS); /* an old stroke's slice into the base, every frame (bounded work) */
 }
 
 /* The stabiliser trails the pen a little: at the end of a stroke the line goes on to where the pen really ended */
@@ -381,8 +407,8 @@ void sk_pen(sketch_t *s, unsigned flags, unsigned x, unsigned y, unsigned pressu
     if (tip && on_bar) { /* a press on the strip picks, never inks; a stroke dragged onto it just ends */
         int was = s->stroke || s->bk_down;
         s->bk_down = 0;
-            if (was && s->stroke) stroke_tail(s, now), hist_end(&s->hist), s->stroke = 0;
-        else if (was) hist_end(&s->hist), s->stroke = 0;
+            if (was && s->stroke) stroke_tail(s, now), sk_frame(s, now), hist_end(&s->hist), s->stroke = 0;
+        else if (was) sk_frame(s, now), hist_end(&s->hist), s->stroke = 0;
         if (!s->tb_hold) {
             s->tb_hold = 1;
             sk_cursor_hide(s);
@@ -400,6 +426,12 @@ void sk_pen(sketch_t *s, unsigned flags, unsigned x, unsigned y, unsigned pressu
             s->stk = s->sty;
             s->stk.brush = (uint8_t)br;
             s->stk.size = (uint8_t)size_for(s, br);
+            s->stk.scale = 1;
+            if (br == BR_BRUSH) { /* the frame's step for this stroke, never over the radius (the stamps overlap) */
+                int step = brush_stamp_step(BR_BRUSH, s->stk.size), smax = (s->stk.size / 2) / step, sc = s->frame.scale;
+                if (smax < 1) smax = 1;
+                s->stk.scale = (uint8_t)(sc < 1 ? 1 : sc > smax ? smax : sc);
+            }
             s->stroke_erase = brush_is_eraser(br);
             hist_begin_style(&s->hist, s->stroke_erase ? HK_ERASE : HK_INK, &s->stk);
             s->stroke = 1;
@@ -418,6 +450,7 @@ void sk_pen(sketch_t *s, unsigned flags, unsigned x, unsigned y, unsigned pressu
     }
     if (s->stroke) {
         stroke_tail(s, now);
+        sk_frame(s, now); /* the stroke's last points, before its history closes */
         hist_end(&s->hist);
         s->stroke = 0;
         s->traces++;
@@ -505,11 +538,13 @@ void sk_tick(sketch_t *s, uint32_t now)
     }
     if (s->legend && (int32_t)(now - s->note_until) >= 0) sk_note_hide(s);
     if (s->dirty && !s->stroke && (int32_t)(now - s->save_at) >= 0) sk_do_save(s, now);
+    if (!s->stroke) hist_bake_step(&s->hist, SK_BAKE_IDLE_PTS); /* the pen is up: old strokes into the base, a slice a tick */
     sk_lat_tick(s, now);
 }
 
 int sk_flush(sketch_t *s, uint32_t now, rect_t *out)
 {
+    sk_frame(s, now); /* the frame's points before the push (main.c frames first; a direct caller gets the same) */
     int n = sk_flash_step(s, now, out);
     if (n != SK_NOFLASH) return n;
     if (!s->pend.n || (uint32_t)(now - s->last_push) < (uint32_t)s->batch_ms) return 0;

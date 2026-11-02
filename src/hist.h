@@ -31,7 +31,16 @@ typedef struct {
     hstroke_t *st;
     int st_cap, st_n, st_cur; /* st_cur strokes are on the page; the rest can be redone */
     int open;                 /* st[st_cur - 1] is being drawn */
+    uint32_t baking;          /* points of st[0] already in the base: a bake under way (hist_bake_step) */
 } hist_t;
+
+/* Baking ahead, a slice at a time (owner's X 2026-11-02: once the log held HIST strokes every new stroke started
+   with the oldest one re-stamped into the base, 0.6 s for a big Brush stroke, the pen frozen): when the log is
+   within HIST_BAKE_AHEAD strokes of full, up to max_pts points of the oldest stroke go into the base per call; the
+   stroke leaves the log once whole. Returns 1 while there was something to do. Undo, redo, clear and a full log
+   finish a bake under way first. */
+#define HIST_BAKE_AHEAD 8
+int hist_bake_step(hist_t *h, uint32_t max_pts);
 
 /* base_px: a page-sized buffer. The base starts as a copy of the page */
 void hist_init(hist_t *h, canvas_t *page, uint8_t *base_px, hpt_t *pts, uint32_t pt_cap, hstroke_t *st, int st_cap);

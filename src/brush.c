@@ -226,7 +226,7 @@ static void seg_img(const bstyle_t *st, int img, int colour, canvas_t *c, int x0
     bt_decode(t0, &ax, &ay);
     bt_decode(t1, &bx, &by);
     if (n == 0) return k.tx = bx, k.ty = by, fn(&k, x0, y0, p1);
-    const int step = brush_stamp_step(b, k.size);
+    const int step = brush_stamp_step(b, k.size) * (b == BR_BRUSH && st->scale > 1 ? st->scale : 1);
     for (int i = 0; i <= n; i += i + step > n && i < n ? n - i : step) { /* the end point always gets its stamp */
         int x = x0 + (dx * i + (dx < 0 ? -n / 2 : n / 2)) / n;
         int y = y0 + (dy * i + (dy < 0 ? -n / 2 : n / 2)) / n;

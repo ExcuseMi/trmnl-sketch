@@ -39,7 +39,7 @@ static int col_black(int x)
 }
 static void line(int brush, int shade, int size, int x0, int y0, int x1, int y1, unsigned pressure)
 {
-    bstyle_t st = { (uint8_t)brush, (uint8_t)shade, (uint8_t)SZ(size), 0 };
+    bstyle_t st = { (uint8_t)brush, (uint8_t)shade, (uint8_t)SZ(size), 0, 0 };
     int p = brush_param(brush, size, pressure);
     brush_seg(&st, brush_is_eraser(brush), &page, x0, y0, p, x1, y1, p, 0);
 }
@@ -234,7 +234,7 @@ static void test_replay(void)
             static uint8_t snap[3][sizeof(page_px)];
             box_t b;
             for (int k = 0; k < 3; k++) {
-                bstyle_t sty = { (uint8_t)br, (uint8_t)sh, (uint8_t)(k % 3), 0 };
+                bstyle_t sty = { (uint8_t)br, (uint8_t)sh, (uint8_t)(k % 3), 0, 0 };
                 hist_begin_style(&h, brush_is_eraser(br) ? HK_ERASE : HK_INK, &sty);
                 srand((unsigned)(br * 31 + sh * 7 + k));
                 int x = 40 + k * 30, y = 60 + k * 40;
@@ -262,7 +262,7 @@ static void test_replay(void)
             static hpt_t small[100];
             hist_init(&h, &page, base_px, small, 100, st, 16);
             for (int k = 0; k < 3; k++) {
-                bstyle_t sty = { (uint8_t)br, (uint8_t)sh, (uint8_t)(k % 3), 0 };
+                bstyle_t sty = { (uint8_t)br, (uint8_t)sh, (uint8_t)(k % 3), 0, 0 };
                 hist_begin_style(&h, brush_is_eraser(br) ? HK_ERASE : HK_INK, &sty);
                 srand((unsigned)(br * 31 + sh * 7 + k));
                 int x = 40 + k * 30, y = 60 + k * 40;

@@ -5,7 +5,7 @@ FW ?= $(HOME)/workspace/trmnl-fw-files
 PRINT ?= $(HOME)/workspace/trmnl-print/src
 PY ?= $(HOME)/workspace/trmnl-fpv/.venv/bin/python
 CFLAGS = -Itest -std=c11 -O1 -g -Wall -Wextra -Werror -Wshadow -Isrc -I$(PRINT) -Ihost -Igen -I$(FW)/include -fsanitize=address,undefined -fno-sanitize-recover=all
-CORE = src/canvas.c src/brush.c src/toolbar.c src/tbicons.c src/penmap.c src/hist.c src/pngio.c src/pages.c src/rects.c src/skpush.c src/skcfg.c src/skflash.c src/fill.c src/skfill.c src/mirror.c src/skmirror.c src/mrpick.c src/skui.c src/skmenu.c src/gallery.c src/skprint.c src/skgal.c $(PRINT)/pcl.c $(PRINT)/pwg.c $(PRINT)/ipp.c $(PRINT)/imgfit.c $(PRINT)/textlay.c $(PRINT)/printer.c $(PRINT)/printjob.c src/sketch.c src/skpage.c src/skstab.c src/sktilt.c src/sklat.c src/sklatency.c src/sktbimg.c src/paper.c src/skpaper.c src/font.c src/gfx.c gen/fonts_gen.c
+CORE = src/canvas.c src/brush.c src/toolbar.c src/tbicons.c src/penmap.c src/hist.c src/pngio.c src/pages.c src/rects.c src/skpush.c src/skcfg.c src/skflash.c src/fill.c src/skfill.c src/mirror.c src/skmirror.c src/mrpick.c src/skui.c src/skmenu.c src/gallery.c src/skprint.c src/skgal.c $(PRINT)/pcl.c $(PRINT)/pwg.c $(PRINT)/ipp.c $(PRINT)/imgfit.c $(PRINT)/textlay.c $(PRINT)/printer.c $(PRINT)/printjob.c src/sketch.c src/skpage.c src/skstab.c src/skframe.c src/sktilt.c src/sklat.c src/sklatency.c src/sktbimg.c src/paper.c src/skpaper.c src/font.c src/gfx.c gen/fonts_gen.c
 HOST = host/memfs.c build/tbfw.o
 TESTS = $(patsubst test/%.c,build/%,$(wildcard test/test_*.c))
 
@@ -20,7 +20,7 @@ build/tbfw.o: host/tbfw.cpp $(FW)/lib/trmnl/src/touchbar_layout.cpp
 build/%: test/%.c $(CORE) $(HOST) test/check.h test/util.h $(wildcard src/*.h host/*.h)
 	@mkdir -p build
 	$(CC) $(CFLAGS) $< $(CORE) $(HOST) -o $@ -lm -lz -lstdc++
-test: $(TESTS) speed cost
+test: $(TESTS) speed cost frames
 	@for t in $(TESTS); do ./$$t || exit 1; done
 build/shots: host/shots.c host/shots_fill.c host/shots_mirror.c host/shots_tools.c host/shots_pro.c host/png.c $(CORE) $(HOST) test/util.h $(wildcard src/*.h host/*.h)
 	@mkdir -p build
@@ -54,6 +54,13 @@ cost: build/cost
 cost-table: build/cost
 	./build/cost
 .PHONY: cost cost-table
+# Three minutes of a 200 Hz Brush scribble through the frame loop with the app's compute costed as the X (host/frames.c)
+build/frames: host/frames.c $(CORE) host/memfs.c build/tbfw_cost.o test/util.h $(wildcard src/*.h host/*.h)
+	@mkdir -p build
+	$(CC) $(COSTFLAGS) host/frames.c $(CORE) host/memfs.c build/tbfw_cost.o -o $@ -lm -lz -lstdc++
+frames: build/frames
+	./build/frames --check
+.PHONY: frames
 # The app ELF with the firmware fork's import check (every libc call must be in the loader's table); the sources are
 # listed in apps/trmnl-sketch/build.flags. apps/build.sh links one path for every app (its libgcc copy is the linker fix).
 elf: gen/fonts_gen.c

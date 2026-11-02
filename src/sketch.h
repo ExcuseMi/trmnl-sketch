@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <app_api.h>
 #include "brush.h"
+#include "skframe.h"
 #include "canvas.h"
 #include "gallery.h"
 #include "printjob.h"
@@ -88,6 +89,7 @@ typedef struct {
     int smooth;          /* the stabiliser level (SK_SMOOTH_DEF; the tests set 0 so the points are the pen's own) */
     int tilt;            /* the tilt code of the pen's last event (sk_pen_tilt); tilt is always on */
     int rx, ry, stroke_pts; /* the pen's own last point of the open stroke, and how many points it has had */
+    sk_frame_t frame;    /* the open stroke's points since the last frame, stamped by sk_frame (skframe.h) */
     int paper, paper_sp, paper_def, paper_sp_def; /* the page on screen's paper (paper.h) and the settings' default for new pages */
     unsigned mods;       /* keyboard modifiers held (APP_MOD_*) */
     int stroke_erase;    /* the open stroke erases */
@@ -172,6 +174,10 @@ void sk_tb_img_free(sketch_t *s);
 void sk_toolbar(sketch_t *s, uint32_t now);
 /* The tilt of the pen event that sk_pen takes next (degrees, as the tablet reports; 0 0 for a mouse or a tablet that does not tell) */
 void sk_pen_tilt(sketch_t *s, int tilt_x, int tilt_y);
+/* The frame: the points sk_pen queued since the last one are thinned, stamped and marked for one push (skframe.h);
+   then sk_frame_cost with the milliseconds it took, which sets the Brush's stamp step for the next frame */
+void sk_frame(sketch_t *s, uint32_t now);
+void sk_frame_cost(sketch_t *s, uint32_t ms);
 int sk_tilt_code(const penmap_t *m, int tilt_x, int tilt_y); /* the same, as the byte a point carries */
 void sk_pen(sketch_t *s, unsigned flags, unsigned x, unsigned y, unsigned pressure, uint32_t now);
 void sk_pen_key(sketch_t *s, unsigned keys, unsigned changed, uint32_t now);

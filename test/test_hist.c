@@ -227,8 +227,53 @@ static void test_empty_stroke(void)
     CHECK(h.pt_n == 1 && !cv_get(&page, 50, 50));
 }
 
+/* Baking ahead (hist_bake_step): with the log near full, slices of the oldest stroke go into the base between
+   strokes; the page never changes, every undo still gives the exact earlier page, and a stroke drawn while a bake is
+   under way is kept whole. Red-checked by making bake_finish skip apply_range: the undo pages differed. */
+static void test_bake_step_keeps_the_page_and_the_undos_exact(void)
+{
+    static hpt_t pts[4000];
+    static hstroke_t st[16];
+    hist_t h;
+    setup(&h, pts, 4000, st, 16);
+    CHECK(!hist_bake_step(&h, 8)); /* an empty log: nothing to bake */
+    for (int i = 1; i <= 5; i++) stroke(&h, HK_INK, 500 + i, 20, 0);
+    CHECK(!hist_bake_step(&h, 8)); /* 5 of 16: not near full */
+    for (int i = 6; i <= 9; i++) stroke(&h, HK_INK, 500 + i, 20, 0);
+    memcpy(snap[0], page_px, BYTES);
+    CHECK(h.st_cur == 9 && hist_bake_step(&h, 8)); /* within HIST_BAKE_AHEAD of 16: the oldest starts to go */
+    CHECK(h.baking == 8 && h.st_cur == 9 && !memcmp(page_px, snap[0], BYTES));
+    stroke(&h, HK_INK, 600, 20, 0); /* drawing while the bake is under way */
+    memcpy(snap[1], page_px, BYTES);
+    CHECK(h.st_cur == 10 && h.baking == 8);
+    int steps = 0;
+    while (h.baking) {
+        CHECK(hist_bake_step(&h, 8));
+        steps++;
+    }
+    CHECK(steps >= 1 && h.st_cur == 9); /* whole: out of the log, the rest intact */
+    CHECK(!memcmp(page_px, snap[1], BYTES));
+    box_t b;
+    CHECK(hist_undo(&h, &b) && !memcmp(page_px, snap[0], BYTES)); /* the stroke drawn during the bake */
+    CHECK(hist_redo(&h, &b) && !memcmp(page_px, snap[1], BYTES));
+    /* an undo with a bake half done finishes it first: still exact */
+    for (int i = 11; i <= 12; i++) stroke(&h, HK_INK, 500 + i, 20, 0);
+    memcpy(snap[2], page_px, BYTES);
+    stroke(&h, HK_INK, 513, 20, 0);
+    CHECK(hist_bake_step(&h, 4) && h.baking == 4);
+    CHECK(hist_undo(&h, &b) && !h.baking && !memcmp(page_px, snap[2], BYTES));
+    /* a clear in the log goes whole */
+    hist_clear(&h, &b);
+    for (int i = 0; i < 12; i++) stroke(&h, HK_INK, 700 + i, 5, 0);
+    while (h.st_cur > 1 && h.st[0].kind != HK_CLEAR && hist_bake_step(&h, 8)) {}
+    memcpy(snap[3], page_px, BYTES);
+    while (hist_bake_step(&h, 8) && h.st_cur > 7) {}
+    CHECK(!memcmp(page_px, snap[3], BYTES));
+}
+
 int main(void)
 {
+    test_bake_step_keeps_the_page_and_the_undos_exact();
     test_undo_redo_exact();
     test_undo_box();
     test_clear();

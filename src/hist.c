@@ -14,41 +14,78 @@ void hist_init(hist_t *h, canvas_t *page, uint8_t *base_px, hpt_t *pts, uint32_t
     h->st = st;
     h->st_cap = st_cap;
     hist_reset(h);
+    h->baking = 0;
 }
 
 void hist_reset(hist_t *h)
 {
+    h->baking = 0;
     memcpy(h->base.px, h->page->px, (size_t)h->page->stride * (size_t)h->page->h);
     h->pt_n = 0;
     h->st_n = h->st_cur = 0;
     h->open = 0;
 }
 
-static void apply(canvas_t *c, const hstroke_t *s, const hpt_t *p)
+/* The stroke's points from..to (segments from the point before `from`) onto c; a fill or clear is whole or nothing */
+static void apply_range(canvas_t *c, const hstroke_t *s, const hpt_t *p, uint32_t from, uint32_t to)
 {
     if (s->kind == HK_CLEAR) return cv_fill(c, 1);
     if (s->kind == HK_FILL) return bf_apply(c, p, s->n, s->style.shade);
     int colour = s->kind == HK_ERASE;
-    for (uint32_t i = 0; i < s->n; i++) {
+    for (uint32_t i = from; i < to; i++) {
         const hpt_t *a = i ? &p[i - 1] : &p[i];
         brush_segt(&s->style, colour, c, a->x, a->y, a->d, a->t, p[i].x, p[i].y, p[i].d, p[i].t, 0);
     }
 }
 
-/* The first k strokes into the base image, and out of the log */
-static void bake(hist_t *h, int k)
+static void apply(canvas_t *c, const hstroke_t *s, const hpt_t *p) { apply_range(c, s, p, 0, s->n); }
+
+/* The first k strokes out of the log (their pixels are in the base by now) */
+static void cut(hist_t *h, int k)
 {
-    if (k > h->st_n) k = h->st_n;
-    if (k <= 0) return;
-    for (int i = 0; i < k; i++) apply(&h->base, &h->st[i], h->pts + h->st[i].first);
-    uint32_t cut = h->st[k - 1].first + h->st[k - 1].n;
-    memmove(h->pts, h->pts + cut, (size_t)(h->pt_n - cut) * sizeof(hpt_t));
-    h->pt_n -= cut;
+    uint32_t c = h->st[k - 1].first + h->st[k - 1].n;
+    memmove(h->pts, h->pts + c, (size_t)(h->pt_n - c) * sizeof(hpt_t));
+    h->pt_n -= c;
     memmove(h->st, h->st + k, (size_t)(h->st_n - k) * sizeof(hstroke_t));
-    for (int i = 0; i < h->st_n - k; i++) h->st[i].first -= cut;
+    for (int i = 0; i < h->st_n - k; i++) h->st[i].first -= c;
     h->st_n -= k;
     h->st_cur -= k;
     if (h->st_cur < 0) h->st_cur = 0;
+}
+
+/* A bake under way (hist_bake_step) finished now: the oldest stroke's rest into the base, and out of the log */
+static void bake_finish(hist_t *h)
+{
+    if (!h->baking) return;
+    uint32_t from = h->baking;
+    h->baking = 0;
+    apply_range(&h->base, &h->st[0], h->pts + h->st[0].first, from, h->st[0].n);
+    cut(h, 1);
+}
+
+/* The first k strokes into the base image, and out of the log */
+static void bake(hist_t *h, int k)
+{
+    bake_finish(h);
+    if (k > h->st_n) k = h->st_n;
+    if (k <= 0) return;
+    for (int i = 0; i < k; i++) apply(&h->base, &h->st[i], h->pts + h->st[i].first);
+    cut(h, k);
+}
+
+int hist_bake_step(hist_t *h, uint32_t max_pts)
+{
+    if (h->st_cur < 1 || (h->st_cur < h->st_cap - HIST_BAKE_AHEAD && !h->baking)) return 0;
+    if (h->open && h->st_cur == 1) return 0; /* the oldest stroke is the one being drawn */
+    const hstroke_t *s = &h->st[0];
+    if (s->kind == HK_CLEAR || s->kind == HK_FILL || s->n <= h->baking + max_pts) {
+        if (h->baking) bake_finish(h);
+        else bake(h, 1);
+        return 1;
+    }
+    apply_range(&h->base, s, h->pts + s->first, h->baking, h->baking + max_pts);
+    h->baking += max_pts;
+    return 1;
 }
 
 static void replay(hist_t *h)
@@ -59,7 +96,7 @@ static void replay(hist_t *h)
 
 void hist_begin(hist_t *h, int kind)
 {
-    static const bstyle_t plain = { BR_PEN, SH_BLACK, 1, 0 };
+    static const bstyle_t plain = { BR_PEN, SH_BLACK, 1, 0, 0 };
     hist_begin_style(h, kind, &plain);
 }
 
@@ -131,6 +168,7 @@ int hist_can_redo(const hist_t *h) { return h->st_cur < h->st_n && !h->open; }
 int hist_undo(hist_t *h, box_t *changed)
 {
     hist_end(h);
+    bake_finish(h);
     if (h->st_cur == 0) return 0;
     h->st_cur--;
     *changed = h->st[h->st_cur].bb;
@@ -141,6 +179,7 @@ int hist_undo(hist_t *h, box_t *changed)
 int hist_redo(hist_t *h, box_t *changed)
 {
     hist_end(h);
+    bake_finish(h);
     if (h->st_cur >= h->st_n) return 0;
     apply(h->page, &h->st[h->st_cur], h->pts + h->st[h->st_cur].first);
     *changed = h->st[h->st_cur].bb;
@@ -150,6 +189,7 @@ int hist_redo(hist_t *h, box_t *changed)
 
 void hist_clear(hist_t *h, box_t *changed)
 {
+    bake_finish(h);
     hist_begin(h, HK_CLEAR);
     cv_fill(h->page, 1);
     h->st[h->st_cur - 1].bb = (box_t){ 0, 0, h->page->w - 1, h->page->h - 1 };

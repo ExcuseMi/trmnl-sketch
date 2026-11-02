@@ -18,6 +18,7 @@ int brush_size_cls(int brush, int size);
 typedef struct {
     uint8_t brush, shade, size; /* BR_*, SH_*, the pen size 1..48 */
     uint8_t mirror;             /* MR_* (mirror.h): the stroke is repeated through that symmetry; 0 off */
+    uint8_t scale;              /* the Brush's stamp step times this (0 and 1: as drawn); set per stroke (skframe.h) */
 } bstyle_t;
 
 const char *brush_name(int brush);
