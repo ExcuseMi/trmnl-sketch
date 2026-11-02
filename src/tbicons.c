@@ -169,6 +169,17 @@ static void tbi_curved(gfx_t *g, int x, int y, int mx, int ink)
     gfx_poly(g, p, 3, ink);
 }
 
+void tbi_smooth(gfx_t *g, int level, int x, int y, int ink, int bg)
+{
+    (void)bg;
+    float amp = 16.0f * (float)(10 - (level > 10 ? 10 : level)) / 10.0f, px = 0, py = 0;
+    for (int i = 0; i <= 8; i++) {
+        float u = (float)i / 8, qx = (float)x + 6 + 52 * u, qy = (float)y + 34 - 14 * fm_sin(u * 2 * FM_PI) + ((i & 1) ? amp : -amp) * (i && i < 8 ? 1.0f : 0.0f);
+        if (i) gfx_line(g, px, py, qx, qy, 6, ink);
+        px = qx, py = qy;
+    }
+}
+
 void tbi_undo(gfx_t *g, int x, int y, int ink, int bg) { (void)bg, tbi_curved(g, x, y, 1, ink); }
 void tbi_redo(gfx_t *g, int x, int y, int ink, int bg) { (void)bg, tbi_curved(g, x, y, -1, ink); }
 

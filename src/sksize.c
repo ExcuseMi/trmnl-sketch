@@ -21,6 +21,16 @@ void sk_set_size(sketch_t *s, int size, uint32_t now)
     sk_picked(s, t, now);
 }
 
+void sk_set_smooth(sketch_t *s, int level, uint32_t now)
+{
+    if (level < 0 || level > SK_SMOOTH_MAX) return;
+    s->smooth = level;
+    sk_cfg_num(s, "smooth", level);
+    char t[16] = "Smooth: ";
+    sk_cpy(t + 8, sizeof(t) - 8, level >= 10 ? "10" : level ? (char[]){ (char)('0' + level), 0 } : "off");
+    sk_picked(s, t, now);
+}
+
 /* The knob follows the pen along the track: the strip is repainted in the framebuffer, only the slider's box is pushed */
 void sk_slider_drag(sketch_t *s, int ux)
 {

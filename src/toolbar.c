@@ -14,7 +14,7 @@
 #define TB_CH 104 /* glyph 64 + label */
 enum { TB_BLK = GFX_BLACK, TB_WHT = GFX_WHITE };
 
-static const char *const tb_label[TI_N] = { "Fine", "Brush", "Pencil", "Marker", "Calli", "Spray", "Eraser", "Fill", "Line", "Box", "Oval", "Text", "Tone", "", "", "", "", "", "Mirror", "Undo", "Redo", "Clear", "", "", "", "", "" };
+static const char *const tb_label[TI_N] = { "Fine", "Brush", "Pencil", "Marker", "Calli", "Spray", "Eraser", "Fill", "Line", "Box", "Oval", "Text", "Smooth", "Tone", "", "", "", "", "", "Mirror", "Undo", "Redo", "Clear", "", "", "", "", "" };
 
 void tb_layout(tb_layout_t *L, int orient, int sw, int sh)
 {
@@ -164,7 +164,7 @@ static void tb_recent_caption(gfx_t *g, const tb_layout_t *L, const bstyle_t *e,
     gfx_text(g, f, (int32_t)(x + (L->cell - w) / 2) * 64, y + TBI_SIZE + 26, t, 0, c);
 }
 
-void tb_draw(gfx_t *g, const tb_layout_t *L, const bstyle_t *cur, int hot, const bstyle_t *rc, int rc_n)
+void tb_draw(gfx_t *g, const tb_layout_t *L, const bstyle_t *cur, int hot, const bstyle_t *rc, int rc_n, int smooth)
 {
     gfx_clip(g, L->x0, L->y0, L->x1, L->y1);
     gfx_fill_rect(g, (float)L->x0, (float)L->y0, (float)L->x1, (float)L->y1, TB_WHT);
@@ -177,6 +177,7 @@ void tb_draw(gfx_t *g, const tb_layout_t *L, const bstyle_t *cur, int hot, const
     for (int i = 0; i < TI_N; i++) {
         int x = L->cx[i], y = L->cyi[i], sel = 0, gx = x + (L->cell - TBI_SIZE) / 2, gy = y + 4;
         if (i < TI_LINE) sel = cur->brush == i && cur->tool == TL_DRAW;
+        else if (i == TI_SMOOTH) sel = smooth != 0;
         else if (i < TI_TONE) sel = cur->tool == i - TI_LINE + TL_LINE;
         else if (i < TI_MIRROR) continue; /* the sliders */
         else if (i == TI_MIRROR) sel = cur->mirror != 0;
@@ -189,6 +190,7 @@ void tb_draw(gfx_t *g, const tb_layout_t *L, const bstyle_t *cur, int hot, const
         }
         int c = sel ? TB_WHT : TB_BLK, bg = sel ? TB_BLK : TB_WHT;
         if (i < TI_LINE) tbi_brush(g, i, gx, gy, c, bg);
+        else if (i == TI_SMOOTH) tbi_smooth(g, smooth, gx, gy, c, bg);
         else if (i < TI_TONE) tbi_tool(g, i - TI_LINE + TL_LINE, gx, gy, c, bg);
         else if (i == TI_MIRROR) tbi_mirror(g, cur->mirror, gx, gy, c, bg);
         else if (i >= TI_RECENT) tbi_recent(g, i - TI_RECENT < rc_n ? &rc[i - TI_RECENT] : 0, gx, gy, c, bg);

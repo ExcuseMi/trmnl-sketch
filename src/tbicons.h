@@ -18,4 +18,6 @@ void tbi_clear(gfx_t *g, int x, int y, int ink, int bg);
 void tbi_tool(gfx_t *g, int tool, int x, int y, int ink, int bg);
 /* A Recent slot (toolbar.h): a swatch of the tone with a dot of the size, the brush's glyph tiny in the lower right corner; e NULL: an empty slot */
 void tbi_recent(gfx_t *g, const bstyle_t *e, int x, int y, int ink, int bg);
+/* The stabiliser: a hand-drawn zigzag that calms to a smooth curve as the level (0..10) rises */
+void tbi_smooth(gfx_t *g, int level, int x, int y, int ink, int bg);
 #endif

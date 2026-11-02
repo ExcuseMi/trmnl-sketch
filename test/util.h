@@ -35,7 +35,7 @@ typedef struct {
     uint8_t *fb;
     uint32_t now;
     int started;
-    char cfg_cur[8], cfg_size[8], cfg_esize[8], cfg_brush[8], cfg_shade[8], cfg_tone[8], cfg_pen_area[8], cfg_cleanup[8], cfg_paper[8], cfg_papsp[8], cfg_rc[5][12];
+    char cfg_cur[8], cfg_size[8], cfg_esize[8], cfg_brush[8], cfg_shade[8], cfg_tone[8], cfg_pen_area[8], cfg_cleanup[8], cfg_paper[8], cfg_papsp[8], cfg_smooth[8], cfg_rc[5][12];
     int inverted;       /* inverted halves seen (rig_flush) */
     int bare_fulls;     /* full refreshes handed out without their inverted half first: the flash helper was bypassed */
     box_t pre;          /* the area of the last inverted half */
@@ -76,7 +76,7 @@ static int rig_get(void *u, const char *k, char *b, int cap)
         memcpy(b, w, (size_t)n);
         return n ? n : -1;
     }
-    const char *v = !strcmp(k, "cur") ? r->cfg_cur : !strcmp(k, "size") ? r->cfg_size : !strcmp(k, "esize") ? r->cfg_esize : !strcmp(k, "brush") ? r->cfg_brush : !strcmp(k, "shade") ? r->cfg_shade : !strcmp(k, "tone") ? r->cfg_tone : !strcmp(k, "pen_area") ? r->cfg_pen_area : !strcmp(k, "cleanup_s") ? r->cfg_cleanup : !strcmp(k, "paper") ? r->cfg_paper : !strcmp(k, "paper_sp") ? r->cfg_papsp : "";
+    const char *v = !strcmp(k, "cur") ? r->cfg_cur : !strcmp(k, "size") ? r->cfg_size : !strcmp(k, "esize") ? r->cfg_esize : !strcmp(k, "brush") ? r->cfg_brush : !strcmp(k, "shade") ? r->cfg_shade : !strcmp(k, "tone") ? r->cfg_tone : !strcmp(k, "pen_area") ? r->cfg_pen_area : !strcmp(k, "cleanup_s") ? r->cfg_cleanup : !strcmp(k, "paper") ? r->cfg_paper : !strcmp(k, "paper_sp") ? r->cfg_papsp : !strcmp(k, "smooth") ? r->cfg_smooth : "";
     int n = (int)strlen(v);
     if (n > cap) n = cap;
     memcpy(b, v, (size_t)n);
@@ -85,7 +85,7 @@ static int rig_get(void *u, const char *k, char *b, int cap)
 static int rig_set(void *u, const char *k, const char *v, int n)
 {
     rig_t *r = u;
-    char *d = k[0] == 'r' && k[1] == 'c' && k[2] >= '0' && k[2] < '5' ? r->cfg_rc[k[2] - '0'] : !strcmp(k, "cur") ? r->cfg_cur : !strcmp(k, "paper") ? r->cfg_paper : !strcmp(k, "paper_sp") ? r->cfg_papsp : !strcmp(k, "brush") ? r->cfg_brush : !strcmp(k, "shade") ? r->cfg_shade : !strcmp(k, "tone") ? r->cfg_tone : !strcmp(k, "esize") ? r->cfg_esize : r->cfg_size;
+    char *d = k[0] == 'r' && k[1] == 'c' && k[2] >= '0' && k[2] < '5' ? r->cfg_rc[k[2] - '0'] : !strcmp(k, "cur") ? r->cfg_cur : !strcmp(k, "paper") ? r->cfg_paper : !strcmp(k, "paper_sp") ? r->cfg_papsp : !strcmp(k, "smooth") ? r->cfg_smooth : !strcmp(k, "brush") ? r->cfg_brush : !strcmp(k, "shade") ? r->cfg_shade : !strcmp(k, "tone") ? r->cfg_tone : !strcmp(k, "esize") ? r->cfg_esize : r->cfg_size;
     memcpy(d, v, (size_t)n);
     d[n] = 0;
     return 0;
@@ -108,6 +108,7 @@ static inline void rig_new(rig_t *r, int orient)
 {
     memset(r, 0, sizeof(*r));
     memfs_init(&r->fs);
+    strcpy(r->cfg_smooth, "0"); /* the stabiliser is off in the tests (the default is 3): the points are exactly the pen's */
     r->now = 1000;
     r->pr.status = 200;
     memset(&r->prn, 0, sizeof(r->prn));

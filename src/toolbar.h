@@ -6,8 +6,8 @@
 #include "brush.h"
 #include "gfx.h"
 
-/* TI_MIRROR cycles the symmetry (mirror.h); it is shown picked while one is on. TI_TONE and TI_SIZE are sliders: each takes the width of three cells (tb_hit gives TI_TONE / TI_SIZE for each of them) */
-enum { TI_BRUSH = 0, TI_LINE = BR_N, TI_RECT, TI_OVAL, TI_TEXT, TI_TONE, TI_SIZE = TI_TONE + 3, TI_MIRROR = TI_SIZE + 3, TI_UNDO, TI_REDO, TI_CLEAR, TI_RECENT, TI_N = TI_RECENT + 5 };
+/* TI_SMOOTH cycles the stabiliser (sk_set_smooth, 0 3 6 10); TI_MIRROR cycles the symmetry (mirror.h); it is shown picked while one is on. TI_TONE and TI_SIZE are sliders: each takes the width of three cells (tb_hit gives TI_TONE / TI_SIZE for each of them) */
+enum { TI_BRUSH = 0, TI_LINE = BR_N, TI_RECT, TI_OVAL, TI_TEXT, TI_SMOOTH, TI_TONE, TI_SIZE = TI_TONE + 3, TI_MIRROR = TI_SIZE + 3, TI_UNDO, TI_REDO, TI_CLEAR, TI_RECENT, TI_N = TI_RECENT + 5 };
 /* Two rows: brushes and the shape and text tools, then the shades, size slider, mirror and the actions (a row of 22 cells would not fit a portrait panel) */
 #define TB_ROWS 2
 #define TB_ROW_OF(i) ((i) < TI_TONE ? 0 : 1)
@@ -25,7 +25,7 @@ typedef struct {
 void tb_layout(tb_layout_t *L, int orient, int sw, int sh);
 int tb_in(const tb_layout_t *L, int x, int y);  /* the point is on the strip */
 int tb_hit(const tb_layout_t *L, int x, int y); /* the item under the point, or -1 */
-/* Draws the strip; the current brush, shade and size are shown inverted, item `hot` (-1: none) has a frame (the pen is over it) */
+/* Draws the strip (smooth: the stabiliser level the Smooth cell shows); the current brush, shade and size are shown inverted, item `hot` (-1: none) has a frame (the pen is over it) */
 /* The slider: size 1..48 (SK_SIZE_MIN..MAX) is the knob's diameter in px; the track is a curve (finer at the thin end).
    x is clamped to the track; the size of the x it gives is monotonic, and tb_slider_x(size) is the first x of that size */
 int tb_slider_size(const tb_layout_t *L, int x);
@@ -39,5 +39,5 @@ void tb_tone_box(const tb_layout_t *L, int *x0, int *y0, int *x1, int *y1);
 /* ... `hot` == TI_SIZE: the current brush's footprint is drawn over the knob (clipped to the slider) */
 /* The Recent slots (TI_RECENT .. +4): the last combinations drawn with, `rc` (rc_n of them, most recent first): a swatch of the tone with a dot of
    the size and the brush's glyph tiny in a corner; the one equal to the current brush, tone and size is shown picked */
-void tb_draw(gfx_t *g, const tb_layout_t *L, const bstyle_t *cur, int hot, const bstyle_t *rc, int rc_n);
+void tb_draw(gfx_t *g, const tb_layout_t *L, const bstyle_t *cur, int hot, const bstyle_t *rc, int rc_n, int smooth);
 #endif

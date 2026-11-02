@@ -19,6 +19,7 @@
 #include "skmenu.h"
 #include "skpills.h"
 #include "sk_cfg.h"
+#include "skstab.h"
 #include "skui.h"
 #include "toolbar.h"
 
@@ -66,6 +67,9 @@ typedef struct {
     int lx, ly, px, py, lp; /* the open stroke's last two points and the byte of the last, for the tail */
     int tablet;          /* a tablet is connected (pen_info) */
     int stroke, barrel;  /* a stroke is open; a pen button is held */
+    stab_t stab;         /* the stabiliser of the open stroke (skstab.h) */
+    int smooth;          /* the stabiliser 0..10 (setting smooth, default 3; the toolbar's Smooth cell) */
+    int rx, ry, stroke_pts; /* the pen's own last point of the open stroke, and how many points it has had */
     int sh_on, sh_x0, sh_y0, sh_x1, sh_y1, sh_barrel; /* a shape is being dragged (skshape.c): start, end, constrain was on at the last preview */
     int paper, paper_sp, paper_def, paper_sp_def; /* the page on screen's paper (paper.h) and the settings' default for new pages */
     box_t sh_box;        /* the rubber band on the screen (framebuffer only, never in the page) */
@@ -141,6 +145,8 @@ void sk_cfg_reload(sketch_t *s);
 void sk_set_brush(sketch_t *s, int brush, uint32_t now);
 void sk_set_shade(sketch_t *s, int shade, uint32_t now);
 void sk_set_size(sketch_t *s, int size, uint32_t now);
+/* The stabiliser 0..10 (the toolbar's Smooth cell cycles 0, 3, 6, 10; the setting `smooth` is its default) */
+void sk_set_smooth(sketch_t *s, int level, uint32_t now);
 /* The symmetry (skmirror.c): off, left-right, top-bottom, 4-way, kaleidoscope; the guide is on the screen only */
 void sk_set_mirror(sketch_t *s, int mode, uint32_t now);
 /* The size slider (sksize.c): the knob follows the pen at user x `ux`; only the slider's cells are pushed */

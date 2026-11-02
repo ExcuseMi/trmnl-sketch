@@ -41,7 +41,7 @@ void sk_tb_paint(sketch_t *s)
 {
     gfx_t g;
     mkg(s, &g);
-    tb_draw(&g, &s->tb, &s->sty, s->tb_hot, s->rc, s->rc_n);
+    tb_draw(&g, &s->tb, &s->sty, s->tb_hot, s->rc, s->rc_n, s->smooth);
 }
 
 static void pl_paint(sketch_t *s)
@@ -364,6 +364,7 @@ static void tb_press(sketch_t *s, int item, uint32_t now)
 {
     if (item < 0) return;
     if (item < TI_LINE) sk_set_brush(s, item - TI_BRUSH, now);
+    else if (item == TI_SMOOTH) sk_set_smooth(s, s->smooth < 3 ? 3 : s->smooth < 6 ? 6 : s->smooth < 10 ? 10 : 0, now);
     else if (item < TI_TONE) sk_set_tool(s, item - TI_LINE + TL_LINE, now);
     else if (item < TI_SIZE) s->tb_drag = 2; /* the tone slider: the first x comes with the same event */
     else if (item >= TI_RECENT) sk_recent_pick(s, item - TI_RECENT, now);
@@ -391,9 +392,11 @@ static void stroke_add(sketch_t *s, int fx, int fy, int p, uint32_t now)
     s->save_at = now + SK_AUTOSAVE_MS;
 }
 
-/* The brush pen's end tapers out along the last movement */
+/* The stabiliser trails the pen a little: at the end of a stroke the line goes on to where the pen really ended */
 static void stroke_tail(sketch_t *s, uint32_t now)
 {
+    if (s->stab.level && (s->lx != s->rx || s->ly != s->ry)) stroke_add(s, s->rx, s->ry, s->lp, now);
+    /* The brush pen's end tapers out along the last movement */
     if (!brush_tail(s->stk.brush) || (s->lx == s->px && s->ly == s->py)) return;
     float dx = (float)(s->lx - s->px), dy = (float)(s->ly - s->py), len = fm_sqrt(dx * dx + dy * dy);
     int p = s->lp, x = s->lx, y = s->ly;
@@ -459,12 +462,17 @@ void sk_pen(sketch_t *s, unsigned flags, unsigned x, unsigned y, unsigned pressu
             s->stroke_erase = brush_is_eraser(br);
             hist_begin_style(&s->hist, s->stroke_erase ? HK_ERASE : HK_INK, &s->stk);
             s->stroke = 1;
-            s->lx = s->px = fx, s->ly = s->py = fy;
+            s->lx = s->px = s->rx = fx, s->ly = s->py = s->ry = fy;
+            stab_begin(&s->stab, s->smooth, fx, fy);
+            s->stroke_pts = 0;
             s->pressure = brush_tail(br) ? pressure / 4 : pressure; /* the brush pen swells from nothing */
         } else {
             s->pressure = (s->pressure + pressure) / 2;
         }
-        stroke_add(s, fx, fy, brush_param(s->stk.brush, s->stk.size, s->pressure), now);
+        int sx = fx, sy = fy;
+        if (s->stroke_pts++) stab_push(&s->stab, fx, fy, &sx, &sy); /* the first point is exact */
+        s->rx = fx, s->ry = fy;
+        stroke_add(s, sx, sy, brush_param(s->stk.brush, s->stk.size, s->pressure), now);
         return;
     }
     if (s->stroke) {
@@ -597,6 +605,7 @@ void sk_cfg_reload(sketch_t *s)
     s->fill = !(n == 4 && !memcmp(b, "keep", 4)); /* fill unless it says keep */
     s->turn = !(s->env.cfg_get && (n = s->env.cfg_get(s->env.user, "tablet_turn", b, 7)) == 3 && !memcmp(b, "off", 3)); /* auto unless off */
     s->bk_gap = cfg_int(s, "fill_gap", 3);
+    s->smooth = cfg_int(s, "smooth", 3) > SK_SMOOTH_MAX ? SK_SMOOTH_MAX : cfg_int(s, "smooth", 3);
     if (s->bk_gap > 6) s->bk_gap = 6;
     n = s->env.cfg_get ? s->env.cfg_get(s->env.user, "paper", b, 7) : -1;
     s->paper_def = n > 0 ? pp_from_name(b, n) : PP_BLANK;

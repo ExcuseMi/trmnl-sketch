@@ -118,6 +118,7 @@ static void test_taps_never_ink(void)
         CHECK(!memcmp(page, r.s.page.px, sizeof(page))); /* a tap on the strip never inks */
         CHECK(!r.s.stroke);
         if (i < TI_LINE) CHECK(r.s.sty.brush == i - TI_BRUSH);
+        else if (i == TI_SMOOTH) CHECK(r.s.smooth == 3 || r.s.smooth == 0);
         else if (i < TI_TONE) CHECK(r.s.sty.tool == i - TI_LINE + TL_LINE);
         else if (i < TI_SIZE) CHECK(r.s.sty.shade == tb_tone_of(&r.s.tb, r.s.tb.cx[i] + r.s.tb.cell / 2 + 1)); /* a tap on the slider puts the knob there */
         else CHECK(1);
@@ -406,8 +407,28 @@ static void test_pointer_over_the_strip(void)
     rig_end(&r);
 }
 
+/* The Smooth cell cycles 0, 3, 6, 10, 0, is kept in the settings and names itself in a toast */
+static void test_smooth_cell(void)
+{
+    static rig_t r;
+    rig_new(&r, APP_ORIENT_BAR_BOTTOM);
+    key(&r, 3);
+    static const int want[5] = { 3, 6, 10, 0, 3 };
+    for (int k = 0; k < 5; k++) {
+        tap(&r, TI_SMOOTH);
+        CHECK(r.s.smooth == want[k]);
+        CHECK(atoi(r.cfg_smooth) == want[k]);
+        CHECK(r.s.note_on);
+        settle(&r);
+    }
+    sk_cfg_reload(&r.s); /* the form's value is what the cell wrote */
+    CHECK(r.s.smooth == 3);
+    rig_end(&r);
+}
+
 int main(void)
 {
+    test_smooth_cell();
     test_toggle_and_restore();
     test_flash_only_strip();
     test_taps_never_ink();
