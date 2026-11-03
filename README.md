@@ -30,7 +30,7 @@ Sketch for the TRMNL X with a USB pen tablet (XP-Pen Deco 01 V2; firmware API 2.
 | the strip's image: drawn only when what it shows changes, put back from the image under the arrow and ink (a pen move over the strip drew it twice before: the lag of 2026-11-02, `test/test_lag.c`) | `src/sktbimg.c` |
 | the flash and the clean-up rules | `src/skflash.c` |
 | the app icon (64 x 64, a pencil drawing a curve) | `tools/icon.py` writes `apps/trmnl-sketch/icon.h` |
-| undo/redo/clear over a bounded stroke log and a base image | `src/hist.c` |
+| undo/redo/clear over a bounded stroke log and a base image; each step also keeps its changed pixels (run-length XOR, a 1 MB pool in PSRAM and a shadow page), so a press is one XOR over its box (a step whose delta was given up is drawn again from the base, once for a row of presses); `make undo`: 60 Brush strokes and 3 page fills, 80 presses at 5 a second, each under 300 ms on the X and the exact page | `src/hist.c`, `src/hdelta.c`, `host/undo.c` |
 | page files: temp + rename, bad file moved to `-bad.png`, list | `src/pages.c`, `src/pngio.c` (1-bit PNG, no library) |
 | rectangles pushed to the panel (merged, at most 6, byte aligned, every 16 ms: `SK_BATCH_MS`); one panel call per push over their rows (a call costs about 200 ms however small; `make speed` simulates it) | `src/rects.c`, `src/sketch.c` (`sk_flush`), `src/skpush.c`, `host/speed.c` |
 | hover cursor and toolbar arrow: a hover report only notes the position (`hv_*`), `sk_frame` draws it once per frame at the last report; never queued (`host/frames.c` hover run) | `src/sketch.c` |
@@ -43,4 +43,4 @@ Clean-up: every flash is `sk_flash` (`src/skflash.c`): the area inverted with a 
 
 Limits: the page lives in the panel's frame, so turning the X turns the sketch with it; the tablet keeps its upright frame in every position (with `pen_area` keep the page is covered: a landscape tablet on a portrait page uses its middle part). Not in: colours, layers, zoom.
 
-`make test` (host, ASan/UBSan, with `make speed`), `make speed-table` (the variants), `make shots`, `make elf` (firmware fork's build with its import check). The sources are listed in `apps/trmnl-sketch/build.flags`.
+`make test` (host, ASan/UBSan, with `make speed`, `cost`, `frames`, `undo`), `make speed-table` (the variants), `make shots`, `make elf` (firmware fork's build with its import check). The sources are listed in `apps/trmnl-sketch/build.flags`.

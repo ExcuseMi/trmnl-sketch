@@ -7,7 +7,8 @@
 #define W 320
 #define H 240
 #define BYTES ((W / 8) * H)
-static uint8_t page_px[BYTES], base_px[BYTES], snap[80][BYTES];
+static uint8_t page_px[BYTES], base_px[BYTES], snap[80][BYTES], shadow_px[BYTES], pool[64 * 1024];
+static uint32_t pool_cap; /* every test runs without deltas, with a pool too small for most, and with room (main) */
 static canvas_t page = { page_px, W, H, W / 8 };
 
 static void stroke(hist_t *h, int kind, int seed, int n, box_t *dirty)
@@ -30,6 +31,7 @@ static void setup(hist_t *h, hpt_t *pts, uint32_t pts_cap, hstroke_t *st, int st
 {
     cv_fill(&page, 1);
     hist_init(h, &page, base_px, pts, pts_cap, st, st_cap);
+    if (pool_cap) hist_set_deltas(h, shadow_px, pool, pool_cap);
 }
 
 static void test_undo_redo_exact(void)
@@ -241,6 +243,11 @@ static void test_bake_step_keeps_the_page_and_the_undos_exact(void)
     CHECK(!hist_bake_step(&h, 8)); /* 5 of 16: not near full */
     for (int i = 6; i <= 9; i++) stroke(&h, HK_INK, 500 + i, 20, 0);
     memcpy(snap[0], page_px, BYTES);
+    if (h.st[0].dlen) { /* with its delta the oldest goes whole in one step (an XOR into the base), the page the same */
+        CHECK(h.st_cur == 9 && hist_bake_step(&h, 8) && !h.baking && h.st_cur == 8 && !memcmp(page_px, snap[0], BYTES));
+        CHECK(hist_undo(&h, &(box_t){ 0 }) && hist_redo(&h, &(box_t){ 0 }) && !memcmp(page_px, snap[0], BYTES));
+        return;
+    }
     CHECK(h.st_cur == 9 && hist_bake_step(&h, 8)); /* within HIST_BAKE_AHEAD of 16: the oldest starts to go */
     CHECK(h.baking == 8 && h.st_cur == 9 && !memcmp(page_px, snap[0], BYTES));
     stroke(&h, HK_INK, 600, 20, 0); /* drawing while the bake is under way */
@@ -273,6 +280,9 @@ static void test_bake_step_keeps_the_page_and_the_undos_exact(void)
 
 int main(void)
 {
+    static const uint32_t caps[] = { 0, 600, sizeof(pool) };
+    for (int m = 0; m < 3; m++) {
+    pool_cap = caps[m];
     test_bake_step_keeps_the_page_and_the_undos_exact();
     test_undo_redo_exact();
     test_undo_box();
@@ -282,5 +292,6 @@ int main(void)
     test_points_full();
     test_points_full_keeps_open();
     test_empty_stroke();
+    }
     return CHECK_DONE("test_hist");
 }

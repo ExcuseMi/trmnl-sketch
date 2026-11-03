@@ -231,6 +231,7 @@ uint32_t sk_next_due(const sketch_t *s, uint32_t now);
 uint32_t sk_wait_ms(sketch_t *s, uint32_t now);
 /* Actions, also what the buttons and the touch bar call */
 void sk_undo(sketch_t *s, uint32_t now);
+void sk_settle(sketch_t *s, uint32_t now); /* the page an undo or redo left stale is drawn (hist_settle); each frame */
 void sk_redo(sketch_t *s, uint32_t now);
 void sk_clear(sketch_t *s, uint32_t now);
 void sk_goto_page(sketch_t *s, int index, uint32_t now); /* index into the page list */

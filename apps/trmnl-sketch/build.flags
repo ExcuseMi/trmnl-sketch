@@ -9,6 +9,7 @@
 ../../src/toolbar.c
 ../../src/penmap.c
 ../../src/hist.c
+../../src/hdelta.c
 ../../src/pngio.c
 ../../src/pages.c
 ../../src/rects.c

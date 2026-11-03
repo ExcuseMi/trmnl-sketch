@@ -215,11 +215,20 @@ void sk_page_changed(sketch_t *s, const box_t *b, uint32_t now)
 
 /* ---- actions ---- */
 
+/* An undo or redo that had to draw the page again (no delta: hist.h) waits for this, once for a row of presses */
+void sk_settle(sketch_t *s, uint32_t now)
+{
+    box_t b;
+    if (hist_settle(&s->hist, &b)) sk_page_changed(s, &b, now);
+}
+
 void sk_undo(sketch_t *s, uint32_t now)
 {
     box_t b;
     s->stroke = 0;
-    if (hist_undo(&s->hist, &b)) sk_page_changed(s, &b, now);
+    if (hist_undo(&s->hist, &b)) {
+        if (!box_empty(&b)) sk_page_changed(s, &b, now);
+    }
     else sk_toast(s, "Nothing to undo", now);
 }
 
@@ -227,7 +236,9 @@ void sk_redo(sketch_t *s, uint32_t now)
 {
     box_t b;
     s->stroke = 0;
-    if (hist_redo(&s->hist, &b)) sk_page_changed(s, &b, now);
+    if (hist_redo(&s->hist, &b)) {
+        if (!box_empty(&b)) sk_page_changed(s, &b, now);
+    }
     else sk_toast(s, "Nothing to redo", now);
 }
 
@@ -377,7 +388,7 @@ static void frame_ink(sketch_t *s)
 
 void sk_frame(sketch_t *s, uint32_t now)
 {
-    (void)now; /* the latency was noted when the point was queued */
+    sk_settle(s, now); /* the latency was noted when the point was queued */
     frame_ink(s);
     if (s->hv_pend) hover_apply(s);
 }
@@ -407,6 +418,7 @@ void sk_pen(sketch_t *s, unsigned flags, unsigned x, unsigned y, unsigned pressu
     s->tip = (flags & APP_PEN_TIP) != 0;
     s->last_act = now;
     s->hv_pend = 0;
+    sk_settle(s, now);
     int fx, fy, inside = pm_map(&s->map, x, y, &fx, &fy);
     if (s->mode != SK_DRAW) return sk_menu_pen(s, flags, fx, fy, inside, now);
     int tip = (flags & APP_PEN_TIP) != 0, range = (flags & (APP_PEN_IN_RANGE | APP_PEN_TIP)) != 0;
@@ -493,6 +505,7 @@ void sk_pen_key(sketch_t *s, unsigned keys, unsigned changed, uint32_t now)
 {
     unsigned down = keys & changed;
     s->last_act = now;
+    if ((down & ~3u) || (changed >> 7 & 1)) sk_settle(s, now); /* only undo and redo may leave the page stale */
     if (s->mode != SK_DRAW) {
         if (down) sk_menu_key(s, down, now);
         return;
@@ -524,6 +537,7 @@ void sk_pen_key(sketch_t *s, unsigned keys, unsigned changed, uint32_t now)
 void sk_touch(sketch_t *s, int zone, int gesture, uint32_t now)
 {
     s->last_act = now;
+    sk_settle(s, now);
     if (s->mode == SK_SHARE) { /* any touch ends the phone page */
         s->share_req = -1;
         if (s->share_kind == 2) sk_cfg_reload(s); /* the settings form was open */
@@ -554,6 +568,7 @@ void sk_share_update(sketch_t *s, int start_rc, const app_webshare_status_t *st)
 
 void sk_tick(sketch_t *s, uint32_t now)
 {
+    sk_settle(s, now);
     if (s->note_on && !s->legend && (int32_t)(now - s->note_until) >= 0) {
         sk_note_hide(s);
         if (s->hover_valid) cursor_show(s, s->hover_x, s->hover_y);
@@ -664,6 +679,17 @@ static int colour_cfg(sketch_t *s)
     return t == SH_BLACK ? SH_BLACK : t == SH_WHITE ? SH_WHITE : SH_GREY;
 }
 
+/* Undo by deltas (hist.h): a shadow page and the pool, halved down to SK_HIST_DELTA_MIN when memory is short; none at
+   all: every undo draws the page again (slow, never wrong) */
+static void deltas_alloc(hist_t *h, size_t bytes)
+{
+    uint8_t *shadow = malloc(bytes), *pool = 0;
+    uint32_t cap = SK_HIST_DELTA_BYTES;
+    while (shadow && !(pool = malloc(cap)) && cap / 2 >= SK_HIST_DELTA_MIN) cap /= 2;
+    if (!pool) return free(shadow);
+    hist_set_deltas(h, shadow, pool, cap);
+}
+
 int sk_init(sketch_t *s, const sk_env_t *env, uint8_t *fb, int w, int h, int stride, int orient, const app_touchbar_t *bar)
 {
     memset(s, 0, sizeof(*s));
@@ -678,6 +704,8 @@ int sk_init(sketch_t *s, const sk_env_t *env, uint8_t *fb, int w, int h, int str
     s->page = (canvas_t){ pg, w, h, stride };
     cv_fill(&s->page, 1);
     hist_init(&s->hist, &s->page, base, pts, SK_HIST_POINTS, st, SK_HIST_STROKES);
+    deltas_alloc(&s->hist, bytes);
+    s->hist.lazy = 1; /* a row of presses without deltas: one rebuild in the frame (sk_settle) */
     pg_init(&s->pg, env->fs);
     pg_scan(&s->pg);
     pg_purge_blank(&s->pg, &s->page, 0); /* blank pages left by older builds or by a clear: gone (files that do not decode stay) */
@@ -723,5 +751,7 @@ void sk_free(sketch_t *s)
     free(s->hist.base.px);
     free(s->hist.pts);
     free(s->hist.st);
+    free(s->hist.shadow.px);
+    free(s->hist.pool);
     s->page.px = 0;
 }
