@@ -11,6 +11,14 @@ Sketch for the TRMNL X with a USB pen tablet (XP-Pen Deco 01 V2; firmware API 2.
 | <img src="shots/m-pagemenu-landscape.png" width="420"><br>The page menu | <img src="shots/p2-paper-grid.png" width="420"><br>Paper styles: grid (also lines, dots, blank) |
 | <img src="shots/b1-brushes-black.png" width="420"><br>The brushes: brush, pen, pencil, marker, spray, eraser | <img src="shots/f-print-confirm.png" width="420"><br>Print confirm screen |
 
+## Firmware
+
+Sketch runs on the TRMNL X with the apps firmware from
+[ExcuseMi/trmnl-firmware, branch `trmnl-apps`](https://github.com/ExcuseMi/trmnl-firmware/tree/trmnl-apps)
+(USB host for the tablet, the app loader and `pen_enable`). Build it with PlatformIO, environment `TRMNL_X`
+(`pio run -e TRMNL_X`), and flash the app partition. Upload `trmnl-sketch.elf` (and `trmnl-print.elf` for printing)
+over the USB cable.
+
 ## How to use
 
 1. Draw with the pen. Pressing harder gives a thicker or darker line.
