@@ -19,6 +19,11 @@ Sketch runs on the TRMNL X with the apps firmware from
 (`pio run -e TRMNL_X`), and flash the app partition. Upload `trmnl-sketch.elf` (and `trmnl-print.elf` for printing)
 over the USB cable.
 
+Printing needs the [Print app](https://github.com/ExcuseMi/trmnl-print) on the X: the printer is set up there, then
+Sketch prints by itself. Without it everything else works and Print in the page menu says "No printer yet". Building
+Sketch needs the trmnl-print repo checked out next to this one (Sketch compiles Print's job code, see
+`apps/trmnl-sketch/build.flags`).
+
 ## How to use
 
 1. Draw with the pen. Pressing harder gives a thicker or darker line.
