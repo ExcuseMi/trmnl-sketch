@@ -80,7 +80,6 @@ typedef struct {
     int tip;             /* the pen's tip is down */
     int ghost;           /* a partial refresh was pushed since the last whole-screen flash */
     int traces;          /* strokes, page changes and toasts gone since then */
-    uint32_t ghost_px;   /* the drawing page's fast-ink pushes since the last whole-screen flash, in pixels: its build-up (skflash.c) */
     int pen_near;        /* the pen is in range (or down) */
     int cleanup_s;       /* setting cleanup_s: idle seconds before the whole screen is flashed clean (0: off) */
     uint32_t last_act;   /* the last pen, button or touch event */

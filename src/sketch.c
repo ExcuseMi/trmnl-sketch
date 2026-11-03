@@ -329,7 +329,7 @@ void sk_toolbar(sketch_t *s, uint32_t now)
         s->tb_on = s->tb_hold = 0;
         s->tb_hot = -1;
         fb_put(s, &s->tb_box); /* (the guide comes back with the page) */
-        mark(s, &s->tb_box); /* fast ink only: the drawing page never flashes (skflash.c) */
+        mark(s, &s->tb_box); /* fast ink now; its ghost goes with the idle clean-up (skflash.c) */
         return;
     }
     sk_note_hide(s);
@@ -595,7 +595,6 @@ int sk_flush(sketch_t *s, uint32_t now, rect_t *out)
     s->pushed_rects += (uint32_t)n;
     s->last_push = now;
     s->ghost = 1; /* a partial refresh left its traces: the idle clean-up has something to do */
-    if (s->mode == SK_DRAW) for (int i = 0; i < n; i++) s->ghost_px += (uint32_t)(out[i].w * out[i].h);
     return n;
 }
 

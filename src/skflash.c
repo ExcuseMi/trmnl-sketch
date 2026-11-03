@@ -26,17 +26,14 @@ static void fl_rect(const box_t *b, int flash, rect_t *r) { *r = (rect_t){ (int1
 /* May the screen be cleaned now (the pen is not drawing)? */
 static int fl_calm(const sketch_t *s) { return !s->tip && !s->stroke && !s->fl_phase && !s->want_full && box_empty(&s->flash) && !s->print_req; }
 
-/* A menu or gallery screen with traces gets the idle flash. The drawing page only after a build-up (owner 2026-11-03:
-   "Clean up later when you're idle is fine if there is a built-up ghosting"): fast ink over SK_GHOST_SCREENS screens'
-   worth of pixels since the last clean screen, the pen out of range; once (the flash starts the count again). The
-   toolbar, legend, arrow, cursors, toasts and a normal session stay ink only (a flash costs 1.1 s and blocks the app) */
-static int fl_built_up(const sketch_t *s) { return s->ghost_px / (uint32_t)(s->fb.w * s->fb.h) >= SK_GHOST_SCREENS && !s->pen_near; }
-static int fl_dirty(const sketch_t *s) { return s->ghost && (s->mode != SK_DRAW || fl_built_up(s)); }
-static int fl_idle_due(const sketch_t *s, uint32_t now) { return s->cleanup_s > 0 && fl_dirty(s) && !s->pend.n && fl_calm(s) && (int32_t)(now - s->last_act - (uint32_t)s->cleanup_s * 1000u) >= 0; }
+/* Any fast ink leaves ghosting (strokes, the cursor, the toolbar, toasts, menus): idle for cleanup_s, the screen gets
+   one clean flash, and none again until new fast ink (owner 2026-11-03: "once we don't do anything for a couple of
+   seconds, it should refresh ... Just once there's ghosting buildup"). Never while the pen is down or a toast is up (it goes by itself: fast ink, cleaned with the rest) */
+static int fl_idle_due(const sketch_t *s, uint32_t now) { return s->cleanup_s > 0 && s->ghost && !s->note_on && !s->pend.n && fl_calm(s) && (int32_t)(now - s->last_act - (uint32_t)s->cleanup_s * 1000u) >= 0; }
 
 uint32_t sk_cleanup_due(const sketch_t *s, uint32_t now)
 {
-    if (s->cleanup_s > 0 && fl_dirty(s) && !s->pend.n && fl_calm(s)) {
+    if (s->cleanup_s > 0 && s->ghost && !s->note_on && !s->pend.n && fl_calm(s)) {
         int32_t d = (int32_t)(s->last_act + (uint32_t)s->cleanup_s * 1000u - now);
         return d < 0 ? 0 : (uint32_t)d;
     }
@@ -50,7 +47,7 @@ int sk_flash_step(sketch_t *s, uint32_t now, rect_t *out)
         s->fl_phase = 0;
         s->last_push = now;
         if (fl_whole(s, &s->fl_box)) {
-            s->ghost = s->traces = 0, s->ghost_px = 0;
+            s->ghost = s->traces = 0;
             s->pushed_px += (uint32_t)(s->fb.w * s->fb.h);
             s->pushed_rects++;
             return SK_FULL;
