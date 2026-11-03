@@ -7,13 +7,13 @@
 #include "sk_cfg.h"
 
 #define TB_PAD 8
-#define TB_MARGIN 16
-#define TB_GAP 18
+#define TB_MARGIN 4 /* (the row must keep a 90 px cell on the 1404 px wide screen with 15 items: test_toolbar.c) */
+#define TB_GAP 10
 #define TB_LINE 4
 #define TB_CH 104 /* glyph 64 + label */
 enum { TB_BLK = GFX_BLACK, TB_WHT = GFX_WHITE };
 
-static const char *const tb_other[TI_N - TI_BLACK] = { "Black", "Grey", "White", "Small", "Medium", "Big", "Mirror" };
+static const char *const tb_other[TI_N - TI_BLACK] = { "Black", "Grey", "White", "Small", "Medium", "Big", "Mirror", "Menu" };
 const char *tb_label(int i) { return i < TI_BLACK ? brush_name(i) : tb_other[i - TI_BLACK]; } /* the tools named by brush.c, in its order */
 
 int tb_shade_of(int item) { return item == TI_BLACK ? SH_BLACK : item == TI_GREY ? SH_GREY : item == TI_WHITE ? SH_WHITE : -1; }
@@ -32,7 +32,7 @@ void tb_layout(tb_layout_t *L, int orient, int sw, int sh)
     L->cy = L->top ? TB_PAD : L->y0 + TB_PAD + TB_LINE;
     int g = 0, x = (sw - (TI_N * cell + TB_GAPS * TB_GAP)) / 2;
     for (int i = 0; i < TI_N; i++) {
-        if (i == TI_BLACK || i == TI_SMALL || i == TI_MIRROR) L->gap_x[g++] = x + TB_GAP / 2, x += TB_GAP;
+        if (i == TI_BLACK || i == TI_SMALL || i == TI_MIRROR || i == TI_MENU) L->gap_x[g++] = x + TB_GAP / 2, x += TB_GAP;
         L->cx[i] = x, L->cyi[i] = L->cy;
         x += cell;
     }
@@ -68,7 +68,7 @@ void tb_draw(gfx_t *g, const tb_layout_t *L, const bstyle_t *cur, int hot)
         if (i < TI_BLACK) sel = cur->brush == i;
         else if (i < TI_SMALL) sel = tb_shade_of(i) == cur->shade;
         else if (i < TI_MIRROR) sel = i - TI_SMALL == cls;
-        else sel = cur->mirror != 0;
+        else if (i == TI_MIRROR) sel = cur->mirror != 0;
         int x1 = x + L->cell - 1, y1 = y + L->ch - 1;
         if (sel) gfx_rrect(g, (float)x, (float)y, (float)x1, (float)y1, 12, 0, TB_BLK, TB_BLK);
         if (hot == i) { /* the pen is over it: a frame (on a picked item an inset white one) */
@@ -79,7 +79,8 @@ void tb_draw(gfx_t *g, const tb_layout_t *L, const bstyle_t *cur, int hot)
         if (i < TI_BLACK) tbi_brush(g, i, gx, gy, c, bg);
         else if (i < TI_SMALL) tbi_colour(g, tb_shade_of(i), gx, gy, c, bg);
         else if (i < TI_MIRROR) tbi_size(g, i - TI_SMALL, gx, gy, c, bg);
-        else tbi_mirror(g, cur->mirror, gx, gy, c, bg);
+        else if (i == TI_MIRROR) tbi_mirror(g, cur->mirror, gx, gy, c, bg);
+        else tbi_menu(g, gx, gy, c, bg);
         tb_caption(g, L, i, x, y, c);
     }
     gfx_noclip(g);

@@ -205,10 +205,10 @@ static void test_pages_and_autosave(void)
     idle(&r, SK_AUTOSAVE_MS);
     CHECK(memfs_find(&r.fs, "sketch/sk0001.png") && !r.s.dirty); /* saved after the pause */
     CHECK(!memfs_find(&r.fs, "sketch/sk0001.tmp"));
-    key(&r, 5); /* new page */
+    rig_newpage(&r); /* new page */
     CHECK(r.s.cur == 2 && !memfs_find(&r.fs, "sketch/sk0002.png")); /* the blank page is not written */
-    key(&r, 5); /* again on the empty page: refused, no run of empty pages (owner 2026-11-01) */
-    key(&r, 5);
+    rig_newpage(&r); /* again on the empty page: refused, no run of empty pages (owner 2026-11-01) */
+    rig_newpage(&r);
     CHECK(r.s.cur == 2 && !memfs_find(&r.fs, "sketch/sk0003.png"));
     uint8_t white[TS * TH];
     memset(white, 0xff, sizeof(white));
@@ -372,7 +372,7 @@ static void test_no_stepping_no_bar_actions(void)
     rig_t r;
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
     rig_line(&r, 200, 300, 1000, 500, 50000, 0);
-    key(&r, 5);
+    rig_newpage(&r);
     rig_line(&r, 300, 400, 900, 700, 50000, 0);
     uint8_t before[TS * TH];
     memcpy(before, r.s.page.px, sizeof(before));
@@ -386,18 +386,64 @@ static void test_no_stepping_no_bar_actions(void)
     key(&r, 6);
     CHECK(r.s.mode == SK_PAGEMENU); /* 7: the menu */
     touch(&r, APP_TOUCH_MIDDLE, APP_GESTURE_HOLD);
-    key(&r, 4); /* 5: back out of it */
+    key(&r, 6); /* 7 again: closes it */
     CHECK(r.s.mode == SK_DRAW && r.s.cur == cur);
-    key(&r, 7);
-    CHECK(r.s.mode == SK_PAGEMENU); /* 8: the menu too */
-    key(&r, 4);
     touch(&r, APP_TOUCH_MIDDLE, APP_GESTURE_TAP);
     CHECK(r.s.mode == SK_PAGEMENU);
     rig_end(&r);
 }
 
+static void test_button_map(void)
+{
+    rig_t r;
+    rig_new(&r, APP_ORIENT_BAR_BOTTOM);
+    rig_line(&r, 200, 300, 1000, 500, 50000, 0);
+    r.now += 3000;
+    sk_tick(&r.s, r.now);
+    int cur = r.s.cur, n_undo = r.s.hist.st_cur;
+    key(&r, 0); /* 1 undo */
+    CHECK(r.s.hist.st_cur < n_undo && r.s.mode == SK_DRAW);
+    key(&r, 1); /* 2 redo */
+    CHECK(r.s.hist.st_cur == n_undo);
+    key(&r, 2); /* 3 eraser on, off */
+    CHECK(r.s.sty.brush == BR_ERASER);
+    key(&r, 2);
+    CHECK(r.s.sty.brush != BR_ERASER);
+    int tb = r.s.tb_on;
+    key(&r, 3); /* 4 toolbar */
+    CHECK(r.s.tb_on != tb);
+    key(&r, 3);
+    /* 6 steps the size and wraps; it never makes a page */
+    int c0 = r.s.size_cls;
+    for (int i = 1; i <= 3; i++) {
+        key(&r, 5);
+        CHECK(r.s.size_cls == (c0 + i) % 3 && r.s.cur == cur && r.s.mode == SK_DRAW);
+    }
+    /* 8 steps the colour black, grey, white and wraps; the setting is saved like a toolbar pick */
+    sk_set_shade(&r.s, SH_BLACK, r.now);
+    int want[] = { SH_GREY, SH_WHITE, SH_BLACK, SH_GREY };
+    for (int i = 0; i < 4; i++) {
+        key(&r, 7);
+        CHECK(r.s.sty.shade == want[i] && r.s.mode == SK_DRAW && r.s.cur == cur);
+    }
+    CHECK(atoi(rig_cfgv(&r, "colour")) == SH_GREY);
+    /* 7 opens the page menu, 7 closes it, 8 does nothing in it; no new page from any of this */
+    key(&r, 6);
+    CHECK(r.s.mode == SK_PAGEMENU);
+    key(&r, 7);
+    CHECK(r.s.mode == SK_PAGEMENU && r.s.sty.shade == SH_GREY);
+    key(&r, 5); /* 6 does nothing in the menu either */
+    CHECK(r.s.mode == SK_PAGEMENU && r.s.cur == cur);
+    key(&r, 6);
+    CHECK(r.s.mode == SK_DRAW && r.s.cur == cur);
+    key(&r, 4); /* 5 clear: still the one page */
+    CHECK(r.s.cur == cur);
+    rig_end(&r);
+}
+
 int main(void)
 {
+    test_button_map();
     test_no_stepping_no_bar_actions();
     test_legend_and_ink();
     test_pressure_and_size();

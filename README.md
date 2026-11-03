@@ -48,8 +48,11 @@ Drawing a cat on the tablet, live on the X (twice as fast here; [the full video]
 | Tablet button 3 | Eraser on or off |
 | Tablet button 4 | Show or hide the toolbar |
 | Tablet button 5 | Clear the page (one undo brings it back) |
-| Tablet button 6 | New page |
-| Tablet button 7 or 8 | Page menu: print, send to phone, settings, paper, new page, gallery, exit. Settings (paper, fill gap, tablet, clean-up) are on Sketch's own screen |
+| Tablet button 6 | Brush size: small, medium, big, again (becomes zoom later) |
+| Tablet button 7 | Page menu (7 again closes it): print, send to phone, settings, paper, new page, gallery, exit. New page is only here and on the gallery's first tile. Settings (paper, fill gap, tablet, clean-up) are on Sketch's own screen |
+| Tablet button 8 | Next colour: black, grey, white, again |
+| Mouse right click | Show or hide the toolbar (a mouse alone; the tablet pen's button stays the eraser) |
+| Toolbar, last entry "Menu" | Page menu |
 | Touch bar, middle tap | Page menu |
 | Touch bar, long press | Leave the app |
 

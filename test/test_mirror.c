@@ -372,7 +372,7 @@ static void test_cursor_and_toolbar(void)
     rig_pen_user(&r, r.s.tb.cx[TI_MIRROR] + 20, r.s.tb.cyi[TI_MIRROR] + 20, APP_PEN_TIP | APP_PEN_IN_RANGE, 30000);
     rig_pen_user(&r, r.s.tb.cx[TI_MIRROR] + 20, r.s.tb.cyi[TI_MIRROR] + 20, APP_PEN_IN_RANGE, 0);
     CHECK(r.s.mp_on && r.s.sty.mirror == MR_OFF); /* a tap opens the picker (test_mrpick.c) */
-    CHECK(TI_MIRROR == TI_N - 1 && r.s.tb.cx[TI_MIRROR] > r.s.tb.cx[TI_BIG]); /* Mirror ends the row */
+    CHECK(TI_MIRROR == TI_N - 2 && TI_MENU == TI_N - 1 && r.s.tb.cx[TI_MIRROR] > r.s.tb.cx[TI_BIG]); /* Mirror, then Menu, end the row */
     for (int o = 0; o < 2; o++) {
         tb_layout_t L;
         tb_layout(&L, o ? APP_ORIENT_BAR_TOP : APP_ORIENT_BAR_BOTTOM, 1404, 1872);

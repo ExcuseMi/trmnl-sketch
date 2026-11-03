@@ -28,7 +28,7 @@ static void make_pages(rig_t *r, int n)
         rig_line(r, 100 + i * 40, 200, 900 + i * 30, 300 + i * 20 % 700, 50000, 0);
         r->now += 3000;
         sk_tick(&r->s, r->now);
-        if (i + 1 < n) sk_pen_key(&r->s, 1u << 5, 1u << 5, r->now += 50), sk_pen_key(&r->s, 0, 1u << 5, r->now);
+        if (i + 1 < n) rig_newpage(r);
     }
 }
 

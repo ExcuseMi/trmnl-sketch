@@ -14,4 +14,6 @@ void tbi_mirror(gfx_t *g, int mode, int x, int y, int ink, int bg);
 /* A colour swatch of the shade (black, grey, white) and a size button's dot (class 0 small .. 2 big) */
 void tbi_colour(gfx_t *g, int shade, int x, int y, int ink, int bg);
 void tbi_size(gfx_t *g, int cls, int x, int y, int ink, int bg);
+/* The Menu button: a list (three bars with their bullets) */
+void tbi_menu(gfx_t *g, int x, int y, int ink, int bg);
 #endif

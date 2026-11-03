@@ -206,7 +206,7 @@ static void test_applies_at_once(void)
     rig_line(&r, 100, 200, 900, 300, 50000, 0);
     r.now += 3000;
     sk_tick(&r.s, r.now);
-    btn(&r, 6);
+    rig_newpage(&r);
     frames(&r);
     CHECK(r.s.paper == PP_GRID); /* the new page takes the setting at once */
     rig_end(&r);

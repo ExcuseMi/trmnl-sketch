@@ -306,6 +306,11 @@ void sk_set_shade(sketch_t *s, int shade, uint32_t now)
     sk_picked(s, shade_name(shade), now);
 }
 
+void sk_next_colour(sketch_t *s, uint32_t now) /* black, grey, white, black ... */
+{
+    sk_set_shade(s, s->sty.shade == SH_BLACK ? SH_GREY : s->sty.shade == SH_GREY ? SH_WHITE : SH_BLACK, now);
+}
+
 static void tb_place(sketch_t *s) /* the strip for the screen in the user's frame, and its box in the framebuffer */
 {
     gfx_t g;
@@ -349,7 +354,8 @@ static void tb_press(sketch_t *s, int item, uint32_t now)
     if (item < TI_BLACK) sk_set_brush(s, item - TI_BRUSH, now);
     else if (item < TI_SMALL) sk_set_shade(s, tb_shade_of(item), now);
     else if (item < TI_MIRROR) sk_set_size(s, item - TI_SMALL, now);
-    else sk_mp_open(s); /* the five modes in a row: one tap picks (skmirror.c) */
+    else if (item == TI_MIRROR) sk_mp_open(s); /* the five modes in a row: one tap picks (skmirror.c) */
+    else sk_to_pagemenu(s, now); /* Menu, last: the same as tablet button 7 */
 }
 
 /* ---- input ---- */
@@ -422,12 +428,15 @@ static void stroke_tail(sketch_t *s, uint32_t now)
 
 void sk_pen(sketch_t *s, unsigned flags, unsigned x, unsigned y, unsigned pressure, uint32_t now)
 {
-    s->barrel = (flags & (APP_PEN_BARREL | APP_PEN_BARREL2)) != 0;
+    int rc = s->mouse && (flags & APP_PEN_BARREL) != 0, rc_edge = rc && !s->rc_down;
+    s->rc_down = rc;
+    s->barrel = (flags & (s->mouse ? APP_PEN_BARREL2 : (APP_PEN_BARREL | APP_PEN_BARREL2))) != 0; /* a mouse's right button is not the eraser */
     s->tip = (flags & APP_PEN_TIP) != 0;
     s->pen_near = (flags & (APP_PEN_IN_RANGE | APP_PEN_TIP)) != 0;
     s->last_act = now;
     s->hv_pend = 0;
     sk_settle(s, now);
+    if (rc_edge && s->mode == SK_DRAW) sk_mp_close(s), sk_toolbar(s, now); /* the mouse's right click: the toolbar, as tablet button 4 */
     int fx, fy, inside = pm_map(&s->map, x, y, &fx, &fy);
     if (s->mode != SK_DRAW) return sk_menu_pen(s, flags, fx, fy, inside, now);
     int tip = (flags & APP_PEN_TIP) != 0, range = (flags & (APP_PEN_IN_RANGE | APP_PEN_TIP)) != 0;
@@ -526,7 +535,7 @@ void sk_pen_key(sketch_t *s, unsigned keys, unsigned changed, uint32_t now)
             int held = (int32_t)(now - s->k8_down) >= SK_LONGPRESS_MS;
             s->k8_down = 0;
             if (held) sk_lat_debug(s, now);
-            else sk_to_pagemenu(s, now);
+            else sk_next_colour(s, now); /* 8: the next colour, as picking it on the toolbar */
         }
     }
     for (int b = 0; b < 7; b++) {
@@ -537,8 +546,8 @@ void sk_pen_key(sketch_t *s, unsigned keys, unsigned changed, uint32_t now)
         case 2: toggle_eraser(s, now); break;
         case 3: sk_toolbar(s, now); break;
         case 4: sk_clear(s, now); break;
-        case 5: sk_new_page(s, now); break;
-        default: sk_to_pagemenu(s, now); break; /* 7: the menu of this page (8 does the same when let go; no page stepping: the gallery is the way between pages) */
+        case 5: sk_set_size(s, (s->size_cls + 1) % BR_SIZES, now); break; /* 6: the next brush size; becomes zoom when zoom lands */
+        default: sk_to_pagemenu(s, now); break; /* 7: the menu of this page (new page is only in it; no page stepping: the gallery is the way between pages) */
         }
     }
 }
@@ -633,6 +642,8 @@ uint32_t sk_wait_ms(sketch_t *s, uint32_t now)
 }
 
 /* ---- set up ---- */
+
+void sk_set_mouse(sketch_t *s, int mouse_only) { s->mouse = mouse_only, s->rc_down = 0; }
 
 void sk_set_tablet(sketch_t *s, uint32_t width_um, uint32_t height_um, int connected)
 {

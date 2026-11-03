@@ -86,6 +86,7 @@ typedef struct {
     int lx, ly, px, py, lp; /* the open stroke's last two points and the byte of the last, for the tail */
     int tablet;          /* a tablet is connected (pen_info) */
     int stroke, barrel;  /* a stroke is open; a pen button is held */
+    int mouse, rc_down;  /* only a mouse is attached (its right button is not the eraser: it toggles the toolbar); the right button is down */
     stab_t stab;         /* the stabiliser of the open stroke (skstab.h) */
     lat_t lat_ev, lat_push; /* event to push issued, push duration (sklat.h) */
     int ink_pend, lat_new, dbg; /* ink waits to be pushed; samples since the last log line; the debug toast is on */
@@ -163,6 +164,9 @@ typedef struct {
 int sk_init(sketch_t *s, const sk_env_t *env, uint8_t *fb, int w, int h, int stride, int orient, const app_touchbar_t *bar);
 void sk_free(sketch_t *s);
 void sk_set_tablet(sketch_t *s, uint32_t width_um, uint32_t height_um, int connected);
+/* Only a mouse drives the cursor (pen_info mode MOUSE): its right button (APP_PEN_BARREL) shows or hides the toolbar. With a tablet attached, even with a
+   mouse too, the event cannot be told apart, so BARREL stays the tablet pen's eraser button */
+void sk_set_mouse(sketch_t *s, int mouse_only);
 void sk_set_orient(sketch_t *s, int orient, const app_touchbar_t *bar);
 /* Reads the settings (pen_area, tablet_turn, paper ...) from the store; at start */
 void sk_cfg_reload(sketch_t *s);
@@ -252,6 +256,7 @@ void sk_redo(sketch_t *s, uint32_t now);
 void sk_clear(sketch_t *s, uint32_t now);
 void sk_goto_page(sketch_t *s, int index, uint32_t now); /* index into the page list */
 void sk_new_page(sketch_t *s, uint32_t now);
+void sk_next_colour(sketch_t *s, uint32_t now); /* tablet button 8 */
 /* Internal, between sketch.c (drawing, pages, saving) and skgal.c (gallery and menus) */
 void sk_cursor_hide(sketch_t *s);
 void sk_note_hide(sketch_t *s);

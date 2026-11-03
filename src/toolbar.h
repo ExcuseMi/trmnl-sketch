@@ -1,5 +1,5 @@
 /* The toolbar: one row along one edge of the screen (the top, or the bottom when the touch bar is on top): the seven tools,
-   the three colours, the three sizes and Mirror, each a glyph with a short label. Undo, Redo and Clear are the tablet's
+   the three colours, the three sizes, Mirror and Menu, each a glyph with a short label. Undo, Redo and Clear are the tablet's
    buttons only. Layout and hit test are pure (user frame, tested in every position); the drawing goes through gfx.h.
    SPDX-License-Identifier: MIT */
 #ifndef TOOLBAR_H
@@ -7,9 +7,9 @@
 #include "brush.h"
 #include "gfx.h"
 
-/* The tools are the brush ids (TI_BRUSH + BR_*); then the colours (Black, Grey, White), the sizes (Small, Medium, Big) and Mirror, which cycles the symmetry (mirror.h) and is shown picked while one is on */
-enum { TI_BRUSH = 0, TI_BLACK = BR_N, TI_GREY, TI_WHITE, TI_SMALL, TI_MEDIUM, TI_BIG, TI_MIRROR, TI_N };
-#define TB_GAPS 3 /* dividers: before the colours, the sizes and Mirror */
+/* The tools are the brush ids (TI_BRUSH + BR_*); then the colours (Black, Grey, White), the sizes (Small, Medium, Big) and Mirror, which cycles the symmetry (mirror.h) and is shown picked while one is on; Menu, last, opens the page menu */
+enum { TI_BRUSH = 0, TI_BLACK = BR_N, TI_GREY, TI_WHITE, TI_SMALL, TI_MEDIUM, TI_BIG, TI_MIRROR, TI_MENU, TI_N };
+#define TB_GAPS 4 /* dividers: before the colours, the sizes, Mirror and Menu */
 
 typedef struct {
     int x0, y0, x1, y1; /* the strip, user frame, inclusive */

@@ -85,7 +85,7 @@ static void test_every_path(void)
     key(&r, 3); /* and goes: fast ink too */
     CHECK(rig_frame(&r, out) >= 1 && out[0].flash == 0 && r.inverted == i0);
     ink(&r);
-    key(&r, 5); /* a new page */
+    rig_newpage(&r); /* a new page */
     run(&r, 300);
     CHECK(r.inverted >= i0 + 1);
     sk_to_pagemenu(&r.s, r.now += 10); /* the page menu */

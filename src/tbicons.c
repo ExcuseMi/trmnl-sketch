@@ -199,3 +199,15 @@ void tbi_size(gfx_t *g, int cls, int x, int y, int ink, int bg)
     (void)bg;
     gfx_ellipse(g, cx - r, cy - r, cx + r, cy + r, 0, ink, ink);
 }
+
+/* The Menu button: three bars, each with a bullet in front, as a list */
+void tbi_menu(gfx_t *g, int x, int y, int ink, int bg)
+{
+    float X = (float)x, Y = (float)y;
+    (void)bg;
+    for (int k = 0; k < 3; k++) {
+        float cy = Y + 14 + (float)k * 18;
+        gfx_ellipse(g, X + 4, cy - 4, X + 12, cy + 4, 0, ink, ink);
+        gfx_fill_rect(g, X + 20, cy - 4, X + 60, cy + 3, ink);
+    }
+}

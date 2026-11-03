@@ -236,4 +236,14 @@ static inline int fb_black(const rig_t *r) /* black pixels on the framebuffer */
 }
 /* the framebuffer is the page (no pills: nothing is drawn over it but the toolbar, notes and cursors, which the callers exclude by their state) */
 static inline int same_page_and_fb(const rig_t *r) { return !memcmp(r->fb, r->s.page.px, (size_t)TS * TH); }
+/* A new page from a drawing, the only way now: button 7 opens the page menu, the New page row is five moves down, button 4 selects */
+static inline void rig_newpage(rig_t *r)
+{
+    static const int seq[] = { 6, 1, 1, 1, 1, 1, 3 };
+    for (unsigned i = 0; i < sizeof(seq) / sizeof(seq[0]); i++) {
+        r->now += 50;
+        sk_pen_key(&r->s, 1u << seq[i], 1u << seq[i], r->now);
+        sk_pen_key(&r->s, 0, 1u << seq[i], r->now);
+    }
+}
 #endif

@@ -90,6 +90,7 @@ static void read_tablet(void)
     memset(&pi, 0, sizeof(pi));
     if (have_pen()) api->pen_info(&pi);
     sk_set_tablet(&sk, pi.width_um, pi.height_um, pi.vid != 0);
+    sk_set_mouse(&sk, pi.mode == APP_PEN_MODE_MOUSE);
 }
 
 /* One sk_flush result to the panel: all partial rectangles as one call over their rows (src/skpush.h: a call costs the

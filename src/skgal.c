@@ -610,7 +610,7 @@ static void ctl_press(sketch_t *s, int c, uint32_t now)
 }
 
 /* The tablet's buttons in the menu screens: 1 and 2 (and 7, 8 in lists) move the selection, 7 and 8 turn the gallery's
-   screen of tiles (in the page menu 7 and 8 close it, as they opened it), 4 selects, 5 goes back, 6 is the New page tile */
+   screen of tiles (in the page menu 7 closes it, as it opened it; 8 does nothing there), 4 selects, 5 goes back, 6 is the New page tile */
 void sk_menu_key(sketch_t *s, unsigned down, uint32_t now)
 {
     if (s->mode == SK_BUSY) return;
@@ -625,7 +625,7 @@ void sk_menu_key(sketch_t *s, unsigned down, uint32_t now)
         if (!(down >> b & 1) || (s->mode < SK_GALLERY)) continue;
         if (b == 0 || (b == 6 && !gal && !pm)) menu_move(s, -1);
         else if (b == 1 || (b == 7 && !gal && !pm)) menu_move(s, 1);
-        else if (b == 6 || b == 7) gal ? gal_page(s, b == 6 ? -1 : 1) : menu_back(s);
+        else if (b == 6 || b == 7) { if (gal) gal_page(s, b == 6 ? -1 : 1); else if (b == 6) menu_back(s); } /* page menu: 7 closes, 8 does nothing */
         else if (b == 3) ctl_press(s, CTL_SEL, now);
         else if (b == 5 && gal) sel_set(s, 0), gal_activate(s, now);
         else if (b == 4) menu_back(s);

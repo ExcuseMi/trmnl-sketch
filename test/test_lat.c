@@ -108,10 +108,11 @@ static void test_log_and_toast(void)
     int seen = r.log_n;
     for (int i = 0; i < 40; i++) t += 1000, sk_tick(&r.s, t), sk_flush(&r.s, t, out);
     CHECK(r.log_n == seen);
-    /* tablet button 8: short opens the menu, long toggles the debug toast */
+    /* tablet button 8: short steps the colour, long toggles the debug toast */
     r.s.mode == SK_DRAW ? (void)0 : abort();
+    int shade0 = r.s.sty.shade;
     sk_pen_key(&r.s, 128, 128, t += 100);
-    CHECK(r.s.mode == SK_DRAW); /* not yet: it may be a long press */
+    CHECK(r.s.mode == SK_DRAW && r.s.sty.shade == shade0); /* not yet: it may be a long press */
     sk_pen_key(&r.s, 0, 128, t += 900);
     CHECK(r.s.dbg == 1 && r.s.mode == SK_DRAW && r.s.note_on);
     sk_pen_key(&r.s, 128, 128, t += 2000);
@@ -119,7 +120,7 @@ static void test_log_and_toast(void)
     CHECK(r.s.dbg == 0 && r.s.mode == SK_DRAW);
     sk_pen_key(&r.s, 128, 128, t += 2000);
     sk_pen_key(&r.s, 0, 128, t += 100);
-    CHECK(r.s.mode == SK_PAGEMENU && r.s.dbg == 0);
+    CHECK(r.s.mode == SK_DRAW && r.s.dbg == 0 && r.s.sty.shade != shade0); /* the short press: the next colour, no menu */
     rig_end(&r);
 }
 

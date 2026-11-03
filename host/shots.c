@@ -79,7 +79,7 @@ static void gallery_shots(const char *dir)
             if (i % 3 == 0) wave(&r, 300, 1500, 1100, 60, 0);
             r.now += 3000;
             sk_tick(&r.s, r.now);
-            if (i < 7) sk_pen_key(&r.s, 1u << 5, 1u << 5, r.now += 50), sk_pen_key(&r.s, 0, 1u << 5, r.now);
+            if (i < 7) rig_newpage(&r);
         }
         static const uint8_t junk[64] = { 1, 2, 3 };
         memfs_put(&r.fs, "sketch/sk0003.png", junk, sizeof(junk)); /* a page file that does not decode */
@@ -158,7 +158,7 @@ static void paging_shots(const char *dir)
             else ring(&r, 400 + (i * 170) % 900, 500 + (i * 110) % 500, 100 + i * 5, 0);
             r.now += 3000;
             sk_tick(&r.s, r.now);
-            if (i < 19) sk_pen_key(&r.s, 1u << 5, 1u << 5, r.now += 50), sk_pen_key(&r.s, 0, 1u << 5, r.now);
+            if (i < 19) rig_newpage(&r);
         }
         rig_pen(&r, 10, 10, 0, 0);
         sk_touch(&r.s, APP_TOUCH_MIDDLE, APP_GESTURE_TAP, r.now += 50);

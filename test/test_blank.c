@@ -76,11 +76,11 @@ static void test_new_page_leaving(void)
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
     CHECK(blanks(&r) == 1 && disk_pages(&r) == 0); /* the first page: the one blank page, not on disk */
     inked(&r, 0);
-    btn(&r, 6);
+    rig_newpage(&r);
     inked(&r, 1);
     CHECK(disk_pages(&r) == 2 && blanks(&r) == 0);
     for (int k = 0; k < 4; k++) { /* new page, leave it blank through the gallery to an old drawing, again */
-        btn(&r, 6);
+        rig_newpage(&r);
         CHECK(r.s.cur == 3 && sk_is_blank(&r.s.page) && blanks(&r) == 1);
         gallery_open(&r, 1);
         CHECK(disk_pages(&r) == 2 && blanks(&r) == 0 && !memfs_find(&r.fs, "sketch/sk0003.png"));
@@ -94,7 +94,7 @@ static void test_new_page_leaving(void)
     while (r.s.sel > 0) tap(&r, APP_TOUCH_LEFT);
     tap(&r, APP_TOUCH_MIDDLE);
     CHECK(r.s.mode == SK_DRAW && r.s.cur == 3 && blanks(&r) == 1 && disk_pages(&r) == 2);
-    btn(&r, 6); /* the button on the blank page: the same */
+    rig_newpage(&r); /* the page menu on the blank page: the same */
     CHECK(r.s.cur == 3 && blanks(&r) == 1);
     rig_end(&r);
 }
@@ -104,7 +104,7 @@ static void test_clear_then_leave(void)
     static rig_t r;
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
     inked(&r, 0);
-    btn(&r, 6);
+    rig_newpage(&r);
     inked(&r, 1);
     btn(&r, 5); /* clear page 2 */
     r.now += 3000;
@@ -156,7 +156,7 @@ static void test_blank_not_written(void)
     static rig_t r;
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
     inked(&r, 0);
-    btn(&r, 6);
+    rig_newpage(&r);
     sk_save_now(&r.s);
     CHECK(disk_pages(&r) == 1 && blanks(&r) == 1);
     rig_start(&r, APP_ORIENT_BAR_BOTTOM);

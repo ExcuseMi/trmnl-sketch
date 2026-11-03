@@ -120,7 +120,7 @@ static void test_taps_never_ink(void)
     static uint8_t page[TS * TH];
     memcpy(page, r.s.page.px, sizeof(page));
     int fulls = r.fulls;
-    for (int i = 0; i < TI_N; i++) {
+    for (int i = 0; i < TI_MENU; i++) { /* (Menu leaves the drawing: test_menu_item) */
         tap(&r, i);
         CHECK(!memcmp(page, r.s.page.px, sizeof(page))); /* a tap on the strip never inks */
         CHECK(!r.s.stroke);
@@ -412,6 +412,54 @@ static void test_pointer_over_the_strip(void)
 }
 
 /* Each button picks what it shows: a tool, a colour, a size; kept in the settings; the pick is shown inverted */
+/* The last entry opens the page menu, the same as tablet button 7; the mouse's right click shows and hides the strip */
+static void test_menu_item(void)
+{
+    for (int o = 0; o < 4; o += 3) {
+        static rig_t r;
+        rig_new(&r, o);
+        key(&r, 3);
+        CHECK(TI_MENU == TI_N - 1 && !strcmp(tb_label(TI_MENU), "Menu") && r.s.tb.cx[TI_MENU] > r.s.tb.cx[TI_MIRROR]);
+        CHECK(r.s.tb.cx[TI_MENU] + r.s.tb.cell <= (o ? TH : TW));
+        int x = r.s.tb.cx[TI_MENU] + r.s.tb.cell / 2, y = r.s.tb.cyi[TI_MENU] + r.s.tb.cell / 2;
+        rig_pen_user(&r, x, y, APP_PEN_IN_RANGE, 0);
+        rig_pen_user(&r, x, y, APP_PEN_TIP | APP_PEN_IN_RANGE, 30000);
+        rig_pen_user(&r, x, y, APP_PEN_IN_RANGE, 0);
+        CHECK(r.s.mode == SK_PAGEMENU && !r.s.tb_on && r.s.tb_back);
+        key(&r, 6); /* 7 closes it; the strip is back as it was */
+        CHECK(r.s.mode == SK_DRAW && r.s.tb_on);
+        rig_end(&r);
+    }
+}
+
+static void right_click(rig_t *r, int down)
+{
+    rig_pen(r, 600, 800, APP_PEN_IN_RANGE | (down ? APP_PEN_BARREL : 0), 0);
+}
+static void test_mouse_right_click(void)
+{
+    static rig_t r;
+    rig_new(&r, APP_ORIENT_BAR_BOTTOM);
+    sk_set_mouse(&r.s, 1);
+    CHECK(!r.s.tb_on);
+    right_click(&r, 1);
+    CHECK(r.s.tb_on && r.s.sty.brush != BR_ERASER);
+    right_click(&r, 1); /* held: one toggle only */
+    CHECK(r.s.tb_on);
+    right_click(&r, 0);
+    right_click(&r, 1);
+    CHECK(!r.s.tb_on);
+    right_click(&r, 0);
+    /* a drag with the right button down inks as the brush, not as the eraser */
+    rig_line(&r, 300, 500, 700, 500, 30000, 0);
+    CHECK(!r.s.barrel);
+    /* a tablet pen (no mouse): its button is still the eraser and never the toolbar */
+    sk_set_mouse(&r.s, 0);
+    right_click(&r, 1);
+    CHECK(!r.s.tb_on && r.s.barrel);
+    rig_end(&r);
+}
+
 static void test_each_button_picks(void)
 {
     for (int o = 0; o < 4; o += 3) { /* landscape with the bar at the bottom, and portrait */
@@ -446,6 +494,8 @@ static void test_each_button_picks(void)
 int main(void)
 {
     test_labels_follow_tools();
+    test_menu_item();
+    test_mouse_right_click();
     test_each_button_picks();
     test_toggle_and_restore();
     test_flash_only_strip();

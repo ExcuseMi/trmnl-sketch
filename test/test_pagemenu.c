@@ -17,7 +17,7 @@ static void make_pages(rig_t *r, int n)
         rig_line(r, 100 + i * 40, 200, 900 + i * 30, 300 + i * 20 % 700, 50000, 0);
         r->now += 3000;
         sk_tick(&r->s, r->now);
-        if (i + 1 < n) btn(r, 6);
+        if (i + 1 < n) rig_newpage(r);
     }
 }
 static int read_all(rig_t *r, const char *path, uint8_t *buf, int cap)
@@ -91,7 +91,7 @@ static void test_menu_and_exact_back(void)
         int cur = r.s.cur, tb = r.s.tb_on, n_undo = r.s.hist.st_cur;
         CHECK(tb && r.s.dirty && !r.s.note_on);
         if (way == 0) btn(&r, 7);
-        else if (way == 1) btn(&r, 8);
+        else if (way == 1) btn(&r, 7); /* (8 is the colour now: it does not open the menu) */
         else if (way == 2) tap(&r, APP_TOUCH_MIDDLE);
         else btn(&r, 7);
         CHECK(r.s.mode == SK_PAGEMENU && r.s.act_num == cur);
@@ -105,7 +105,7 @@ static void test_menu_and_exact_back(void)
         else if (way == 1) btn(&r, 7);                     /* the menu button again */
         else if (way == 2) { tap(&r, APP_TOUCH_LEFT); tap(&r, APP_TOUCH_MIDDLE); } /* the Back row, on top (owner 2026-11-02) */
         else if (way == 4) pen_ctl(&r, CTL_BACK);          /* the Back pill */
-        else btn(&r, 8);
+        else btn(&r, 7);
         CHECK(r.s.mode == SK_DRAW && r.s.cur == cur);
         CHECK(!memcmp(r.s.page.px, keep, sizeof(keep)) && !memcmp(r.fb, fbkeep, sizeof(fbkeep))); /* pixels as they were, on the screen too */
         CHECK(!memcmp(&r.s.sty, &sty, sizeof(sty)) && r.s.tb_on == tb && r.s.hist.st_cur == n_undo); /* and the tool state */
@@ -238,7 +238,7 @@ static void test_print_from_the_menu(void)
     CHECK(sk_print_page(&r.s, 2) < 0 && strstr(r.s.pres.msg, "could not be read"));
     /* an empty page has nothing to print */
     btn(&r, 5);
-    btn(&r, 6);
+    rig_newpage(&r);
     btn(&r, 7);
     r.pr.posts = 0;
     btn(&r, 2), btn(&r, 4);
@@ -321,6 +321,7 @@ static void test_damaged_page(void)
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
     make_pages(&r, 3);
     memfs_put(&r.fs, "sketch/sk0002.png", junk, sizeof(junk));
+    gal_invalidate(&r.s.cache, 2); /* the page menu cached its thumbnail; the file went bad behind the app's back */
     btn(&r, 7);
     for (int i = 0; i < 6; i++) btn(&r, 2);
     btn(&r, 4);
@@ -474,8 +475,13 @@ static void test_walk_with_the_tablet_buttons_only(void)
         CHECK(r.s.mode == SK_PAGEMENU);
         btn(&r, 5);
         CHECK(r.s.mode == SK_DRAW);
-        btn(&r, 8);
-        btn(&r, 8); /* the menu button again */
+        btn(&r, 7);
+        btn(&r, 7); /* the menu button again */
+        CHECK(r.s.mode == SK_DRAW);
+        btn(&r, 7);
+        btn(&r, 8); /* 8 does nothing in the page menu: only 7 closes it */
+        CHECK(r.s.mode == SK_PAGEMENU);
+        btn(&r, 7);
         CHECK(r.s.mode == SK_DRAW);
         btn(&r, 7);
         row_button(&r, 1);
