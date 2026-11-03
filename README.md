@@ -2,7 +2,9 @@
 
 Sketch for the TRMNL X with a USB pen tablet (XP-Pen Deco 01 V2; firmware API 2.7, `pen_enable`). Pressure sets the line width, the page autosaves as a PNG.
 
-<!-- video -->
+<a href="media/sketch-demo.mp4"><img src="media/sketch-demo.gif" width="360" alt="Drawing a cat on the tablet, shown live on the TRMNL X"></a>
+
+Drawing a cat on the tablet, live on the X (twice as fast here; [the full video](media/sketch-demo.mp4)).
 
 | | |
 |---|---|
