@@ -80,6 +80,15 @@ static void blit_cheap(sketch_t *s, int slot, int num, int x, int y)
 
 static void ui_g(sketch_t *s, gfx_t *g) { gfx_init(g, s->ui.px, s->ui.w, s->ui.h, s->ui.stride, s->orient); }
 
+/* The frame round the page's thumbnail (page menu, confirm, printing, result) */
+static void preview_frame(const sketch_t *s, gfx_t *g, int px, int py)
+{
+    gfx_rrect(g, px - 10, py - 10, px + s->L.tw + 9, py + s->L.th + 9, 12, 2, MWHT_, MBLK_);
+}
+
+/* The page on screen was printed and has not changed since */
+int sk_print_again(const sketch_t *s) { return s->printed_num && s->printed_num == s->act_num && s->printed_rev == s->page_rev; }
+
 static void split_msg(const char *m, char a[64], char b[64])
 {
     size_t n = strlen(m), cut = n > 46 ? 46 : n;
@@ -154,7 +163,7 @@ static void menu_draw(sketch_t *s)
             dmg[i] = nums[i] && is_dmg(s, nums[i]);
         }
     int px = s->L.ax1 - s->L.tw - 12, py = (s->L.ay0 + s->L.ay1) / 2 - s->L.th / 2; /* the preview, framed as a gallery tile */
-    if (s->mode == SK_ACTIONS || s->mode == SK_CONFIRM || s->mode == SK_PAGEMENU) blit_add(s, s->act_num, px, py);
+    if (s->mode == SK_ACTIONS || s->mode == SK_CONFIRM || s->mode == SK_PAGEMENU || s->mode == SK_BUSY || s->mode == SK_RESULT) blit_add(s, s->act_num, px, py);
     cv_fill(&s->ui, 1);
     ui_g(s, &g);
     int hot = ctl_live(s, s->hot) ? s->hot : CTL_NONE;
@@ -205,9 +214,9 @@ static void menu_draw(sketch_t *s)
     }
     case SK_CONFIRM: {
         static const char *const items[] = { "Back", "Print" }, *const items2[] = { "Back", "Exit without saving" };
-        ui_list(&g, &s->L, s->exit_unsaved ? "Could not save this page" : "Print this drawing?", s->exit_unsaved ? items2 : items, 2, s->act_sel, &s->lg);
+        ui_list(&g, &s->L, s->exit_unsaved ? "Could not save this page" : sk_print_again(s) ? "Printed already. Print again?" : "Print this drawing?", s->exit_unsaved ? items2 : items, 2, s->act_sel, &s->lg);
         s->list_n = 2;
-        gfx_rrect(&g, px - 10, py - 10, px + s->L.tw + 9, py + s->L.th + 9, 12, 2, MWHT_, MBLK_);
+        preview_frame(s, &g, px, py);
         char a[100] = "Printer: ";
         if (!s->exit_unsaved) {
             pj_printer_label(&s->prn, a + 9, 80);
@@ -221,11 +230,13 @@ static void menu_draw(sketch_t *s)
         char to[80] = "To: ";
         pj_printer_label(&s->prn, to + 4, sizeof(to) - 4);
         ui_message(&g, &s->L, "Printing...", s->prn.host[0] ? to : "Sending the page to the printer.", "This takes a few seconds.", 0);
+        preview_frame(s, &g, px, py);
         break;
     }
     default:
         split_msg(s->pres.msg, l1, l2);
         ui_message(&g, &s->L, s->pres.pages && s->pres.jobs ? "Printed" : "Not printed", l1, l2, 0);
+        preview_frame(s, &g, px, py);
         if (s->prn.host[0] && !s->need_setup) {
             char a[100] = "Printer: ";
             pj_printer_label(&s->prn, a + 9, 80);
@@ -387,7 +398,7 @@ void sk_to_pagemenu(sketch_t *s, uint32_t now)
     s->act_num = s->cur;
     s->exit_unsaved = s->need_setup = 0;
     s->ptr_down = 0;
-    to_menu(s, SK_PAGEMENU, 1); /* row 0 is Back: Print is selected first */
+    to_menu(s, SK_PAGEMENU, 0); /* Back is selected first: a tap on Select closes the menu, it never prints */
 }
 
 /* The gallery, from the page menu: the page on screen is not left until another one is picked */
@@ -447,8 +458,8 @@ static void menu_back(sketch_t *s)
 {
     switch (s->mode) {
     case SK_ACTIONS: to_menu(s, SK_GALLERY, s->act_sel); break;
-    case SK_CONFIRM: to_menu(s, SK_PAGEMENU, s->exit_unsaved ? 7 : 1); break;
-    case SK_RESULT: to_menu(s, SK_PAGEMENU, 1); break;
+    case SK_CONFIRM: to_menu(s, SK_PAGEMENU, s->exit_unsaved ? 7 : 1); break; /* the row that opened it */
+    case SK_RESULT: to_menu(s, SK_PAGEMENU, 0); break;
     case SK_SETTINGS: to_menu(s, SK_PAGEMENU, 3); break; /* the row that opened it */
     default: to_draw(s); /* the page menu, the gallery */
     }
@@ -476,7 +487,7 @@ static void print_start(sketch_t *s)
     }
     if (sk_print_check(s) < 0) return to_menu(s, SK_RESULT, 0);
     s->exit_unsaved = 0;
-    to_menu(s, SK_CONFIRM, 1);
+    to_menu(s, SK_CONFIRM, 0); /* Back first */
 }
 
 /* A setting row stepped: only its row and the note line are redrawn. A failed save says so on the note line */
@@ -701,6 +712,7 @@ void sk_run_print(sketch_t *s)
         to_draw(s);
         return sk_toast(s, s->pres.pages ? "Printed" : "Not printed", s->last_push);
     }
+    if (s->pres.pages && s->pres.jobs) s->printed_num = s->act_num, s->printed_rev = s->page_rev;
     s->mode = SK_RESULT;
     s->ret_mode = SK_PAGEMENU;
     s->need_setup = 0;

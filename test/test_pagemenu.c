@@ -173,14 +173,14 @@ static void test_gallery_from_menu(void)
     make_pages(&r, 3);
     memcpy(keep, r.s.page.px, sizeof(keep));
     btn(&r, 7);
-    for (int i = 0; i < 5; i++) btn(&r, 2);
+    for (int i = 0; i < 6; i++) btn(&r, 2);
     btn(&r, 4);
     CHECK(r.s.mode == SK_GALLERY && r.s.cur == 3 && r.s.sel == 1);
     btn(&r, 5); /* Back from the gallery: the page you came from */
     CHECK(r.s.mode == SK_DRAW && r.s.cur == 3 && !memcmp(r.s.page.px, keep, sizeof(keep)));
     /* the menu again, the gallery, another drawing: it opens at once; the one left is on disk */
     btn(&r, 7);
-    for (int i = 0; i < 5; i++) btn(&r, 2);
+    for (int i = 0; i < 6; i++) btn(&r, 2);
     btn(&r, 4);
     btn(&r, 2);
     btn(&r, 2);
@@ -202,9 +202,9 @@ static void test_print_from_the_menu(void)
     make_pages(&r, 2);
     r.prn.format = PJ_PCL;
     btn(&r, 7);
-    btn(&r, 4);
+    btn(&r, 2), btn(&r, 4); /* Print is one move down: the menu opens on Back */
     CHECK(r.s.mode == SK_CONFIRM && r.pr.posts == 0); /* nothing is sent before the confirm */
-    btn(&r, 4);
+    btn(&r, 2), btn(&r, 4); /* the confirm opens on Back too */
     CHECK(rig_frame(&r, out) == SK_FULL); /* "Printing..." is on the glass before the job goes out */
     run_print(&r);
     CHECK(r.s.mode == SK_RESULT && r.pr.posts >= 1 && strstr(r.pr.url, "10.1.2.3") && r.s.pres.pages == 1);
@@ -222,14 +222,13 @@ static void test_print_from_the_menu(void)
     CHECK(r.s.mode == SK_PAGEMENU);
     /* the printer is off: a plain message, nothing crashed */
     r.pr.status = -1;
-    btn(&r, 4);
-    btn(&r, 4);
+    btn(&r, 2), btn(&r, 4), btn(&r, 2), btn(&r, 4);
     run_print(&r);
     CHECK(r.s.mode == SK_RESULT && r.s.pres.msg[0] && r.s.pres.jobs == 0 && !r.s.need_setup);
     btn(&r, 5);
     /* a firmware that cannot print */
     r.s.env.net.post = 0;
-    btn(&r, 4);
+    btn(&r, 2), btn(&r, 4);
     CHECK(r.s.mode == SK_RESULT && strstr(r.s.pres.msg, "not available"));
     btn(&r, 5);
     r.s.env.net.post = fake_post;
@@ -241,7 +240,7 @@ static void test_print_from_the_menu(void)
     btn(&r, 6);
     btn(&r, 7);
     r.pr.posts = 0;
-    btn(&r, 4);
+    btn(&r, 2), btn(&r, 4);
     CHECK(r.s.mode == SK_RESULT && strstr(r.s.pres.msg, "empty") && r.pr.posts == 0);
     rig_end(&r);
 }
@@ -256,8 +255,7 @@ static void test_print_in_steps(void)
         rig_new(&r, APP_ORIENT_BAR_BOTTOM);
         make_pages(&r, 1);
         btn(&r, 7);
-        btn(&r, 4);
-        btn(&r, 4);
+        btn(&r, 2), btn(&r, 4), btn(&r, 2), btn(&r, 4);
         frames(&r);
         int turns = 0;
         while (r.s.print_req && turns < 100) {
@@ -291,7 +289,7 @@ static void test_no_printer_offers_setup(void)
         make_pages(&r, 1);
         r.pr_rc = PJ_NO_PRINTER;
         btn(&r, 7);
-        btn(&r, 4);
+        btn(&r, 2), btn(&r, 4);
         CHECK(r.s.mode == SK_RESULT && r.s.need_setup && !strcmp(r.s.pres.msg, "No printer yet: set one up in Print") && r.pr.posts == 0);
         rect_t out[SK_MAX_RECTS];
         CHECK(rig_frame(&r, out) == SK_FULL);
@@ -303,11 +301,11 @@ static void test_no_printer_offers_setup(void)
         pen_ctl(&r, CTL_BACK);
         CHECK(r.s.mode == SK_PAGEMENU);
         r.pr_rc = APP_ENOTSUP; /* an old firmware: a message, no setup button */
-        btn(&r, 4);
+        btn(&r, 2), btn(&r, 4);
         CHECK(r.s.mode == SK_RESULT && !r.s.need_setup && r.pr.posts == 0);
         r.pr_rc = APP_EIO;
         btn(&r, 5);
-        btn(&r, 4);
+        btn(&r, 2), btn(&r, 4);
         CHECK(r.s.mode == SK_RESULT && !r.s.need_setup && r.pr.posts == 0);
         rig_end(&r);
     }
@@ -323,7 +321,7 @@ static void test_damaged_page(void)
     make_pages(&r, 3);
     memfs_put(&r.fs, "sketch/sk0002.png", junk, sizeof(junk));
     btn(&r, 7);
-    for (int i = 0; i < 5; i++) btn(&r, 2);
+    for (int i = 0; i < 6; i++) btn(&r, 2);
     btn(&r, 4);
     CHECK(r.s.mode == SK_GALLERY);
     rig_gal_fill(&r);
@@ -483,14 +481,14 @@ static void test_walk_with_the_tablet_buttons_only(void)
         CHECK(r.s.mode == SK_CONFIRM);
         btn(&r, 5);
         CHECK(r.s.mode == SK_PAGEMENU);
-        btn(&r, 4);
-        btn(&r, 4);
+        btn(&r, 4); /* Print is where Back from the confirm left the selection */
+        btn(&r, 2), btn(&r, 4); /* the confirm opens on Back */
         run_print(&r);
         CHECK(r.s.mode == SK_RESULT);
         btn(&r, 5);
         CHECK(r.s.mode == SK_PAGEMENU);
         r.pr_rc = PJ_NO_PRINTER;
-        btn(&r, 4);
+        btn(&r, 2), btn(&r, 4);
         CHECK(r.s.mode == SK_RESULT && r.s.need_setup);
         btn(&r, 6);
         CHECK(r.s.setup_req);
@@ -529,6 +527,122 @@ static void test_walk_with_the_tablet_buttons_only(void)
     }
 }
 
+static int again_title(const rig_t *r) { return sk_print_again(&r->s); }
+
+/* ---- closing the menu never prints (owner 2026-11-03: a child tapped Select to close the menu and the page printed twice) ---- */
+static void test_close_never_prints(void)
+{
+    static rig_t r;
+    for (int o = 0; o < 4; o += 3) {
+        rig_new(&r, o);
+        make_pages(&r, 1);
+        tap(&r, APP_TOUCH_MIDDLE); /* the menu opens */
+        CHECK(r.s.mode == SK_PAGEMENU && r.s.act_sel == 0);
+        tap(&r, APP_TOUCH_MIDDLE); /* the same tap closes it */
+        CHECK(r.s.mode == SK_DRAW && !r.s.print_req && r.pr.posts == 0);
+        tap(&r, APP_TOUCH_MIDDLE);
+        tap(&r, APP_TOUCH_RIGHT); /* Print */
+        tap(&r, APP_TOUCH_MIDDLE);
+        CHECK(r.s.mode == SK_CONFIRM && r.s.act_sel == 0 && !r.s.print_req); /* the confirm opens on Back */
+        for (int k = 0; k < 3; k++) {
+            tap(&r, APP_TOUCH_MIDDLE); /* Select on Back closes the confirm ... */
+            CHECK(r.s.mode == SK_PAGEMENU && !r.s.print_req && r.pr.posts == 0);
+            tap(&r, APP_TOUCH_MIDDLE); /* ... and on the menu (left on Print) it only asks again */
+            CHECK(r.s.mode == SK_CONFIRM && r.s.act_sel == 0 && !r.s.print_req && r.pr.posts == 0);
+        }
+        CHECK(r.s.mode == SK_CONFIRM && r.pr.posts == 0);
+        tap(&r, APP_TOUCH_RIGHT);
+        tap(&r, APP_TOUCH_MIDDLE); /* only a move to Print, then Select, prints */
+        CHECK(r.s.mode == SK_BUSY && r.s.print_req);
+        run_print(&r);
+        CHECK(r.s.mode == SK_RESULT && r.s.pres.pages == 1);
+        tap(&r, APP_TOUCH_MIDDLE); /* OK: back to the page menu on Back, never on Print */
+        CHECK(r.s.mode == SK_PAGEMENU && r.s.act_sel == 0 && !r.s.print_req);
+        tap(&r, APP_TOUCH_MIDDLE);
+        CHECK(r.s.mode == SK_DRAW && r.pr.posts == 1); /* one print, not two */
+        rig_end(&r);
+    }
+}
+
+/* ---- the same page printed again unchanged says so; a changed page does not ---- */
+static void to_confirm(rig_t *r)
+{
+    btn(r, 7);
+    btn(r, 2);
+    btn(r, 4);
+    CHECK(r->s.mode == SK_CONFIRM && r->s.act_sel == 0);
+}
+static void to_confirm_or_result(rig_t *r)
+{
+    btn(r, 7);
+    btn(r, 2);
+    btn(r, 4);
+    CHECK(r->s.mode == SK_RESULT && !r->s.print_req);
+}
+static void print_now(rig_t *r)
+{
+    btn(r, 2);
+    btn(r, 4);
+    run_print(r);
+    CHECK(r->s.mode == SK_RESULT && r->s.pres.pages == 1);
+    btn(r, 5); /* result to the page menu */
+    btn(r, 5); /* and the drawing */
+    CHECK(r->s.mode == SK_DRAW);
+}
+static void test_printed_already(void)
+{
+    static rig_t r;
+    rig_new(&r, APP_ORIENT_BAR_BOTTOM);
+    make_pages(&r, 1);
+    to_confirm(&r);
+    CHECK(!again_title(&r)); /* never printed */
+    print_now(&r);
+    to_confirm(&r);
+    CHECK(again_title(&r)); /* the page is as printed */
+    btn(&r, 5), btn(&r, 5);
+    rig_line(&r, 300, 800, 1200, 900, 40000, 0); /* a change */
+    to_confirm(&r);
+    CHECK(!again_title(&r));
+    print_now(&r);
+    to_confirm(&r);
+    CHECK(again_title(&r));
+    btn(&r, 5), btn(&r, 5);
+    sk_undo(&r.s, r.now += 50); /* undo is a change too */
+    to_confirm(&r);
+    CHECK(!again_title(&r));
+    btn(&r, 5), btn(&r, 5);
+    sk_redo(&r.s, r.now += 50);
+    to_confirm(&r);
+    CHECK(!again_title(&r)); /* redo is a change too */
+    btn(&r, 5), btn(&r, 5);
+    sk_clear(&r.s, r.now += 50);
+    to_confirm_or_result(&r); /* a cleared page is blank: nothing to print, the confirm is never reached */
+    rig_end(&r);
+}
+
+/* ---- the confirm, Printing and result screens show the page being printed ---- */
+static int thumb_blitted(const rig_t *r) { return r->s.blit_n >= 1 && r->s.blit[0].num == r->s.act_num; }
+static void test_print_screens_show_the_page(void)
+{
+    static rig_t r;
+    for (int o = 0; o < 4; o += 3) {
+        rig_new(&r, o);
+        make_pages(&r, 1);
+        to_confirm(&r);
+        CHECK(thumb_blitted(&r));
+        btn(&r, 2);
+        btn(&r, 4);
+        CHECK(r.s.mode == SK_BUSY && thumb_blitted(&r));
+        run_print(&r);
+        CHECK(r.s.mode == SK_RESULT && thumb_blitted(&r));
+        int x0, y0, x1, y1; /* the preview beside the text, inside the area and clear of the pills and Back */
+        CHECK(r.s.blit[0].x >= r.s.L.ax0 && r.s.blit[0].x + r.s.L.tw <= r.s.L.ax1);
+        ui_ctl_box(&r.s.L, CTL_BACK, &x0, &y0, &x1, &y1);
+        CHECK(r.s.blit[0].x + r.s.L.tw < x0 || r.s.blit[0].y + r.s.L.th < y0 || r.s.blit[0].y > y1);
+        rig_end(&r);
+    }
+}
+
 int main(void)
 {
     test_menu_and_exact_back();
@@ -541,5 +655,8 @@ int main(void)
     test_damaged_page();
     test_walk_with_the_pen_only();
     test_walk_with_the_tablet_buttons_only();
+    test_close_never_prints();
+    test_printed_already();
+    test_print_screens_show_the_page();
     return CHECK_DONE("test_pagemenu");
 }

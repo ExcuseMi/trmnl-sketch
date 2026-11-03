@@ -37,5 +37,6 @@ void sk_set_paper(sketch_t *s, int kind, uint32_t now)
     s->paper = kind;
     s->paper_sp = s->paper_sp ? s->paper_sp : s->paper_sp_def;
     gal_invalidate(&s->cache, s->cur);
+    s->page_rev++;
     if (!sk_is_blank(&s->page)) s->dirty = 1, s->save_at = now + SK_AUTOSAVE_MS;
 }

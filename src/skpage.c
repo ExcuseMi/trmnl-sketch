@@ -41,6 +41,7 @@ void sk_open_page(sketch_t *s, int num, uint32_t now) { sk_opened(s, num, pg_loa
 void sk_opened(sketch_t *s, int num, int rc, uint32_t now)
 {
     s->cur = num;
+    s->page_rev++;
     s->bad_pending = 0;
     if (rc == PG_MISSING) cv_fill(&s->page, 1);
     if (rc == PG_BAD) s->bad_pending = 1;
@@ -122,6 +123,7 @@ void sk_make_page(sketch_t *s, uint32_t now)
     if (!num) return sk_toast(s, "No more pages", now);
     s->cur = num;
     cv_fill(&s->page, 1);
+    s->page_rev++;
     s->bad_pending = 0;
     hist_reset(&s->hist);
     sk_paper_new(s);

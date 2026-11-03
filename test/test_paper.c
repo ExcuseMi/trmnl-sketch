@@ -148,7 +148,7 @@ static void test_default_and_menu(void)
     /* the page menu: Paper cycles in place and only this page changes */
     btn(&r, 7);
     CHECK(r.s.mode == SK_PAGEMENU && r.s.list_n == 8);
-    for (int i = 0; i < 3; i++) btn(&r, 2);
+    for (int i = 0; i < 4; i++) btn(&r, 2);
     btn(&r, 4);
     CHECK(r.s.mode == SK_PAGEMENU && r.s.paper == PP_LINES && r.s.act_sel == 4); /* the Paper row (Back on top) */
     btn(&r, 4);

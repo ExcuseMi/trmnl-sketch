@@ -206,7 +206,7 @@ static double a_gallery(int pages, double *scroll)
     up(pages);
     key(7); /* the page menu */
     settle();
-    for (int i = 0; i < 5; i++) key(2); /* down to Gallery */
+    for (int i = 0; i < 6; i++) key(2); /* down to Gallery */
     settle();
     begin();
     key(4); /* select */
@@ -244,7 +244,7 @@ static void a_menus(void)
     begin();
     key(5);
     put("page menu back to drawing", end(), ACT_MS, 1);
-    key(7), settle(), key(2), key(2), settle(); /* Settings */
+    key(7), settle(), key(2), key(2), key(2), settle(); /* Settings */
     begin();
     key(4);
     put("settings screen open", end(), ACT_MS, 1);
@@ -252,12 +252,12 @@ static void a_menus(void)
     key(4); /* a setting steps */
     put("settings step", end(), ACT_MS, 0);
     key(5), key(5), settle(); /* the page menu, then back to drawing */
-    key(7), settle(); /* Print is selected */
+    key(7), settle(), key(2); /* Back opens selected: one down to Print */
     begin();
     key(4);
     put("print confirm screen", end(), ACT_MS, 1);
     begin();
-    key(2), key(4); /* Print: the busy screen, the job, the result */
+    key(2); key(4); /* Print: the busy screen, the job, the result */
     put("print: raster build and send", end(), ACT_MS, 3);
     rows[nrows - 1].tbound = PRINT_MS; /* made a few rows a turn: no turn over ACT_MS, the whole job under PRINT_MS */
     CHECK(R.pr.posts > 0);
@@ -282,7 +282,7 @@ static void a_pages(void)
     down();
     up(10);
     key(7), settle();
-    for (int i = 0; i < 5; i++) key(2);
+    for (int i = 0; i < 6; i++) key(2);
     key(4), settle(), key(2), settle(); /* the gallery, page 9 selected */
     scribble(3, 10); /* (the pen is a pointer in the gallery) */
     begin();

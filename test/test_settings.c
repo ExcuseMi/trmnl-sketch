@@ -33,7 +33,7 @@ static void open_settings(rig_t *r)
 {
     btn(r, 7);
     CHECK(r->s.mode == SK_PAGEMENU);
-    btn(r, 2), btn(r, 2); /* Print, Send to phone, Settings */
+    btn(r, 2), btn(r, 2), btn(r, 2); /* Print, Send to phone, Settings (Back is selected first) */
     btn(r, 4);
     CHECK(r->s.mode == SK_SETTINGS);
     frames(r);

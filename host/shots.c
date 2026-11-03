@@ -86,22 +86,25 @@ static void gallery_shots(const char *dir)
         rig_pen(&r, 10, 10, 0, 0);
         TAP(MIDDLE); /* the page menu of the page on screen */
         gshot(&r, dir, o ? "m-pagemenu-portrait" : "m-pagemenu-landscape");
-        if (!o) {
-            TAP(MIDDLE); /* Print */
-            gshot(&r, dir, "f-print-confirm");
+        {
+            TAP(RIGHT);
+            TAP(MIDDLE); /* Print; the menu opens on Back */
+            gshot(&r, dir, o ? "f-print-confirm-portrait" : "f-print-confirm");
+            TAP(RIGHT);
             TAP(MIDDLE);
-            gshot(&r, dir, "g-printing");
+            gshot(&r, dir, o ? "g-printing-portrait" : "g-printing");
             r.pr.status = 200;
             while (r.s.print_req) sk_run_print(&r.s);
-            gshot(&r, dir, "h-printed");
+            gshot(&r, dir, o ? "h-printed-portrait" : "h-printed");
             TAP(MIDDLE); /* OK */
             r.pr_rc = PJ_NO_PRINTER;
+            TAP(RIGHT);
             TAP(MIDDLE);
-            gshot(&r, dir, "i-no-printer");
+            gshot(&r, dir, o ? "i-no-printer-portrait" : "i-no-printer");
             r.pr_rc = 0;
             TAP(MIDDLE);
         }
-        for (int k = 0; k < 4; k++) TAP(RIGHT);
+        for (int k = 0; k < 6; k++) TAP(RIGHT);
         TAP(MIDDLE); /* Gallery */
         for (int k = 0; k < 5; k++) TAP(RIGHT); /* the damaged tile */
         gshot(&r, dir, o ? "c-gallery-portrait" : "b-gallery-landscape");

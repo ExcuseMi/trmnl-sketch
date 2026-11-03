@@ -209,6 +209,7 @@ void sk_page_changed(sketch_t *s, const box_t *b, uint32_t now)
     fb_put(s, b);
     mark(s, b);
     s->traces++;
+    s->page_rev++;
     s->dirty = 1;
     s->save_at = now + SK_AUTOSAVE_MS;
 }
@@ -255,6 +256,7 @@ void sk_clear(sketch_t *s, uint32_t now)
     sk_note_hide(s);
     sk_show_page(s);
     s->want_full = 1;
+    s->page_rev++;
     s->dirty = 1;
     s->save_at = now + SK_AUTOSAVE_MS;
     sk_toast(s, "Cleared. Undo brings it back", now);
@@ -361,6 +363,7 @@ static void stroke_add(sketch_t *s, int fx, int fy, int p, uint32_t now)
     f->q[f->n++] = (sk_qpt_t){ (int16_t)fx, (int16_t)fy, p, s->tilt };
     sk_lat_ink(s, now); /* the latency counts from the report, not from the frame that stamps it */
     s->px = s->lx, s->py = s->ly, s->lx = fx, s->ly = fy, s->lp = p;
+    s->page_rev++;
     s->dirty = 1;
     s->save_at = now + SK_AUTOSAVE_MS;
 }

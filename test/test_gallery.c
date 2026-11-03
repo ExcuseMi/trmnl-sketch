@@ -15,7 +15,7 @@ static void open_gallery(rig_t *r)
 {
     tap(r, APP_TOUCH_MIDDLE);
     CHECK(r->s.mode == SK_PAGEMENU);
-    for (int i = 0; i < 5; i++) tap(r, APP_TOUCH_RIGHT);
+    for (int i = 0; i < 6; i++) tap(r, APP_TOUCH_RIGHT);
     tap(r, APP_TOUCH_MIDDLE);
     CHECK(r->s.mode == SK_GALLERY);
     rig_gal_fill(r);

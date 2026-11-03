@@ -134,6 +134,8 @@ typedef struct {
     int list_n;
     char gnote[64];
     int print_req;
+    uint32_t page_rev;   /* bumped on every change of the page (ink, undo, clear, paper, load, new page) */
+    uint32_t printed_rev; int printed_num; /* page_rev and number at the last successful print (num 0: none) */
     pj_job_t *pjob;      /* the print job being made, a few rows a loop turn (sk_run_print) */
     pj_result_t pres;
     pj_printer_t prn;    /* the default printer for the job on screen */
@@ -226,6 +228,7 @@ void sk_set_paper(sketch_t *s, int kind, uint32_t now);
 /* The bucket (skfill.c): the pen with the Fill tool, true when it took the event; a tap at (x, y) fills */
 int sk_fill_pen(sketch_t *s, int tip, int inside, int fx, int fy, uint32_t now);
 void sk_fill_at(sketch_t *s, int x, int y, uint32_t now);
+int sk_print_again(const sketch_t *s); /* the page on screen was printed and has not changed since: the confirm says so */
 void sk_page_changed(sketch_t *s, const box_t *b, uint32_t now); /* a change of the page in box b reaches the screen */
 void sk_cpy(char *d, size_t cap, const char *s); /* bounded copy */
 /* What to push: SK_FULL (the whole screen, clean), else the number of rectangles in out (SK_MAX_RECTS at most) */
