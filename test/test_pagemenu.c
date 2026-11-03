@@ -155,11 +155,12 @@ static void test_exit(void)
     for (int i = 0; i < 7; i++) btn(&r, 2);
     btn(&r, 4);
     CHECK(!r.s.exit_req && r.s.mode == SK_CONFIRM && r.s.exit_unsaved);
-    btn(&r, 5); /* Back: the menu, on the Exit row */
-    CHECK(r.s.mode == SK_PAGEMENU && r.s.act_sel == 7 && !r.s.exit_req);
+    btn(&r, 5); /* Back: the menu, on Back */
+    CHECK(r.s.mode == SK_PAGEMENU && r.s.act_sel == 0 && !r.s.exit_req);
+    for (int i = 0; i < 7; i++) btn(&r, 2);
     btn(&r, 4);
-    CHECK(r.s.mode == SK_CONFIRM);
-    btn(&r, 4); /* Exit without saving */
+    CHECK(r.s.mode == SK_CONFIRM && r.s.act_sel == 0);
+    btn(&r, 2), btn(&r, 4); /* Exit without saving */
     CHECK(r.s.exit_req);
     rig_end(&r);
 }
@@ -341,10 +342,11 @@ static void test_damaged_page(void)
     CHECK(r.s.sel == 2);
     btn(&r, 4);
     CHECK(r.s.mode == SK_ACTIONS && r.s.act_num == 2 && r.s.list_n == 2); /* never opened for drawing */
-    btn(&r, 4);
+    CHECK(r.s.act_sel == 0); /* the list opens on Back */
+    btn(&r, 2), btn(&r, 4);
     CHECK(r.s.mode == SK_SHARE && r.s.share_req == 1); /* its action: Send to phone */
     btn(&r, 1);
-    CHECK(r.s.mode == SK_ACTIONS);
+    CHECK(r.s.mode == SK_ACTIONS && r.s.act_sel == 0);
     btn(&r, 5);
     CHECK(r.s.mode == SK_GALLERY);
     btn(&r, 5);
@@ -425,7 +427,7 @@ static void test_walk_with_the_pen_only(void)
         pen_row(&r, 3); /* Settings: its own screen, not the phone page */
         CHECK(r.s.mode == SK_SETTINGS);
         pen_row(&r, 0); /* Back */
-        CHECK(r.s.mode == SK_PAGEMENU && r.s.act_sel == 3);
+        CHECK(r.s.mode == SK_PAGEMENU && r.s.act_sel == 0);
         pen_row(&r, 6); /* Gallery */
         CHECK(r.s.mode == SK_GALLERY);
         rig_frame(&r, (rect_t[SK_MAX_RECTS]){ 0 });
@@ -481,7 +483,7 @@ static void test_walk_with_the_tablet_buttons_only(void)
         CHECK(r.s.mode == SK_CONFIRM);
         btn(&r, 5);
         CHECK(r.s.mode == SK_PAGEMENU);
-        btn(&r, 4); /* Print is where Back from the confirm left the selection */
+        btn(&r, 2), btn(&r, 4); /* Back from the confirm left the menu on Back: Print is one move down */
         btn(&r, 2), btn(&r, 4); /* the confirm opens on Back */
         run_print(&r);
         CHECK(r.s.mode == SK_RESULT);
@@ -511,8 +513,8 @@ static void test_walk_with_the_tablet_buttons_only(void)
         rig_frame(&r, (rect_t[SK_MAX_RECTS]){ 0 });
         btn(&r, 1); /* from the page on screen (tile 2) to the damaged tile 1 */
         btn(&r, 4);
-        CHECK(r.s.mode == SK_ACTIONS);
-        btn(&r, 4);
+        CHECK(r.s.mode == SK_ACTIONS && r.s.act_sel == 0);
+        btn(&r, 2), btn(&r, 4);
         CHECK(r.s.mode == SK_SHARE);
         btn(&r, 1);
         btn(&r, 5);
@@ -546,8 +548,9 @@ static void test_close_never_prints(void)
         CHECK(r.s.mode == SK_CONFIRM && r.s.act_sel == 0 && !r.s.print_req); /* the confirm opens on Back */
         for (int k = 0; k < 3; k++) {
             tap(&r, APP_TOUCH_MIDDLE); /* Select on Back closes the confirm ... */
-            CHECK(r.s.mode == SK_PAGEMENU && !r.s.print_req && r.pr.posts == 0);
-            tap(&r, APP_TOUCH_MIDDLE); /* ... and on the menu (left on Print) it only asks again */
+            CHECK(r.s.mode == SK_PAGEMENU && r.s.act_sel == 0 && !r.s.print_req && r.pr.posts == 0);
+            tap(&r, APP_TOUCH_RIGHT);
+            tap(&r, APP_TOUCH_MIDDLE); /* ... and from the menu Print only asks again */
             CHECK(r.s.mode == SK_CONFIRM && r.s.act_sel == 0 && !r.s.print_req && r.pr.posts == 0);
         }
         CHECK(r.s.mode == SK_CONFIRM && r.pr.posts == 0);
@@ -643,6 +646,51 @@ static void test_print_screens_show_the_page(void)
     }
 }
 
+/* ---- every list opens with Back selected, and so does the page menu coming back from any screen (owner 2026-11-03) ---- */
+static void test_every_list_opens_on_back(void)
+{
+    static rig_t r;
+    static const uint8_t junk[64] = { 1, 2, 3 };
+    rig_new(&r, APP_ORIENT_BAR_BOTTOM);
+    make_pages(&r, 2);
+    memfs_put(&r.fs, "sketch/sk0001.png", junk, sizeof(junk));
+    btn(&r, 7);
+    CHECK(r.s.mode == SK_PAGEMENU && r.s.act_sel == 0);
+    btn(&r, 2), btn(&r, 2), btn(&r, 2), btn(&r, 4); /* Settings */
+    CHECK(r.s.mode == SK_SETTINGS && r.s.act_sel == 0);
+    btn(&r, 5);
+    CHECK(r.s.mode == SK_PAGEMENU && r.s.act_sel == 0);
+    btn(&r, 2), btn(&r, 2), btn(&r, 4); /* Send to phone, and back from the phone page */
+    CHECK(r.s.mode == SK_SHARE);
+    btn(&r, 1);
+    CHECK(r.s.mode == SK_PAGEMENU && r.s.act_sel == 0);
+    btn(&r, 2), btn(&r, 4); /* Print: the confirm, and back from it */
+    CHECK(r.s.mode == SK_CONFIRM && r.s.act_sel == 0);
+    btn(&r, 5);
+    CHECK(r.s.mode == SK_PAGEMENU && r.s.act_sel == 0);
+    btn(&r, 2), btn(&r, 4), btn(&r, 2), btn(&r, 4); /* print, the result, back from it */
+    run_print(&r);
+    btn(&r, 5);
+    CHECK(r.s.mode == SK_PAGEMENU && r.s.act_sel == 0);
+    for (int i = 0; i < 6; i++) btn(&r, 2);
+    btn(&r, 4); /* the gallery: the damaged page's list */
+    CHECK(r.s.mode == SK_GALLERY);
+    rig_frame(&r, (rect_t[SK_MAX_RECTS]){ 0 });
+    while (r.s.sel < r.s.pg.n) btn(&r, 2);
+    btn(&r, 4);
+    CHECK(r.s.mode == SK_ACTIONS && r.s.act_sel == 0);
+    rig_end(&r);
+    rig_new(&r, APP_ORIENT_BAR_BOTTOM); /* the exit that cannot save */
+    make_pages(&r, 1);
+    btn(&r, 7);
+    r.s.dirty = 1;
+    r.fs.fail_write = 1;
+    for (int i = 0; i < 7; i++) btn(&r, 2);
+    btn(&r, 4);
+    CHECK(r.s.mode == SK_CONFIRM && r.s.exit_unsaved && r.s.act_sel == 0);
+    rig_end(&r);
+}
+
 int main(void)
 {
     test_menu_and_exact_back();
@@ -656,6 +704,7 @@ int main(void)
     test_walk_with_the_pen_only();
     test_walk_with_the_tablet_buttons_only();
     test_close_never_prints();
+    test_every_list_opens_on_back();
     test_printed_already();
     test_print_screens_show_the_page();
     return CHECK_DONE("test_pagemenu");

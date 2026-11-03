@@ -550,6 +550,7 @@ void sk_touch(sketch_t *s, int zone, int gesture, uint32_t now)
     if (s->mode == SK_SHARE) { /* any touch ends the phone page */
         s->share_req = -1;
         s->mode = s->ret_mode;
+        s->act_sel = 0; /* back from the phone page: the list opens on Back */
         sk_screen_render(s);
         return;
     }

@@ -50,7 +50,7 @@ static void test_steps_and_wrap(void)
     static rig_t r;
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
     open_settings(&r);
-    CHECK(r.s.list_n == SKS_N + 1 && r.s.act_sel == 1); /* Back on top, the first setting selected */
+    CHECK(r.s.list_n == SKS_N + 1 && r.s.act_sel == 0); /* opens on Back */
     /* Paper for new pages: Blank Grid Lines Dots, wrapping both ways */
     CHECK(!strcmp(val(&r, 0), "Blank"));
     pen_half(&r, 1, -1);
@@ -169,7 +169,7 @@ static void test_buttons_and_bar(void)
     static rig_t r;
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
     open_settings(&r);
-    btn(&r, 2);
+    btn(&r, 2), btn(&r, 2); /* Back is selected first: two moves to the second setting */
     CHECK(r.s.act_sel == 2);
     btn(&r, 4);
     CHECK(r.s.paper_sp_def == 56);
@@ -182,12 +182,12 @@ static void test_buttons_and_bar(void)
     CHECK(r.s.paper_def == PP_GRID && r.s.mode == SK_SETTINGS);
     sk_touch(&r.s, APP_TOUCH_LEFT, APP_GESTURE_TAP, r.now += 50);
     sk_touch(&r.s, APP_TOUCH_MIDDLE, APP_GESTURE_TAP, r.now += 50); /* Back */
-    CHECK(r.s.mode == SK_PAGEMENU && r.s.act_sel == 3);
-    btn(&r, 4);
+    CHECK(r.s.mode == SK_PAGEMENU && r.s.act_sel == 0);
+    btn(&r, 2), btn(&r, 2), btn(&r, 2), btn(&r, 4);
     CHECK(r.s.mode == SK_SETTINGS);
     btn(&r, 5);
     CHECK(r.s.mode == SK_PAGEMENU);
-    btn(&r, 4), btn(&r, 7);
+    btn(&r, 2), btn(&r, 2), btn(&r, 2), btn(&r, 4), btn(&r, 7);
     CHECK(r.s.mode == SK_PAGEMENU); /* 7 closes the menu from the page menu, it returns from a settings screen to it */
     rig_end(&r);
 }

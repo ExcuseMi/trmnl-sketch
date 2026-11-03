@@ -444,7 +444,7 @@ static void gal_activate(sketch_t *s, uint32_t now)
     }
     if (is_dmg(s, num)) { /* cannot be opened for drawing; its one action rescues the file */
         s->act_num = num;
-        return to_menu(s, SK_ACTIONS, 1);
+        return to_menu(s, SK_ACTIONS, 0);
     }
     to_draw(s);
     if (num == s->cur) return;
@@ -458,9 +458,9 @@ static void menu_back(sketch_t *s)
 {
     switch (s->mode) {
     case SK_ACTIONS: to_menu(s, SK_GALLERY, s->act_sel); break;
-    case SK_CONFIRM: to_menu(s, SK_PAGEMENU, s->exit_unsaved ? 7 : 1); break; /* the row that opened it */
+    case SK_CONFIRM: to_menu(s, SK_PAGEMENU, 0); break; /* every list opens on Back (owner 2026-11-03) */
     case SK_RESULT: to_menu(s, SK_PAGEMENU, 0); break;
-    case SK_SETTINGS: to_menu(s, SK_PAGEMENU, 3); break; /* the row that opened it */
+    case SK_SETTINGS: to_menu(s, SK_PAGEMENU, 0); break;
     default: to_draw(s); /* the page menu, the gallery */
     }
 }
@@ -509,13 +509,13 @@ static void list_select(sketch_t *s, uint32_t now)
         case 0: to_draw(s); break;
         case 1: print_start(s); break;
         case 2: share_from(s); break;
-        case 3: s->gnote[0] = 0, to_menu(s, SK_SETTINGS, 1); break; /* Back is row 0; the first setting is selected */
+        case 3: s->gnote[0] = 0, to_menu(s, SK_SETTINGS, 0); break; /* opens on Back */
         case 4: sk_set_paper(s, (s->paper + 1) % PP_N, now), to_menu(s, SK_PAGEMENU, 4); break; /* Paper cycles in place */
         case 5: to_draw(s), sk_new_page(s, now); break;
         case 6: sk_to_gallery(s, now); break;
         default: /* Exit Sketch: the page is saved, the app returns as after a long press; only a failed save asks first */
             if (sk_save_page(s, now)) s->exit_req = 1;
-            else s->exit_unsaved = 1, to_menu(s, SK_CONFIRM, 1);
+            else s->exit_unsaved = 1, to_menu(s, SK_CONFIRM, 0);
         }
     } else if (s->mode == SK_SETTINGS) {
         if (s->act_sel == 0) menu_back(s);
