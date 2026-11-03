@@ -60,8 +60,29 @@ static void flower(rig_t *r, int mode, const char *dir, const char *name, int *b
     put(r, dir, name, bad);
 }
 
+/* the Big Brush in every mode, black and grey loops (the batch of 2026-11-03 must look as stamp by stamp) */
+static void big_brush(int mode, const char *dir, int *bad)
+{
+    static rig_t r;
+    rig_new(&r, APP_ORIENT_BAR_BOTTOM);
+    sk_set_mirror(&r.s, mode, r.now += 50);
+    sk_set_brush(&r.s, BR_BRUSH, r.now += 50);
+    sk_set_size(&r.s, 2, r.now += 50);
+    int cx = TW / 2, cy = TH / 2;
+    sk_set_shade(&r.s, SH_BLACK, r.now += 50);
+    curve(&r, cx, cy, -1.5f, -0.2f, 260, 560, 24);
+    sk_set_shade(&r.s, SH_GREY, r.now += 50);
+    curve(&r, cx, cy, -2.6f, -1.6f, 150, 420, 30);
+    frames(&r);
+    char name[64];
+    snprintf(name, sizeof(name), "m6-bigbrush-%d-%s", mode, mode == MR_OFF ? "off" : mode == MR_LR ? "lr" : mode == MR_TB ? "tb" : mode == MR_4 ? "4way" : "kaleido");
+    put(&r, dir, name, bad);
+    rig_end(&r);
+}
+
 void mirror_shots(const char *dir, int *bad)
 {
+    for (int m = MR_OFF; m < MR_N; m++) big_brush(m, dir, bad);
     static rig_t r;
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
     flower(&r, MR_K8, dir, "m1-mirror-kaleidoscope", bad);
