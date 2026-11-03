@@ -391,6 +391,7 @@ void sk_frame(sketch_t *s, uint32_t now)
     sk_settle(s, now); /* the latency was noted when the point was queued */
     frame_ink(s);
     if (s->hv_pend) hover_apply(s);
+    sk_gal_step(s, 0);
 }
 
 void sk_frame_cost(sketch_t *s, uint32_t ms)
@@ -597,7 +598,7 @@ int sk_flush(sketch_t *s, uint32_t now, rect_t *out)
 uint32_t sk_next_due(const sketch_t *s, uint32_t now)
 {
     uint32_t due = 1000000;
-    if (s->want_full || !box_empty(&s->flash) || s->fl_phase) return 0;
+    if (s->want_full || !box_empty(&s->flash) || s->fl_phase || (s->gal_todo && s->mode == SK_GALLERY)) return 0;
     uint32_t cd = sk_cleanup_due(s, now);
     if (cd < due) due = cd;
     if (s->pend.n) {
@@ -721,15 +722,15 @@ int sk_init(sketch_t *s, const sk_env_t *env, uint8_t *fb, int w, int h, int str
     s->bar = *bar;
     sk_cfg_reload(s);
     int want = cfg_int(s, "cur", 0);
-    int num = pg_index(&s->pg, want) >= 0 ? want : s->pg.n ? s->pg.nums[s->pg.n - 1] : 1;
-    if (s->pg.n && pg_load(&s->pg, num, &s->page) == PG_BAD) { /* a damaged page never opens for drawing: the newest one that decodes, else a new page */
+    int num = pg_index(&s->pg, want) >= 0 ? want : s->pg.n ? s->pg.nums[s->pg.n - 1] : 1, rc = PG_MISSING;
+    if (s->pg.n && (rc = pg_load(&s->pg, num, &s->page)) == PG_BAD) { /* a damaged page never opens for drawing: the newest one that decodes, else a new page */
         int i = s->pg.n - 1;
-        while (i >= 0 && pg_load(&s->pg, s->pg.nums[i], &s->page) != PG_OK) i--;
+        while (i >= 0 && (rc = pg_load(&s->pg, s->pg.nums[i], &s->page)) != PG_OK) i--;
         num = i >= 0 ? s->pg.nums[i] : pg_next_num(&s->pg);
         if (i < 0) num = num ? num : 1;
     }
     s->cur = num;
-    if (s->pg.n && pg_index(&s->pg, num) >= 0) sk_open_page(s, num, 0); /* none: the blank one is written with its first ink */
+    if (s->pg.n && pg_index(&s->pg, num) >= 0) sk_opened(s, num, rc, 0); /* decoded once (it was twice); none: the blank one is written with its first ink */
     else cv_fill(&s->page, 1), sk_paper_new(s);
     sk_show_page(s);
     s->want_full = 1;

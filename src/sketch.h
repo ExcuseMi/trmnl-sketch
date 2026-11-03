@@ -141,6 +141,8 @@ typedef struct {
     int mp_on, mp_hold;  /* the mirror picker is open (skmirror.c); a pen press that began on it, or opened it, is still down */
     mp_layout_t mp;
     box_t mp_box;        /* the picker in the framebuffer, whole bytes */
+    int gal_todo, gal_first; /* gallery tiles still without a thumbnail (sk_gal_step); the first index of the screen they are on */
+    uint64_t gal_tried;  /* the screen's tiles whose file was read (bit per slot) */
     struct { int num, x, y; } blit[SK_BLITS]; /* thumbnails to lay over `ui` */
     int blit_n;
     int hot, ptr_ctl;    /* the control (CTL_*) the pen hovers over / a press began on */
@@ -243,6 +245,7 @@ void sk_toast(sketch_t *s, const char *text, uint32_t now);
 int sk_leave_page(sketch_t *s, uint32_t now);
 void sk_make_page(sketch_t *s, uint32_t now);
 void sk_open_page(sketch_t *s, int num, uint32_t now);
+void sk_opened(sketch_t *s, int num, int rc, uint32_t now); /* page num is in s->page already (pg_load gave rc) */
 int sk_is_blank(const canvas_t *c);
 void sk_show_page(sketch_t *s);
 void sk_screen_render(sketch_t *s); /* draws the menu screen of the mode into `ui` and asks for a full refresh */
@@ -256,4 +259,7 @@ int sk_print_check(sketch_t *s); /* the default printer into s->prn: 0, or -1 wi
 void sk_menu_touch(sketch_t *s, int zone, int gesture, uint32_t now);
 void sk_menu_key(sketch_t *s, unsigned down, uint32_t now); /* tablet buttons (bit 0 is button 1) in a menu screen */
 void sk_menu_pen(sketch_t *s, unsigned flags, int fx, int fy, int inside, uint32_t now);
+/* One gallery tile without a thumbnail gets it (a file decoded); each frame, after the screen's refresh went out (early:
+   also before it, into the screen to come) */
+void sk_gal_step(sketch_t *s, int early);
 #endif

@@ -87,6 +87,27 @@ static int cell_avg(const canvas_t *src, int tx, int ty)
     return n ? (white * 255 + n / 2) / n : 255;
 }
 
+/* The same for a whole thumbnail row, cells up to 9 px wide (the X's page: 6 x 6) read as bit windows of a row, counted
+   by a table: the thumbnails of a gallery screen were a pixel at a time (owner 2026-11-03). Returns 0 when the cells are wider */
+static uint8_t pop8[256];
+static int row_avg(const canvas_t *src, int ty, int *out)
+{
+    int y0 = ty * src->h / GAL_TH, y1 = (ty + 1) * src->h / GAL_TH;
+    if ((src->w + GAL_TW - 1) / GAL_TW > 9) return 0;
+    if (!pop8[255])
+        for (int i = 0; i < 256; i++) pop8[i] = (uint8_t)((i & 1) + (i >> 1 & 1) + (i >> 2 & 1) + (i >> 3 & 1) + (i >> 4 & 1) + (i >> 5 & 1) + (i >> 6 & 1) + (i >> 7 & 1));
+    for (int tx = 0; tx < GAL_TW; tx++) {
+        int x0 = tx * src->w / GAL_TW, wd = (tx + 1) * src->w / GAL_TW - x0, n = wd * (y1 - y0), white = 0, bi = x0 >> 3, sh = x0 & 7;
+        for (int y = y0; y < y1 && wd > 0; y++) {
+            const uint8_t *r = src->px + (size_t)y * (size_t)src->stride;
+            uint32_t v = (uint32_t)r[bi] << 8 | (sh + wd > 8 ? r[bi + 1] : 0u), bits = (v >> (16 - sh - wd)) & ((1u << wd) - 1);
+            white += pop8[bits & 255] + (int)(bits >> 8);
+        }
+        out[tx] = n ? (white * 255 + n / 2) / n : 255;
+    }
+    return 1;
+}
+
 const uint8_t *gal_make(gal_cache_t *c, int num, const canvas_t *src)
 {
     gal_thumb_t *slot = 0;
@@ -103,9 +124,11 @@ const uint8_t *gal_make(gal_cache_t *c, int num, const canvas_t *src)
     memset(err, 0, sizeof(int) * 2 * (GAL_TW + 2));
     memset(slot->px, 0, GAL_BYTES);
     int *cur = err + 1, *nxt = err + GAL_TW + 3;
+    int avg[GAL_TW];
     for (int ty = 0; ty < GAL_TH; ty++) {
+        int fast = row_avg(src, ty, avg);
         for (int tx = 0; tx < GAL_TW; tx++) {
-            int v = cell_avg(src, tx, ty), white;
+            int v = fast ? avg[tx] : cell_avg(src, tx, ty), white;
             v += cur[tx]; /* Floyd-Steinberg: looked at against an ordered 8 x 8 matrix, which printed a dot grid on paper */
             white = v >= 128;
             int e = v - (white ? 255 : 0);
@@ -135,6 +158,21 @@ void gal_blit(canvas_t *dst, int orient, const uint8_t *t, int x, int y)
     app_orient_to_fb(orient, dst->w, dst->h, x, y, &ax, &ay);
     app_orient_to_fb(orient, dst->w, dst->h, x + tw - 1, y + th - 1, &bx, &by);
     int f0x = ax < bx ? ax : bx, f0y = ay < by ? ay : by;
+    if (f0x >= 0 && f0y >= 0 && f0x + GAL_TW <= dst->w && f0y + GAL_TH <= dst->h) { /* inside: a byte at a time, shifted into place */
+        int sh = f0x & 7;
+        for (int ty = 0; ty < GAL_TH; ty++) {
+            uint8_t *d = &dst->px[(f0y + ty) * dst->stride + (f0x >> 3)];
+            const uint8_t *src = t + ty * GAL_ROW;
+            for (int j = 0; j < GAL_ROW; j++) {
+                if (!sh) d[j] = src[j];
+                else {
+                    d[j] = (uint8_t)((d[j] & (0xff00 >> sh)) | src[j] >> sh);
+                    d[j + 1] = (uint8_t)((d[j + 1] & (0xff >> sh)) | src[j] << (8 - sh));
+                }
+            }
+        }
+        return;
+    }
     for (int ty = 0; ty < GAL_TH; ty++) {
         int fy = f0y + ty;
         if (fy < 0 || fy >= dst->h) continue;

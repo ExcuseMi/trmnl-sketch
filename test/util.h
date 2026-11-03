@@ -168,6 +168,12 @@ static inline int rig_flush(rig_t *r, uint32_t now, rect_t *out)
     return n;
 }
 static inline int rig_frame(rig_t *r, rect_t *out) { return rig_flush(r, r->now += 100, out); }
+/* The gallery's tiles get their thumbnails a file a frame (sk_gal_step), after the screen's refresh: here all of them at
+   once, into the screen still to be pushed (the tests look at the screen as the full refresh shows it) */
+static inline void rig_gal_fill(rig_t *r)
+{
+    for (int k = 0; k < 200 && r->s.gal_todo; k++) sk_gal_step(&r->s, 1);
+}
 static inline void rig_end(rig_t *r)
 {
     CHECK(r->bare_fulls == 0);

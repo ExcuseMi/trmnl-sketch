@@ -37,19 +37,19 @@ static int is_dmg(const sketch_t *s, int num)
     return 0;
 }
 
-/* The thumbnail of a page: cached, else made from the page on screen or from its file (read through `ui` as scratch) */
-static const uint8_t *thumb_for(sketch_t *s, int num)
+/* The thumbnail of a page: cached, else made from the page on screen or from its file (read through `sc` as scratch) */
+static const uint8_t *thumb_in(sketch_t *s, int num, canvas_t *sc)
 {
     const uint8_t *t = gal_find(&s->cache, num);
     if (t) return t;
     if (num == s->cur && !s->paper) return gal_make(&s->cache, num, &s->page);
     if (num == s->cur) { /* the paper shows in the thumbnail, lightly (the pattern is one pixel in three) */
-        memcpy(s->ui.px, s->page.px, (size_t)s->ui.stride * (size_t)s->ui.h);
-        box_t all = { 0, 0, s->ui.w - 1, s->ui.h - 1 };
-        pp_overlay(&s->ui, &all, s->paper, s->paper_sp);
-        return gal_make(&s->cache, num, &s->ui);
+        memcpy(sc->px, s->page.px, (size_t)sc->stride * (size_t)sc->h);
+        box_t all = { 0, 0, sc->w - 1, sc->h - 1 };
+        pp_overlay(sc, &all, s->paper, s->paper_sp);
+        return gal_make(&s->cache, num, sc);
     }
-    int rc = pg_load(&s->pg, num, &s->ui);
+    int rc = pg_load(&s->pg, num, sc);
     if (rc == PG_MISSING) return 0;
     if (rc == PG_BAD) { /* never deleted, never opened for drawing: a "Damaged" tile */
         if (!is_dmg(s, num) && s->dmg_n < SK_DMG_MAX) s->dmg[s->dmg_n++] = (uint16_t)num;
@@ -57,14 +57,24 @@ static const uint8_t *thumb_for(sketch_t *s, int num)
     }
     int pk, psp;
     pg_paper_load(&s->pg, num, &pk, &psp);
-    box_t all = { 0, 0, s->ui.w - 1, s->ui.h - 1 };
-    pp_overlay(&s->ui, &all, pk, psp);
-    return gal_make(&s->cache, num, &s->ui);
+    box_t all = { 0, 0, sc->w - 1, sc->h - 1 };
+    pp_overlay(sc, &all, pk, psp);
+    return gal_make(&s->cache, num, sc);
 }
+
+static const uint8_t *thumb_for(sketch_t *s, int num) { return thumb_in(s, num, &s->ui); } /* before ui is drawn */
 
 static void blit_add(sketch_t *s, int num, int x, int y)
 {
     if (s->blit_n < SK_BLITS && thumb_for(s, num)) s->blit[s->blit_n].num = num, s->blit[s->blit_n].x = x, s->blit[s->blit_n].y = y, s->blit_n++;
+}
+
+/* A gallery tile's thumbnail when it costs nothing (cached, or the page on screen, which is in memory); else the tile
+   waits for sk_gal_step (owner 2026-11-03: a screen of 15 tiles decoded every page file before it showed, 3 to 5 s) */
+static void blit_cheap(sketch_t *s, int slot, int num, int x, int y)
+{
+    if (gal_find(&s->cache, num) || num == s->cur) return blit_add(s, num, x, y);
+    if (!is_dmg(s, num) && !(s->gal_tried >> slot & 1)) s->gal_todo = 1; /* a damaged or missing file is read once */
 }
 
 static void ui_g(sketch_t *s, gfx_t *g) { gfx_init(g, s->ui.px, s->ui.w, s->ui.h, s->ui.stride, s->orient); }
@@ -128,6 +138,8 @@ static void menu_draw(sketch_t *s)
     s->blit_n = 0;
     gal_layout(&s->L, s->orient, user_w(s), user_h(s));
     int first = (s->sel / s->L.per) * s->L.per, n = gcount(s) - first, nums[64];
+    if (first != s->gal_first) s->gal_first = first, s->gal_tried = 0; /* another screen of tiles */
+    s->gal_todo = 0;
     uint8_t dmg[64];
     memset(dmg, 0, sizeof(dmg));
     if (n > s->L.per) n = s->L.per;
@@ -137,7 +149,7 @@ static void menu_draw(sketch_t *s)
             int x, y;
             gal_tile_xy(&s->L, i, &x, &y);
             nums[i] = gnum(s, first + i);
-            if (nums[i]) blit_add(s, nums[i], x, y);
+            if (nums[i]) blit_cheap(s, i, nums[i], x, y);
             dmg[i] = nums[i] && is_dmg(s, nums[i]);
         }
     int px = s->L.ax1 - s->L.tw - 12, py = (s->L.ay0 + s->L.ay1) / 2 - s->L.th / 2; /* the preview, framed as a gallery tile */
@@ -283,6 +295,40 @@ static void redraw_boxes(sketch_t *s, const box_t *a, const box_t *b, const box_
     sk_menu_cursor(s);
 }
 
+void sk_gal_step(sketch_t *s, int early)
+{
+    if (!s->gal_todo || s->mode != SK_GALLERY || !s->ui.px || s->fl_phase || !box_empty(&s->flash) || (s->want_full && !early)) return;
+    int first = s->gal_first, n = gcount(s) - first;
+    if (n > s->L.per) n = s->L.per;
+    for (int i = 0; i < n && i < 64; i++) {
+        int num = gnum(s, first + i), x, y;
+        if (!num || (s->gal_tried >> i & 1) || gal_find(&s->cache, num) || is_dmg(s, num) || num == s->cur) continue;
+        s->gal_tried |= 1ull << i;
+        int dmg0 = s->dmg_n;
+        canvas_t sc = s->ui; /* the file is decoded beside the screen being shown */
+        sc.px = malloc((size_t)sc.stride * (size_t)sc.h);
+        const uint8_t *t = sc.px ? thumb_in(s, num, &sc) : 0; /* one file decoded a frame; no memory: the tile stays empty */
+        free(sc.px);
+        box_t b;
+        gfx_t g;
+        gal_tile_xy(&s->L, i, &x, &y);
+        ui_g(s, &g);
+        ui_fb_box(&g, x, y, x + s->L.tw - 1, y + s->L.th - 1, &b);
+        box_clip(&b, s->fb.w, s->fb.h);
+        if (s->dmg_n != dmg0) return redraw_boxes(s, &b, 0, 0); /* the "Damaged" tile: the screen drawn again (sets gal_todo) */
+        if (t && s->want_full) gal_blit(&s->ui, s->orient, t, x, y); /* the screen's refresh is still to come: it takes ui */
+        else if (t) {
+            sk_cursor_hide(s);
+            gal_blit(&s->ui, s->orient, t, x, y);
+            cv_copy_box(&s->fb, &s->ui, &b);
+            rs_add(&s->pend, &b, s->fb.w, s->fb.h);
+            sk_menu_cursor(s);
+        }
+        return; /* gal_todo stays: the next frame looks again */
+    }
+    s->gal_todo = 0;
+}
+
 /* The selection (a gallery tile or a list row) becomes v: only the old and the new highlight are refreshed, unless the
    gallery turns to another screen of tiles */
 static void sel_set(sketch_t *s, int v)
@@ -338,6 +384,7 @@ void sk_to_gallery(sketch_t *s, uint32_t now)
     if (s->mode != SK_PAGEMENU || !s->ui.px) return;
     pg_scan(&s->pg);
     s->dmg_n = 0;
+    s->gal_first = -1;
     s->sel = gidx_of(s, s->cur);
     s->gnote[0] = 0;
     s->ptr_down = 0;
@@ -348,8 +395,7 @@ static void to_draw(sketch_t *s)
 {
     s->cursor = 0; /* the page comes back whole */
     free(s->ui.px);
-    s->ui.px = 0;
-    gal_cache_free(&s->cache);
+    s->ui.px = 0; /* the thumbnails stay cached for the next visit (a save drops its page's) */
     s->mode = SK_DRAW;
     sk_resume_draw(s);
     s->want_full = 1;
@@ -365,6 +411,12 @@ static void gal_activate(sketch_t *s, uint32_t now)
         }
         to_draw(s);
         return sk_make_page(s, now);
+    }
+    if (!is_dmg(s, num) && num != s->cur && !gal_find(&s->cache, num)) { /* a tile picked before its thumbnail came: is the file good? */
+        canvas_t sc = s->ui;
+        sc.px = malloc((size_t)sc.stride * (size_t)sc.h);
+        if (sc.px) thumb_in(s, num, &sc);
+        free(sc.px);
     }
     if (is_dmg(s, num)) { /* cannot be opened for drawing; its one action rescues the file */
         s->act_num = num;

@@ -21,6 +21,7 @@ typedef struct {
 } sk_fs_t;
 
 #define PG_LIST_MAX 400
+#define PG_BLANK_MAX 8192
 enum { PG_OK = 0, PG_MISSING = -1, PG_BAD = -2, PG_IO = -3 };
 
 typedef struct {
@@ -53,6 +54,6 @@ int pg_keep_bad(pages_t *p, int num);
 /* Deletes the page file and its list entry. The file's remove result: 0 or < 0 */
 int pg_remove(pages_t *p, int num);
 /* Deletes every page file that decodes as entirely white (a blank page is never kept on disk); a file that does not decode
-   stays. `keep`: a page number to spare (0: none). `scratch` is overwritten. Returns how many went */
+   stays. Only files up to PG_BLANK_MAX bytes are decoded (a blank 1872 x 1404 page is 3 KB; a larger file has ink). `keep`: a page number to spare (0: none). `scratch` is overwritten. Returns how many went */
 int pg_purge_blank(pages_t *p, canvas_t *scratch, int keep);
 #endif

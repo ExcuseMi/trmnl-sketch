@@ -36,11 +36,12 @@ int sk_is_blank(const canvas_t *c)
     return 1;
 }
 
-void sk_open_page(sketch_t *s, int num, uint32_t now)
+void sk_open_page(sketch_t *s, int num, uint32_t now) { sk_opened(s, num, pg_load(&s->pg, num, &s->page), now); }
+
+void sk_opened(sketch_t *s, int num, int rc, uint32_t now)
 {
     s->cur = num;
     s->bad_pending = 0;
-    int rc = pg_load(&s->pg, num, &s->page);
     if (rc == PG_MISSING) cv_fill(&s->page, 1);
     if (rc == PG_BAD) s->bad_pending = 1;
     hist_reset(&s->hist);

@@ -71,34 +71,39 @@ int pg_next_num(const pages_t *p)
     return top >= SK_PAGES_MAX ? 0 : top + 1;
 }
 
-int pg_load(pages_t *p, int num, canvas_t *c)
+/* Page num's file into buf (cap bytes): PG_OK with *got, PG_MISSING, or PG_BAD when it is larger than cap or unreadable */
+static int read_page(pages_t *p, int num, uint8_t *buf, size_t cap, size_t *got)
 {
     char path[48];
     pg_path(path, sizeof(path), num, ".png");
     void *f = p->fs->open(p->fs->ctx, path, 0);
-    if (!f) return cv_fill(c, 1), PG_MISSING;
-    uint8_t *buf = malloc(SK_FILE_MAX);
-    if (!buf) return p->fs->close(p->fs->ctx, f), PG_IO;
-    size_t got = 0;
+    if (!f) return PG_MISSING;
     int bad = 0;
+    *got = 0;
     for (;;) {
-        int k = p->fs->read(p->fs->ctx, f, buf + got, (int)(SK_FILE_MAX - got));
+        int k = p->fs->read(p->fs->ctx, f, buf + *got, (int)(cap - *got));
         if (k < 0) bad = 1;
         if (k <= 0) break;
-        got += (size_t)k;
-        if (got >= SK_FILE_MAX) {
-            bad = 1; /* larger than any page we write */
+        *got += (size_t)k;
+        if (*got >= cap) {
+            bad = 1; /* larger than the caller takes */
             break;
         }
     }
     p->fs->close(p->fs->ctx, f);
-    int rc = bad ? -1 : png_decode(buf, got, c->px, c->w, c->h, c->stride);
+    return bad ? PG_BAD : PG_OK;
+}
+
+int pg_load(pages_t *p, int num, canvas_t *c)
+{
+    uint8_t *buf = malloc(SK_FILE_MAX);
+    if (!buf) return PG_IO;
+    size_t got = 0;
+    int rc = read_page(p, num, buf, SK_FILE_MAX, &got);
+    if (rc == PG_OK && png_decode(buf, got, c->px, c->w, c->h, c->stride)) rc = PG_BAD;
     free(buf);
-    if (rc) {
-        cv_fill(c, 1);
-        return PG_BAD;
-    }
-    return PG_OK;
+    if (rc != PG_OK) cv_fill(c, 1);
+    return rc;
 }
 
 /* Writes n bytes to dst through a temp file and a rename; PG_OK or PG_IO */
@@ -214,9 +219,14 @@ int pg_remove(pages_t *p, int num)
 int pg_purge_blank(pages_t *p, canvas_t *scratch, int keep)
 {
     int gone = 0;
+    uint8_t *buf = malloc(PG_BLANK_MAX + 1);
+    if (!buf) return 0;
     for (int i = p->n - 1; i >= 0; i--) {
         int num = p->nums[i];
-        if (num == keep || pg_load(p, num, scratch) != PG_OK) continue; /* a file that does not decode stays, whatever it is */
+        size_t got = 0;
+        /* a page with ink is a larger file: only a small one is decoded (owner 2026-11-03: the start decoded every page, 5 s with 40) */
+        if (num == keep || read_page(p, num, buf, PG_BLANK_MAX + 1, &got) != PG_OK) continue;
+        if (png_decode(buf, got, scratch->px, scratch->w, scratch->h, scratch->stride)) continue; /* a file that does not decode stays, whatever it is */
         int white = 1, rb = (scratch->w + 7) / 8;
         for (int y = 0; white && y < scratch->h; y++)
             for (int x = 0; x < rb; x++)
@@ -226,5 +236,6 @@ int pg_purge_blank(pages_t *p, canvas_t *scratch, int keep)
                 }
         if (white && pg_remove(p, num) >= 0) gone++;
     }
+    free(buf);
     return gone;
 }

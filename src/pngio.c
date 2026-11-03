@@ -197,75 +197,72 @@ typedef struct {
     const uint8_t *in;
     size_t n, pos;
     uint32_t bitbuf;
-    int nb, bad;
-    uint8_t *win; /* the last 32 KB of the unfiltered-deflate output, for matches */
-    uint32_t total;
-    uint8_t *px;
-    int stride, rb, h, row, col, filter;
+    int nb, bad, ghost; /* bits in bitbuf; of them, ghost zero bits past the end of the input (taking one is an error) */
+    uint8_t *raw; /* the inflated stream (filter byte and row, h times): matches copy from it */
+    uint32_t total, cap;
 } dec_t;
 
-static int get_bit(dec_t *d)
+/* The bits come a byte at a time into a 32-bit buffer and the fixed codes are looked up 9 bits at once (owner 2026-11-03:
+   a bit per call made opening a page and every gallery thumbnail slow) */
+static void refill(dec_t *d)
 {
-    if (d->nb == 0) {
-        if (d->pos >= d->n) return d->bad = 1, 0;
-        d->bitbuf = d->in[d->pos++];
-        d->nb = 8;
+    while (d->nb <= 24) {
+        uint32_t b = 0;
+        if (d->pos < d->n) b = d->in[d->pos++];
+        else d->ghost += 8;
+        d->bitbuf |= b << d->nb;
+        d->nb += 8;
     }
-    int v = (int)(d->bitbuf & 1);
-    d->bitbuf >>= 1;
-    d->nb--;
+}
+static uint32_t get_bits(dec_t *d, int n) /* least significant first, n <= 16 */
+{
+    if (d->nb < n) refill(d);
+    uint32_t v = d->bitbuf & ((1u << n) - 1);
+    d->bitbuf >>= n;
+    d->nb -= n;
+    if (d->nb < d->ghost) d->bad = 1;
     return v;
 }
-static uint32_t get_bits(dec_t *d, int n) /* least significant first */
+
+/* The fixed literal/length code: the next 9 bits (as they come) to the symbol | its length << 9 */
+static uint16_t fix_tab[512];
+static void fix_init(void)
 {
-    uint32_t v = 0;
-    for (int i = 0; i < n; i++) v |= (uint32_t)get_bit(d) << i;
-    return v;
+    if (fix_tab[0]) return;
+    for (int sym = 0; sym < 288; sym++) {
+        uint32_t code = sym < 144 ? 0x30u + (uint32_t)sym : sym < 256 ? 0x190u + (uint32_t)(sym - 144) : sym < 280 ? (uint32_t)(sym - 256) : 0xc0u + (uint32_t)(sym - 280);
+        int len = sym < 144 ? 8 : sym < 256 ? 9 : sym < 280 ? 7 : 8;
+        uint32_t r = 0;
+        for (int i = 0; i < len; i++) r |= ((code >> i) & 1u) << (len - 1 - i);
+        for (uint32_t k = r; k < 512; k += 1u << len) fix_tab[k] = (uint16_t)(sym | len << 9);
+    }
 }
 
 static void emit(dec_t *d, uint8_t b)
 {
-    d->win[d->total++ & 0x7fff] = b;
-    if (d->row >= d->h) return (void)(d->bad = 1);
-    if (d->col == 0) {
-        d->filter = b;
-        if (b > 2) d->bad = 1;
-        d->col = 1;
-        return;
-    }
-    int i = d->col - 1;
-    uint8_t *r = d->px + (size_t)d->row * (size_t)d->stride;
-    uint8_t left = i ? r[i - 1] : 0, up = d->row ? r[i - d->stride] : 0;
-    r[i] = (uint8_t)(b + (d->filter == 1 ? left : d->filter == 2 ? up : 0));
-    if (++d->col > d->rb) d->col = 0, d->row++;
+    if (d->total >= d->cap) d->bad = 1;
+    else d->raw[d->total++] = b;
 }
 
 static int inflate_block(dec_t *d, int fixed)
 {
     if (!fixed) { /* stored */
-        d->nb = 0;
+        get_bits(d, d->nb & 7); /* to the byte boundary; whole bytes still in the buffer go back to the input */
+        d->pos -= (size_t)((d->nb - d->ghost) / 8);
+        d->nb = d->ghost = 0, d->bitbuf = 0;
         if (d->pos + 4 > d->n) return -1;
         unsigned len = d->in[d->pos] | d->in[d->pos + 1] << 8, nlen = d->in[d->pos + 2] | d->in[d->pos + 3] << 8;
         d->pos += 4;
         if ((len ^ 0xffffu) != nlen || d->pos + len > d->n) return -1;
-        for (unsigned i = 0; i < len && !d->bad; i++) emit(d, d->in[d->pos++]);
+        if (len > d->cap - d->total) return -1;
+        memcpy(d->raw + d->total, d->in + d->pos, len);
+        d->total += len, d->pos += len;
         return d->bad ? -1 : 0;
     }
     for (;;) {
-        uint32_t code = 0;
-        for (int i = 0; i < 7; i++) code = code << 1 | (uint32_t)get_bit(d);
-        int sym;
-        if (code <= 0x17) sym = 256 + (int)code;
-        else {
-            code = code << 1 | (uint32_t)get_bit(d);
-            if (code >= 0x30 && code <= 0xbf) sym = (int)code - 0x30;
-            else if (code >= 0xc0 && code <= 0xc7) sym = 280 + (int)code - 0xc0;
-            else {
-                code = code << 1 | (uint32_t)get_bit(d);
-                if (code < 0x190 || code > 0x1ff) return -1;
-                sym = 144 + (int)code - 0x190;
-            }
-        }
+        if (d->nb < 9) refill(d);
+        int e = fix_tab[d->bitbuf & 511], sym = e & 511;
+        get_bits(d, e >> 9);
         if (d->bad) return -1;
         if (sym < 256) emit(d, (uint8_t)sym);
         else if (sym == 256) return 0;
@@ -273,12 +270,15 @@ static int inflate_block(dec_t *d, int fixed)
             int s = sym - 257;
             if (s > 28) return -1;
             int len = len_base[s] + (int)get_bits(d, len_extra[s]);
-            uint32_t dc = 0;
-            for (int i = 0; i < 5; i++) dc = dc << 1 | (uint32_t)get_bit(d);
+            uint32_t dc = get_bits(d, 5), rv = 0; /* a 5-bit code, most significant bit first */
+            for (int i = 0; i < 5; i++) rv |= ((dc >> i) & 1u) << (4 - i);
+            dc = rv;
             if (dc > 29) return -1;
             uint32_t dist = dist_base[dc] + get_bits(d, dist_extra[dc]);
-            if (dist > d->total || dist > 32768) return -1;
-            for (int i = 0; i < len && !d->bad; i++) emit(d, d->win[(d->total - dist) & 0x7fff]);
+            if (dist > d->total || dist > 32768 || (uint32_t)len > d->cap - d->total) return -1;
+            uint8_t *o = d->raw + d->total;
+            for (int i = 0; i < len; i++) o[i] = o[i - (int)dist]; /* byte by byte: a match may overlap itself */
+            d->total += (uint32_t)len;
         }
         if (d->bad) return -1;
     }
@@ -313,18 +313,29 @@ int png_decode(const uint8_t *in, size_t n, uint8_t *px, int w, int h, int strid
     }
     if (!idat || !ended || idat_n < 6) return -1;
     if ((idat[0] & 0x0f) != 8 || ((idat[0] << 8) | idat[1]) % 31 || (idat[1] & 0x20)) return -1;
-    uint8_t *tmp = malloc((size_t)stride * (size_t)h), *win = malloc(32768);
-    if (!tmp || !win) return free(tmp), free(win), -1;
-    dec_t d = { idat, idat_n - 4, 2, 0, 0, 0, win, 0, tmp, stride, rb, h, 0, 0, 0 };
+    uint32_t cap = (uint32_t)(rb + 1) * (uint32_t)h; /* the stream is the rows with their filter bytes, nothing more */
+    uint8_t *raw = malloc(cap);
+    if (!raw) return -1;
+    fix_init();
+    dec_t d = { idat, idat_n - 4, 2, 0, 0, 0, 0, raw, 0, cap };
     int rc = 0, last = 0;
     while (!last && rc == 0) {
-        last = get_bit(&d);
+        last = (int)get_bits(&d, 1);
         uint32_t t = get_bits(&d, 2);
         rc = d.bad || t > 1 ? -1 : inflate_block(&d, (int)t);
     }
-    if (rc == 0 && (d.bad || d.row != h || d.col != 0)) rc = -1;
-    if (rc == 0) memcpy(px, tmp, (size_t)stride * (size_t)h); /* the IDAT chunk's CRC covered the bytes */
-    free(tmp);
-    free(win);
+    if (rc == 0 && (d.bad || d.total != cap)) rc = -1;
+    for (int y = 0; rc == 0 && y < h; y++) /* the filters (none, sub, up) checked, then undone into px: px is only written for a good file */
+        if (raw[(size_t)y * (size_t)(rb + 1)] > 2) rc = -1;
+    for (int y = 0; rc == 0 && y < h; y++) {
+        const uint8_t *r = raw + (size_t)y * (size_t)(rb + 1);
+        uint8_t *o = px + (size_t)y * (size_t)stride, *up = y ? o - stride : 0;
+        if (r[0] == 0 || (r[0] == 2 && !y)) memcpy(o, r + 1, (size_t)rb);
+        else if (r[0] == 2)
+            for (int i = 0; i < rb; i++) o[i] = (uint8_t)(r[1 + i] + up[i]);
+        else
+            for (int i = 0; i < rb; i++) o[i] = (uint8_t)(r[1 + i] + (i ? o[i - 1] : 0));
+    }
+    free(raw);
     return rc;
 }

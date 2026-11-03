@@ -289,6 +289,7 @@ static void test_damaged_page(void)
     for (int i = 0; i < 5; i++) btn(&r, 2);
     btn(&r, 4);
     CHECK(r.s.mode == SK_GALLERY);
+    rig_gal_fill(&r);
     rect_t out[SK_MAX_RECTS];
     rig_frame(&r, out);
     CHECK(r.s.dmg_n == 1 && r.s.dmg[0] == 2); /* found while the tiles were drawn */
