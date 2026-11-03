@@ -13,7 +13,7 @@ enum { BF_OK, BF_NOTHING, BF_MEM, BF_COMPLEX };
 #define BF_GAP_MAX 6
 #define BF_STACK 8192 /* seeds (4 bytes each); a fuller stack is repaired by rescans, never overflows */
 
-typedef struct {
+typedef struct bf_s {
     uint8_t *mask; /* 1 = filled; page sized; freed by bf_free */
     int w, h, stride;
     box_t bb;
@@ -28,6 +28,8 @@ void bf_free(bf_t *r);
 void bf_merge(bf_t *dst, bf_t *src);
 uint32_t bf_runs(const bf_t *r);        /* slots bf_emit writes */
 void bf_emit(const bf_t *r, hpt_t *out); /* the runs of the region */
+/* Paints the region on a page with `shade` (the fill itself; its undo is the delta, hist_fill_mask) */
+void bf_paint(canvas_t *c, const bf_t *r, int shade);
 /* Paints the runs on a page with `shade` (history replay) */
 void bf_apply(canvas_t *c, const hpt_t *runs, uint32_t n, int shade);
 #endif

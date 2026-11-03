@@ -77,7 +77,12 @@ static int live(const hist_t *h, int below, int *oldest, int *newest)
     return *oldest >= 0;
 }
 
-/* Room for n bytes after the deltas of strokes below `below`: the offset, or -1 (the oldest deltas are given up first) */
+static void bake(hist_t *h, int k);
+static void bake_finish(hist_t *h);
+static int pinned(const hstroke_t *s) { return s->kind == HK_FILL && s->n == 0; } /* a fill kept only as its delta */
+
+/* Room for n bytes after the deltas of strokes below `below`: the offset, or -1 (the oldest deltas are given up first;
+   a fill that is only its delta cannot give it up: it and the strokes before it go into the base instead) */
 static int64_t pool_alloc(hist_t *h, int below, uint32_t n)
 {
     if (n == 0 || n > h->pool_cap) return -1;
@@ -89,6 +94,12 @@ static int64_t pool_alloc(hist_t *h, int below, uint32_t n)
             if (head >= n) return 0;
         } else if (head - tail >= n) {
             return tail;
+        }
+        if (pinned(&h->st[o])) { /* it and the strokes before it into the base */
+            int k = o + 1;
+            if (h->baking) bake_finish(h), below--, k--; /* (the oldest stroke left the log) */
+            if (k > 0) bake(h, k), below -= k;
+            continue;
         }
         h->st[o].dlen = 0; /* undone by drawing the page again from now on */
     }
@@ -103,6 +114,7 @@ static void delta_take(hist_t *h, int i)
     if (!h->shadow.px) return;
     uint32_t n = hd_encode(h->page, &h->shadow, &s->bb, 0);
     int64_t at = n ? pool_alloc(h, i, n) : -1;
+    s = &h->st[h->st_cur - 1]; /* (i is the newest stroke; pool_alloc may have baked older ones out of the log) */
     if (at >= 0) {
         hd_encode(h->page, &h->shadow, &s->bb, h->pool + at);
         s->doff = (uint32_t)at, s->dlen = n;
@@ -252,7 +264,8 @@ void hist_end(hist_t *h)
 {
     if (!h->open) return;
     h->open = 0;
-    if (h->st[h->st_cur - 1].n == 0 && h->st[h->st_cur - 1].kind != HK_CLEAR) h->st_cur--, h->st_n = h->st_cur;
+    hstroke_t *s = &h->st[h->st_cur - 1];
+    if (s->n == 0 && s->kind != HK_CLEAR && s->kind != HK_FILL) h->st_cur--, h->st_n = h->st_cur;
     else delta_take(h, h->st_cur - 1);
 }
 
@@ -326,4 +339,21 @@ void hist_fill_end(hist_t *h, uint32_t n, const box_t *bb)
     h->pt_n += n;
     apply(h->page, s, h->pts + s->first);
     hist_end(h);
+}
+
+int hist_fill_mask(hist_t *h, const bf_t *r, const bstyle_t *style)
+{
+    if (!h->shadow.px || !h->pool_cap) return 0;
+    hist_begin_style(h, HK_FILL, style);
+    hstroke_t *s = &h->st[h->st_cur - 1];
+    s->bb = r->bb;
+    bf_paint(h->page, r, style->shade);
+    hist_end(h);
+    s = &h->st[h->st_cur - 1];
+    if (!s->dlen) { /* no room for its delta (a pool halved by short memory): the page as it is becomes the base, no undo */
+        memcpy(h->base.px, h->page->px, (size_t)h->page->stride * (size_t)h->page->h);
+        h->baking = 0, h->pt_n = 0, h->st_n = h->st_cur = 0;
+        return 2;
+    }
+    return 1;
 }

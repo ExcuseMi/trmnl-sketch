@@ -59,8 +59,16 @@ void sk_fill_at(sketch_t *s, int x, int y, uint32_t now)
         return;
     }
     s->bk_ask_until = now;
-    uint32_t n = bf_runs(&r);
     bstyle_t st = { BR_FILL, s->sty.shade, 1, s->sty.mirror, 0 };
+    int kept = hist_fill_mask(&s->hist, &r, &st); /* the fill as its delta: any size, bounded by the pool */
+    if (kept) {
+        box_t bb = r.bb;
+        bf_free(&r);
+        sk_page_changed(s, &bb, now);
+        if (kept == 2) sk_toast(s, "Filled. Too big to undo", now);
+        return;
+    }
+    uint32_t n = bf_runs(&r); /* no deltas (memory short): the runs in the log, as before */
     hpt_t *slots = hist_fill_begin(&s->hist, n, &st);
     if (!slots) {
         bf_free(&r);

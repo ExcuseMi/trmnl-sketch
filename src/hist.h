@@ -80,6 +80,11 @@ void hist_clear(hist_t *h, box_t *changed);
    NULL when n alone does not fit), the caller writes them (bf_emit); hist_fill_end paints them with the style's shade */
 hpt_t *hist_fill_begin(hist_t *h, uint32_t n, const bstyle_t *style);
 void hist_fill_end(hist_t *h, uint32_t n, const box_t *bb);
+/* A bucket fill as a stroke of its own kept only as its delta (owner 2026-11-03: a Grey fill over a busy page needed 44,096
+   runs, the log holds SK_HIST_POINTS): paints the region and takes its delta. 1; 2 when the delta did not fit (the page
+   is the new base, no undo); 0 without deltas (the caller keeps runs: hist_fill_begin) */
+struct bf_s;
+int hist_fill_mask(hist_t *h, const struct bf_s *r, const bstyle_t *style);
 int hist_can_undo(const hist_t *h);
 int hist_can_redo(const hist_t *h);
 #endif

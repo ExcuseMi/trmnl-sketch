@@ -61,18 +61,19 @@ static void bf_push(bfs_t *s, int x, int y)
     s->xy[2 * s->n] = (int16_t)x, s->xy[2 * s->n + 1] = (int16_t)y, s->n++;
 }
 
-/* The pixels of row ny (from xl to xr) that can be filled: a seed for the start of each run */
+/* The pixels of row ny (from xl to xr) that can be filled: a seed for the start of each run (a byte at a time: the run
+   starts are the fillable bits whose left neighbour is not) */
 static void bf_seeds(const bfc_t *k, bfs_t *s, int ny, int xl, int xr)
 {
-    int in = 0;
-    for (int x = xl; x <= xr; x++) {
-        if (!(x & 7) && x + 7 <= xr && !bf_ok(k, x >> 3, ny)) { /* a whole byte nothing of which can be filled */
-            in = 0, x += 7;
-            continue;
-        }
-        int o = bf_okp(k, x, ny);
-        if (o && !in) bf_push(s, x, ny);
-        in = o;
+    int carry = 0;
+    for (int b = xl >> 3; b <= xr >> 3; b++) {
+        uint8_t o = bf_ok(k, b, ny);
+        if (b == xl >> 3) o &= (uint8_t)(0xff >> (xl & 7));
+        if (b == xr >> 3) o &= (uint8_t)(0xff << (7 - (xr & 7)));
+        uint8_t st = (uint8_t)(o & ~(o >> 1 | carry << 7));
+        for (int i = 0; st; i++)
+            if (st >> (7 - i) & 1) bf_push(s, b * 8 + i, ny), st &= (uint8_t)~(0x80 >> i);
+        carry = o & 1;
     }
 }
 
@@ -134,25 +135,32 @@ static int bf_flood(bfc_t *k, int x, int y, size_t cap)
 
 static void bf_dil(uint8_t *m, int stride, int h, int g, uint8_t *r0, uint8_t *r1)
 {
-    for (int p = 0; p < g; p++)
-        for (int y = 0; y < h; y++) {
-            uint8_t *row = m + y * stride, prev = 0;
-            for (int i = 0; i < stride; i++) {
-                uint8_t o = row[i], nx = i + 1 < stride ? row[i + 1] : 0;
-                row[i] = (uint8_t)(o | (o << 1 | nx >> 7) | (o >> 1 | prev << 7));
-                prev = o;
-            }
+    (void)r0, (void)r1;
+    if (g <= 0) return;
+    for (int y = 0; y < h; y++) { /* across: one pass, the byte and g bits of each neighbour in a 24-bit window (g <= 8) */
+        uint8_t *row = m + (size_t)y * (size_t)stride, prev = 0;
+        for (int i = 0; i < stride; i++) {
+            uint8_t o = row[i], nx = i + 1 < stride ? row[i + 1] : 0;
+            uint32_t w = (uint32_t)prev << 16 | (uint32_t)o << 8 | nx, v = 0;
+            if (o | prev | nx)
+                for (int k = -g; k <= g; k++) v |= w >> (8 + k);
+            row[i] = (uint8_t)v;
+            prev = o;
         }
-    for (int p = 0; p < g; p++) {
-        uint8_t *up = r0, *cur = r1;
-        memset(up, 0, (size_t)stride);
-        for (int y = 0; y < h; y++) {
-            uint8_t *row = m + y * stride;
-            memcpy(cur, row, (size_t)stride);
-            for (int i = 0; i < stride; i++) row[i] |= (uint8_t)(up[i] | (y + 1 < h ? row[stride + i] : 0));
-            uint8_t *t = up;
-            up = cur, cur = t;
+    }
+    /* down and up: row y takes rows y .. y + g (the rows below are still the old ones), then from the bottom row y takes
+       row y - g (not yet changed): together rows y - g .. y + g, in g + 1 reads a byte instead of g passes */
+    for (int y = 0; y < h; y++) {
+        uint8_t *row = m + (size_t)y * (size_t)stride;
+        for (int k = 1; k <= g && y + k < h; k++) {
+            const uint8_t *nb = row + (size_t)k * (size_t)stride;
+            for (int i = 0; i < stride; i++) row[i] |= nb[i];
         }
+    }
+    for (int y = h - 1; y >= g; y--) {
+        uint8_t *row = m + (size_t)y * (size_t)stride;
+        const uint8_t *up = row - (size_t)g * (size_t)stride;
+        for (int i = 0; i < stride; i++) row[i] |= up[i];
     }
 }
 
@@ -190,7 +198,7 @@ void bf_free(bf_t *r)
     r->mask = 0;
 }
 
-static void bf_box(bf_t *r)
+static void bf_box(bf_t *r) /* a byte at a time: its first and last set bit (a pixel at a time was 2.6 M calls for a page) */
 {
     box_clear(&r->bb);
     r->px = 0;
@@ -198,9 +206,12 @@ static void bf_box(bf_t *r)
         for (int b = 0; b < r->stride; b++) {
             uint8_t v = r->mask[y * r->stride + b];
             if (!v) continue;
-            r->px += (uint32_t)__builtin_popcount(v);
-            for (int i = 0; i < 8; i++)
-                if (v >> (7 - i) & 1) box_add(&r->bb, b * 8 + i, y);
+            r->px += (uint32_t)(((v >> 7) & 1) + ((v >> 6) & 1) + ((v >> 5) & 1) + ((v >> 4) & 1) + ((v >> 3) & 1) + ((v >> 2) & 1) + ((v >> 1) & 1) + (v & 1));
+            int lo = 0, hi = 7;
+            while (!(v >> (7 - lo) & 1)) lo++;
+            while (!(v >> (7 - hi) & 1)) hi--;
+            box_add(&r->bb, b * 8 + lo, y);
+            box_add(&r->bb, b * 8 + hi, y);
         }
 }
 
@@ -317,5 +328,17 @@ void bf_apply(canvas_t *c, const hpt_t *runs, uint32_t n, int shade)
     for (uint32_t i = 0; i < n; i++) {
         y += runs[i].d;
         if (runs[i].x >= 0) cv_span_pat(c, y, runs[i].x, runs[i].y, shade);
+    }
+}
+
+void bf_paint(canvas_t *c, const bf_t *r, int shade)
+{
+    for (int y = r->bb.y0; y <= r->bb.y1 && r->mask; y++) {
+        uint8_t pw = 0; /* the shade's white bits of this row */
+        for (int x = 0; x < 8; x++) pw = (uint8_t)(pw << 1 | !cv_shade_black(shade, x, y));
+        uint8_t *row = c->px + y * c->stride;
+        const uint8_t *m = r->mask + y * r->stride;
+        for (int b = r->bb.x0 >> 3; b <= r->bb.x1 >> 3; b++)
+            if (m[b]) row[b] = (uint8_t)((row[b] & ~m[b]) | (pw & m[b]));
     }
 }
