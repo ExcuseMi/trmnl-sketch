@@ -83,6 +83,7 @@ typedef struct {
 static struct {
     canvas_t *on; /* the canvas being batched (the page), 0: none */
     int used;
+    int last[6], have_last; /* the last stamp (x, y, p, tilt, brush, size): a segment starts where the one before ended */
     canvas_t *c;
     int colour, shade, mode;
     int ox, oy; /* the mask's corner in page pixels (ox a multiple of 8) */
@@ -99,8 +100,7 @@ static void bt_set(int x, int y)
         bt.ox = (x - BT_W / 2) & ~7, bt.oy = y - BT_W / 2, bt.used = 1;
         mx = x - bt.ox, my = y - bt.oy;
     }
-    bt.m[my * (BT_W / 8) + (mx >> 3)] |= (uint8_t)(0x80 >> (mx & 7));
-    box_add(&bt.bb, mx, my);
+    bt.m[my * (BT_W / 8) + (mx >> 3)] |= (uint8_t)(0x80 >> (mx & 7)); /* the stamp's box goes into bt.bb (add_box) */
 }
 
 /* Where the stamp's pixel (x, y) lands: the mirror image of it (every pixel is mapped, so a stamp's own shape and its
@@ -122,6 +122,11 @@ static uint32_t hash3(int x, int y, int k)
 
 static void add_box(const bctx_t *k, int x0, int y0, int x1, int y1)
 {
+    if (k->batch && bt.used) { /* the stamp's pixels in the mask, clipped to it */
+        int a = x0 - bt.ox, b = y0 - bt.oy, c = x1 - bt.ox, d = y1 - bt.oy;
+        box_add(&bt.bb, a < 0 ? 0 : a > BT_W - 1 ? BT_W - 1 : a, b < 0 ? 0 : b > BT_W - 1 ? BT_W - 1 : b);
+        box_add(&bt.bb, c < 0 ? 0 : c > BT_W - 1 ? BT_W - 1 : c, d < 0 ? 0 : d > BT_W - 1 ? BT_W - 1 : d);
+    }
     if (!k->dirty) return;
     int cx[4] = { x0, x1, x0, x1 }, cy[4] = { y0, y0, y1, y1 };
     bctx_t m = *k;
@@ -246,19 +251,28 @@ static void bt_write(void)
     if (!bt.used || box_empty(&bt.bb)) return box_clear(&bt.bb);
     canvas_t *c = bt.c;
     int n = mr_images(bt.mode);
-    for (int img = 0; img < n; img++)
-        for (int my = bt.bb.y0; my <= bt.bb.y1; my++) {
-            const uint8_t *row = bt.m + my * (BT_W / 8);
-            for (int b = bt.bb.x0 >> 3; b <= bt.bb.x1 >> 3; b++) {
-                uint8_t v = row[b];
-                for (int i = 0; v; i++, v = (uint8_t)(v << 1))
-                    if (v & 0x80) {
-                        int X = bt.ox + b * 8 + i, Y = bt.oy + my;
-                        if (img) mr_map(bt.mode, img, c->w, c->h, X, Y, &X, &Y);
-                        cv_px_s(c, X, Y, bt.colour, bt.shade);
-                    }
+    static int16_t js[BT_W], px_[BT_W], py_[BT_W];
+    for (int my = bt.bb.y0; my <= bt.bb.y1; my++) {
+        const uint8_t *row = bt.m + my * (BT_W / 8);
+        int b0 = bt.bb.x0 >> 3, b1 = bt.bb.x1 >> 3, y = bt.oy + my, k = 0;
+        while (b0 <= b1 && !row[b0]) b0++;
+        while (b1 >= b0 && !row[b1]) b1--;
+        if (b0 > b1) continue;
+        int x0 = bt.ox + b0 * 8;
+        for (int b = b0; b <= b1; b++) /* the row's set pixels, once for every image */
+            for (int i = 0, v = row[b]; v; i++, v = (v << 1) & 0xff)
+                if (v & 0x80) js[k++] = (int16_t)((b - b0) * 8 + i);
+        for (int img = 0; img < n; img++) {
+            int fx, fy;
+            if (mr_flips(bt.mode, img, &fx, &fy) && !(c->w & 7)) { /* a row stays a row: its bytes (reversed) */
+                int Y = fy ? c->h - 1 - y : y, xb = fx ? (c->w - 1 - x0) >> 3 : x0 >> 3;
+                cv_bits_row(c, Y, xb, row + b0, b1 - b0 + 1, fx, bt.colour, bt.shade);
+                continue;
             }
+            mr_map_pts(bt.mode, img, c->w, c->h, x0, y, js, k, px_, py_);
+            cv_px_list(c, px_, py_, k, bt.colour, bt.shade);
         }
+    }
     for (int my = bt.bb.y0; my <= bt.bb.y1; my++) memset(bt.m + my * (BT_W / 8) + (bt.bb.x0 >> 3), 0, (size_t)((bt.bb.x1 >> 3) - (bt.bb.x0 >> 3) + 1));
     box_clear(&bt.bb);
 }
@@ -266,7 +280,7 @@ static void bt_write(void)
 void brush_flush(void)
 {
     bt_write();
-    bt.used = 0;
+    bt.used = 0, bt.have_last = 0;
 }
 
 void brush_batch(canvas_t *c)
@@ -313,6 +327,11 @@ static void seg_img(const bstyle_t *st, int img, int colour, canvas_t *c, int x0
         int q = p0 + ((p1 - p0) * i + ((p1 - p0) < 0 ? -n / 2 : n / 2)) / n;
         k.tx = ax + ((bx - ax) * i + ((bx - ax) < 0 ? -n / 2 : n / 2)) / n;
         k.ty = ay + ((by - ay) * i + ((by - ay) < 0 ? -n / 2 : n / 2)) / n;
+        if (k.batch) { /* the same stamp again (the point that ended the segment before) adds no pixel: skipped */
+            int me[6] = { x, y, q, k.tx * 256 + k.ty, b, k.size };
+            if (bt.have_last && !memcmp(me, bt.last, sizeof(me))) continue;
+            memcpy(bt.last, me, sizeof(me)), bt.have_last = 1;
+        }
         fn(&k, x, y, q);
     }
 }

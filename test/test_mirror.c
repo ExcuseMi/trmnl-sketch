@@ -58,6 +58,24 @@ static void test_maps(void)
             else CHECK(x != 300 || y != 200);
         }
     }
+    /* the batch's row maps and flips are mr_map's points, on and off the page, odd sizes too */
+    static int16_t dx[600], ox[600], oy[600];
+    for (int i = 0; i < 600; i++) dx[i] = (int16_t)(i * 7 % 600);
+    static const int sz[3][2] = { { TW, TH }, { TH, TW }, { 1001, 777 } };
+    for (int si = 0; si < 3; si++)
+        for (int m = MR_OFF; m < MR_N; m++)
+            for (int img = 0; img < mr_images(m); img++)
+                for (int y0 = -300; y0 < sz[si][1] + 300; y0 += 97) {
+                    int bad = 0, fx, fy, flips = mr_flips(m, img, &fx, &fy);
+                    mr_map_pts(m, img, sz[si][0], sz[si][1], -256, y0, dx, 600, ox, oy);
+                    for (int i = 0; i < 600; i++) {
+                        int X, Y;
+                        mr_map(m, img, sz[si][0], sz[si][1], -256 + dx[i], y0, &X, &Y);
+                        bad += X != ox[i] || Y != oy[i];
+                        if (flips) bad += X != (fx ? sz[si][0] - 1 - (-256 + dx[i]) : -256 + dx[i]) || Y != (fy ? sz[si][1] - 1 - y0 : y0);
+                    }
+                    CHECK(bad == 0);
+                }
     int x, y, x2, y2;
     mr_map(MR_LR, 1, TW, TH, 300, 200, &x, &y);
     CHECK(x == TW - 1 - 300 && y == 200);

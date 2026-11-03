@@ -58,6 +58,44 @@ static uint8_t shade_mask(int shade, int y)
     return (uint8_t)(nib << 4 | nib);
 }
 
+void cv_bits_row(canvas_t *c, int y, int xb, const uint8_t *bits, int n, int rev, int colour, int shade)
+{
+    if (y < 0 || y >= c->h) return;
+    uint8_t *row = c->px + y * c->stride, sm = colour ? 0xff : shade_mask(shade, y);
+    static uint8_t rv[256]; /* each byte's bits reversed */
+    if (!rv[1])
+        for (int v = 0; v < 256; v++) {
+            int r = 0;
+            for (int i = 0; i < 8; i++) r |= (v >> i & 1) << (7 - i);
+            rv[v] = (uint8_t)r;
+        }
+    for (int i = 0; i < n; i++) {
+        uint8_t m = rev ? rv[bits[i]] : bits[i];
+        int b = rev ? xb - i : xb + i;
+        if (!m || b < 0 || b >= c->stride || b * 8 + 7 >= c->w) {
+            for (int k = 0; m && k < 8; k++) /* a byte at the page's edge: pixel by pixel */
+                if (m >> (7 - k) & 1) cv_px_s(c, b * 8 + k, y, colour, shade);
+            continue;
+        }
+        m &= sm;
+        row[b] = colour ? (uint8_t)(row[b] | m) : (uint8_t)(row[b] & ~m);
+    }
+}
+
+void cv_px_list(canvas_t *c, const int16_t *xs, const int16_t *ys, int n, int colour, int shade)
+{
+    static uint8_t sm[4]; /* cv_px_s's rule a row at a time: the shade's black bits of row y & 3 (white ink: every bit) */
+    static int sm_for = -1;
+    if (sm_for != (colour ? -2 : shade))
+        for (int y = 0; y < 4; y++) sm[y] = colour ? 0xff : shade_mask(shade, y), sm_for = colour ? -2 : shade;
+    for (int i = 0; i < n; i++) {
+        int x = xs[i], y = ys[i];
+        if ((unsigned)x >= (unsigned)c->w || (unsigned)y >= (unsigned)c->h) continue;
+        uint8_t m = (uint8_t)((0x80 >> (x & 7)) & sm[y & 3]), *b = c->px + y * c->stride + (x >> 3);
+        *b = colour ? (uint8_t)(*b | m) : (uint8_t)(*b & ~m);
+    }
+}
+
 /* x0..x1 of row y, already clipped: colour 1 whitens, colour 0 blackens where `mask` (a byte of black pixels) says */
 static void span_m(canvas_t *c, int y, int x0, int x1, int colour, uint8_t mask)
 {

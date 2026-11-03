@@ -27,8 +27,8 @@
    fill's plan (src/fill.c), and the 4-way and kaleidoscope Brush per 30 ms frame (4 and 16 images a point) */
 #define PRINT_MS 2300
 #define FILL_PAGE_MS 230
-#define MIRROR4_MS 60
-#define KALEIDO_MS 230
+#define MIRROR4_MS 16
+#define KALEIDO_MS 22
 #define FULL_MS 1130
 #define INK_MS 220
 

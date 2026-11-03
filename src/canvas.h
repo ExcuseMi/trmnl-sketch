@@ -33,6 +33,10 @@ int cv_shade_black(int shade, int x, int y); /* 1: the pattern is black at this 
 void cv_span_s(canvas_t *c, int y, int x0, int x1, int colour, int shade); /* clipped */
 void cv_span_pat(canvas_t *c, int y, int x0, int x1, int shade); /* the shade's pattern exactly, white dots too */
 void cv_px_s(canvas_t *c, int x, int y, int colour, int shade);            /* clipped */
+/* cv_px_s for the set bits of n bytes (MSB leftmost) at bytes xb, xb + 1 ... of row y; rev: each byte's bits reversed
+   at bytes xb, xb - 1 ... (a row mirrored left to right) */
+void cv_bits_row(canvas_t *c, int y, int xb, const uint8_t *bits, int n, int rev, int colour, int shade);
+void cv_px_list(canvas_t *c, const int16_t *xs, const int16_t *ys, int n, int colour, int shade); /* cv_px_s of each */
 void cv_disc_s(canvas_t *c, int cx, int cy, int d, int colour, int shade, box_t *dirty);
 
 void cv_fill(canvas_t *c, int colour); /* 1 white, 0 black */
