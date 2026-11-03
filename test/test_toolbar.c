@@ -48,7 +48,7 @@ static void scribble(rig_t *r) /* ink across the places the strip will cover and
 static void test_labels_follow_tools(void)
 {
     for (int b = 0; b < BR_N; b++) CHECK(!strcmp(tb_label(TI_BRUSH + b), brush_name(b))); /* the button that picks a tool carries its name */
-    CHECK(!strcmp(tb_label(TI_BRUSH), "Brush") && !strcmp(tb_label(TI_MIRROR), "Mirror"));
+    CHECK(!strcmp(tb_label(TI_BRUSH), "Pen") && !strcmp(tb_label(TI_BRUSH + 1), "Brush") && !strcmp(tb_label(TI_MIRROR), "Mirror"));
 }
 
 static void test_toggle_and_restore(void)
@@ -303,7 +303,7 @@ static void test_brushes_through_the_app(void)
             r.keep_tool = 1;
             rig_start(&r, APP_ORIENT_BAR_BOTTOM); /* the page file comes back as it was */
             CHECK(!memcmp(after, r.s.page.px, sizeof(after)));
-            CHECK(r.s.sty.brush == BR_BRUSH && r.s.sty.shade == sh); /* the colour is kept; the tool is the Brush again (owner 2026-11-02) */
+            CHECK(r.s.sty.brush == BR_PEN && r.s.sty.shade == sh); /* the colour is kept; the tool is the Pen again (owner 2026-11-03) */
             rig_end(&r);
         }
 }
@@ -435,7 +435,7 @@ static void test_each_button_picks(void)
         sk_set_size(&r.s, 2, r.now += 50);
         r.keep_tool = 1;
         rig_start(&r, o);
-        CHECK(r.s.sty.brush == BR_BRUSH && r.s.sty.shade == SH_GREY && r.s.size_cls == 2 && r.s.sty.size == brush_size(BR_BRUSH, 2)); /* colour and size kept, the Brush picked */
+        CHECK(r.s.sty.brush == BR_PEN && r.s.sty.shade == SH_GREY && r.s.size_cls == 2 && r.s.sty.size == brush_size(BR_PEN, 2)); /* colour and size kept, the Pen picked */
         /* a size button gives each tool its own measure: Small < Medium < Big */
         for (int b = 0; b < BR_N; b++) CHECK(brush_size(b, 0) < brush_size(b, 1) && brush_size(b, 1) < brush_size(b, 2) && brush_size_cls(b, brush_size(b, 1)) == 1);
         /* the strip shows exactly one tool, one colour and one size picked (inverted cells differ from the plain cell) */

@@ -718,7 +718,7 @@ int sk_init(sketch_t *s, const sk_env_t *env, uint8_t *fb, int w, int h, int str
     s->size_cls = cfg_int(s, "size_cls", 1);
     if (s->size_cls >= BR_SIZES) s->size_cls = 1;
     s->sty.shade = (uint8_t)colour_cfg(s);
-    s->sty.brush = BR_BRUSH; /* owner 2026-11-02: Sketch always opens with the best tool, the Brush */
+    s->sty.brush = BR_PEN; /* owner 2026-11-03: Sketch always opens with the Pen, first on the toolbar (2026-11-02 chose the Brush) */
     s->sty.size = (uint8_t)brush_size(s->sty.brush, s->size_cls);
     s->last_ink = s->sty.brush;
     box_clear(&s->flash);

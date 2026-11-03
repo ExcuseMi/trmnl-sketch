@@ -31,7 +31,7 @@ static void test_toolbar_pick(void)
     rig_t r;
     rig_new(&r, APP_ORIENT_BAR_BOTTOM);
     sk_toolbar(&r.s, r.now);
-    CHECK(TI_BRUSH + BR_BRUSH == 0 && !strcmp(brush_name(BR_BRUSH), "Brush"));
+    CHECK(TI_BRUSH + BR_PEN == 0 && BR_BRUSH == 1 && !strcmp(brush_name(BR_BRUSH), "Brush")); /* the Pen is first on the toolbar (owner 2026-11-03), the Brush second */
     int x = r.s.tb.cx[TI_BRUSH + BR_BRUSH] + 20, y = r.s.tb.cy + 20;
     rig_pen_user(&r, x, y, APP_PEN_IN_RANGE, 0);
     rig_pen_user(&r, x, y, APP_PEN_TIP | APP_PEN_IN_RANGE, 30000);

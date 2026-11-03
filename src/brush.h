@@ -7,8 +7,8 @@
 #include <stdint.h>
 #include "canvas.h"
 
-/* The order is the toolbar's order and the cycle order */
-enum { BR_BRUSH, BR_PEN, BR_PENCIL, BR_MARKER, BR_SPRAY, BR_ERASER, BR_FILL, BR_N };
+/* The order is the toolbar's order and the cycle order: the Pen first (owner 2026-11-03; 2026-11-02 had the Brush first). Ids are never stored (pages are bitmaps), so the order may change */
+enum { BR_PEN, BR_BRUSH, BR_PENCIL, BR_MARKER, BR_SPRAY, BR_ERASER, BR_FILL, BR_N };
 /* The three size buttons (Small, Medium, Big): brush_size gives the pen size (1..48) of a button for a brush; brush_size_cls the button a size belongs to, or -1 */
 #define BR_SIZES 3
 int brush_size(int brush, int cls);

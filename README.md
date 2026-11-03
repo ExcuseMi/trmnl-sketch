@@ -25,7 +25,7 @@ Drawing a cat on the tablet, live on the X (twice as fast here; [the full video]
 | <img src="shots/m5-mirror-picker-landscape.png" width="420"><br>The mirror picker: pick how your strokes are repeated | <img src="shots/m1-mirror-kaleidoscope.png" width="420"><br>A kaleidoscope drawing |
 | <img src="shots/m-pagemenu-landscape.png" width="420"><br>The page menu | <img src="shots/p2-paper-grid.png" width="420"><br>Paper styles: grid (also lines, dots, blank) |
 | <img src="shots/s1-settings-landscape.png" width="420"><br>Settings: tap < or > on a row | |
-| <img src="shots/b1-brushes-black.png" width="420"><br>The brushes: brush, pen, pencil, marker, spray, eraser | <img src="shots/f-print-confirm.png" width="420"><br>Print confirm screen |
+| <img src="shots/b1-brushes-black.png" width="420"><br>The brushes: pen, brush, pencil, marker, spray, eraser | <img src="shots/f-print-confirm.png" width="420"><br>Print confirm screen |
 
 ## Requirements
 

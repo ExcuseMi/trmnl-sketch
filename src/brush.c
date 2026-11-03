@@ -6,7 +6,7 @@
 #include "penmap.h"
 #include "sk_cfg.h"
 
-static const char *const names[BR_N] = { "Brush", "Pen", "Pencil", "Marker", "Spray", "Eraser", "Fill" };
+static const char *const names[BR_N] = { "Pen", "Brush", "Pencil", "Marker", "Spray", "Eraser", "Fill" };
 
 const char *brush_name(int b) { return names[b < 0 || b >= BR_N ? 0 : b]; }
 const char *shade_name(int sh) { return sh == SH_BLACK ? "Black" : sh == SH_WHITE ? "White" : "Grey"; }
@@ -16,7 +16,7 @@ int brush_is_fill(int b) { return b == BR_FILL; }
 int brush_tail(int b) { return b == BR_PEN; }
 
 /* Small, Medium, Big per brush (pen size = the diameter in px; the eraser's is its side). Fill has no size: it shares the pen's row so the buttons keep their pick */
-static const uint8_t sizes[BR_N][BR_SIZES] = { { 12, 22, 40 }, { 5, 9, 17 }, { 5, 9, 17 }, { 6, 10, 18 }, { 8, 14, 26 }, { 14, 27, 44 }, { 5, 9, 17 } };
+static const uint8_t sizes[BR_N][BR_SIZES] = { { 5, 9, 17 }, { 12, 22, 40 }, { 5, 9, 17 }, { 6, 10, 18 }, { 8, 14, 26 }, { 14, 27, 44 }, { 5, 9, 17 } };
 int brush_size(int b, int cls) { return sizes[b < 0 || b >= BR_N ? 0 : b][cls < 0 ? 0 : cls >= BR_SIZES ? BR_SIZES - 1 : cls]; }
 int brush_size_cls(int b, int size)
 {
@@ -228,7 +228,7 @@ static void stamp_spray(const bctx_t *k, int x, int y, int p) /* dots about the 
 
 static void stamp_none(const bctx_t *k, int x, int y, int p) { (void)k, (void)x, (void)y, (void)p; } /* the bucket draws no stroke */
 
-static const stamp_fn stamps[BR_N] = { stamp_brush, stamp_pen, stamp_pencil, stamp_square, stamp_spray, stamp_square, stamp_none };
+static const stamp_fn stamps[BR_N] = { stamp_pen, stamp_brush, stamp_pencil, stamp_square, stamp_spray, stamp_square, stamp_none };
 
 static void seg_img(const bstyle_t *st, int img, int colour, canvas_t *c, int x0, int y0, int p0, int t0, int x1, int y1, int p1, int t1, box_t *dirty);
 

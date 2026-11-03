@@ -37,7 +37,7 @@ static void test_old_settings(void)
         CHECK(!memcmp(saved, r.s.page.px, sizeof(saved))); /* the page is as it was */
         CHECK(r.s.sty.brush < BR_N && r.s.sty.brush != BR_ERASER && tb_item_of_shade(r.s.sty.shade) >= 0 && r.s.size_cls >= 0 && r.s.size_cls < BR_SIZES);
         CHECK(r.s.sty.size == brush_size(r.s.sty.brush, r.s.size_cls));
-        CHECK(r.s.sty.brush == BR_BRUSH); /* owner 2026-11-02: Sketch opens with the Brush, whatever tool was saved */
+        CHECK(r.s.sty.brush == BR_PEN); /* owner 2026-11-03: Sketch opens with the Pen, whatever tool was saved */
         CHECK(r.s.sty.shade == SH_GREY); /* the old tone 5 */
         /* the toolbar draws and works with it, and a new stroke inks */
         sk_toolbar(&r.s, r.now);
