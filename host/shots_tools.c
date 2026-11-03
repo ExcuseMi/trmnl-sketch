@@ -1,4 +1,4 @@
-/* make shots (tools part): papers, the colour and size buttons, cursors. SPDX-License-Identifier: MIT */
+/* make shots (tools part): papers, the colour and size buttons, cursors. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include <math.h>
 #include <stdio.h>
 #include "skui.h"

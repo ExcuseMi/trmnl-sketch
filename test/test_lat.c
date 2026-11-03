@@ -1,5 +1,5 @@
 /* Drawing latency: the rolling statistics, their measurement in the pen path, the log line, the debug toast, and a
-   batching that never drops a stroke. SPDX-License-Identifier: MIT */
+   batching that never drops a stroke. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "check.h"
 #include <stdlib.h>
 #include <string.h>

@@ -1,5 +1,5 @@
 /* make shots (mirror part): a kaleidoscope drawing, a 4-way drawing and the toolbar with the Mirror item.
-   SPDX-License-Identifier: MIT */
+   SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include <math.h>
 #include <stdio.h>
 #include "util.h"

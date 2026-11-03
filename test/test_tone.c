@@ -1,6 +1,6 @@
 /* The tones: 9 steps from light to black on the 4 x 4 Bayer levels, a pattern fixed to the page (strokes and fills
    of one tone meet cleanly, undo and replay give the same dots). The toolbar offers three: Black, Grey (SH_GREY) and White;
-   the settings of the earlier tone slider and three shades map onto them; a tap on a swatch picks it and the next stroke is in it. SPDX-License-Identifier: MIT */
+   the settings of the earlier tone slider and three shades map onto them; a tap on a swatch picks it and the next stroke is in it. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "check.h"
 #include <stdio.h>
 #include "fill.h"

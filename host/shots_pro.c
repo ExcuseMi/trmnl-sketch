@@ -1,5 +1,5 @@
 /* make shots (pro feel): a shaky line with the stabiliser at 0 and 6, pencil shading upright and tilted 50 degrees,
-   the toolbar with its Smooth cell. SPDX-License-Identifier: MIT */
+   the toolbar with its Smooth cell. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include <math.h>
 #include <stdio.h>
 #include "util.h"

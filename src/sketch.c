@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: MIT */
+/* SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "sketch.h"
 #include <stdlib.h>
 #include <string.h>

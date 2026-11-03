@@ -1,5 +1,5 @@
 /* The pen's tilt: a tilted pencil lays a wider, lighter mark along the lean; the brush pen a little wider; other brushes
-   ignore it; the log replays it. SPDX-License-Identifier: MIT */
+   ignore it; the log replays it. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "check.h"
 #include <math.h>
 #include <string.h>

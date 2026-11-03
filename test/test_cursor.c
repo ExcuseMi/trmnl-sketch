@@ -1,5 +1,5 @@
 /* The cursors of every tool: black with a 2 px white outline, at least 32 px, drawn exactly (outline included) over white,
-   black ink, paper and every tone, and taken away without a mark. SPDX-License-Identifier: MIT */
+   black ink, paper and every tone, and taken away without a mark. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "check.h"
 #include <stdio.h>
 #include "skui.h"

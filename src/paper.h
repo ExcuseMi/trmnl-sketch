@@ -1,6 +1,6 @@
 /* The paper under the ink: Blank, Grid, Lines, Dots. Light 1-bit patterns (dotted lines, small dots) that are not part of
    the drawing: a per-page attribute, drawn under the ink on the screen, in the thumbnail and in the printed copy, never in
-   the page bitmap (so the eraser cannot remove it and the bucket sees white). SPDX-License-Identifier: MIT */
+   the page bitmap (so the eraser cannot remove it and the bucket sees white). SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #ifndef PAPER_H
 #define PAPER_H
 #include "canvas.h"

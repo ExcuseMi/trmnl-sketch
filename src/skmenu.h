@@ -1,6 +1,6 @@
 /* The menu screens in the look of the X's own menus (hint pills over the touch bar's zones, a list with an arrow,
    inverted selection), drawn in the user's frame into a 1-bit canvas that the gray screen is made from.
-   SPDX-License-Identifier: MIT */
+   SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #ifndef SKMENU_H
 #define SKMENU_H
 #include <app_api.h>

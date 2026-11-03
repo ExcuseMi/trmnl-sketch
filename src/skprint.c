@@ -1,5 +1,5 @@
 /* Printing a saved page from inside Sketch: the page file goes through the Print app's own job code (one source,
-   ../trmnl-print/src/printjob.c: PWG raster, IPP, error words). SPDX-License-Identifier: MIT */
+   ../trmnl-print/src/printjob.c: PWG raster, IPP, error words). SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include <stdlib.h>
 #include <string.h>
 #include "sk_cfg.h"

@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: MIT */
+/* SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "sklat.h"
 
 void lat_add(lat_t *l, uint32_t ms)

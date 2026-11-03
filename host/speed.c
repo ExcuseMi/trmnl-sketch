@@ -20,7 +20,7 @@
    apps/trmnl-sketch/main.c's: push, tick, then up to 64 events (the first poll waits sk_next_due, at most 500 ms).
 
    build/speed: the table of variants. build/speed --check FILE: the default only, fails when a stream's p95 shown
-   latency is more than 20 % over FILE's bound or a pixel that changed is not on the panel. SPDX-License-Identifier: MIT */
+   latency is more than 20 % over FILE's bound or a pixel that changed is not on the panel. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "check.h"
 #include <math.h>
 #include <stdio.h>

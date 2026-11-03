@@ -1,5 +1,5 @@
 /* The latency measurement of the drawing path (sklat.h) wired into the app: ink noted when drawn, timed when pushed.
-   SPDX-License-Identifier: MIT */
+   SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "sketch.h"
 #include "sklat.h"
 

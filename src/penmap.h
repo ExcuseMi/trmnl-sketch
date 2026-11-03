@@ -1,4 +1,4 @@
-/* The pen: pressure to line width, and the tablet's area onto the page. SPDX-License-Identifier: MIT */
+/* The pen: pressure to line width, and the tablet's area onto the page. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #ifndef PENMAP_H
 #define PENMAP_H
 #include <stdint.h>

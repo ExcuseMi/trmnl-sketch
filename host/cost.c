@@ -8,7 +8,7 @@
    without the sanitizers (Makefile: cost), -O2 as the app is.
 
    `make cost` fails when a tool's cost per event is over test/cost.bounds; `make cost-table` prints them all.
-   SPDX-License-Identifier: MIT */
+   SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #define _POSIX_C_SOURCE 200809L
 #include <stdio.h>
 #include <stdlib.h>

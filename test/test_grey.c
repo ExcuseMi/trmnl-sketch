@@ -1,6 +1,6 @@
 /* Grey ink over black: the brush lays its own pattern, black dots and white dots, in its shape (grey on a black page
    showed nothing: grey only added black dots, 2026-11-03). Over white paper grey is the same as before: only its own
-   black dots. SPDX-License-Identifier: MIT */
+   black dots. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "check.h"
 #include "util.h"
 

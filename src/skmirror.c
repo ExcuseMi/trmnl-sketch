@@ -1,4 +1,4 @@
-/* The mirror setting: the toolbar item and the guide on the screen. SPDX-License-Identifier: MIT */
+/* The mirror setting: the toolbar item and the guide on the screen. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "sketch.h"
 
 void sk_set_mirror(sketch_t *s, int mode, uint32_t now)

@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: MIT */
+/* SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 /* The gallery, the action list, the print screens and the pen and touch bar in them: the controller of the menu screens
    (sketch.c holds drawing, pages and saving). They run in the panel's 1-bit mode: the pointer and the highlight are
    partial refreshes, a full one only when a screen opens or closes. */

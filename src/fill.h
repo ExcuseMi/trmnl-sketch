@@ -2,7 +2,7 @@
    tapped spot (white, or one of the three shades' own dither: "same appearance"), with small gaps in outlines closed
    (lines are dilated by the gap radius for the flood; the band next to the lines is added back so no halo stays).
    The region is kept as a bit mask, then as runs in the undo log (hist.h): one hpt_t per run, x = first, y = last
-   pixel, d = rows down from the previous run (a filler x = -1 for a jump over 255 rows). SPDX-License-Identifier: MIT */
+   pixel, d = rows down from the previous run (a filler x = -1 for a jump over 255 rows). SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #ifndef FILL_H
 #define FILL_H
 #include <stddef.h>

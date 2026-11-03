@@ -1,5 +1,5 @@
 /* The paper under the ink: Blank, Grid, Lines, Dots. Not part of the drawing: a per-page sidecar, drawn on the screen under the
-   ink, never erased, never a wall for the bucket, in the thumbnail and the printed copy. SPDX-License-Identifier: MIT */
+   ink, never erased, never a wall for the bucket, in the thumbnail and the printed copy. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "check.h"
 #include <stdio.h>
 #include "gallery.h"

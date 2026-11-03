@@ -4,7 +4,7 @@
    polyline and marks it for one push. When a frame's stamping overran its budget the soft Brush's stamp step grows
    (brush_step_scale) so the next frame fits, instead of the app falling behind the pen (fw-lag28 pulse lines: the app at
    60 to 84 % of its core, thousands of reports dropped in the firmware's queue, 10 s to see a change).
-   SPDX-License-Identifier: MIT */
+   SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #ifndef SKFRAME_H
 #define SKFRAME_H
 #include <stdint.h>

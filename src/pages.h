@@ -1,6 +1,6 @@
 /* The page files: sketch/sk0001.png ... (1-bit PNG, what the Wi-Fi page lists and sends). A save writes a temporary
    file (.tmp, never listed) and renames it over the page, so a power loss leaves the old or the new file whole. A
-   missing or damaged file loads as an empty page and is never deleted. SPDX-License-Identifier: MIT */
+   missing or damaged file loads as an empty page and is never deleted. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #ifndef PAGES_H
 #define PAGES_H
 #include <stddef.h>

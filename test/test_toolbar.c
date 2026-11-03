@@ -1,5 +1,5 @@
 /* The toolbar: the same button shows and hides it, only the strip is refreshed (clean), the page under it comes back
-   pixel for pixel, taps on it never ink the page, the brush cursors. SPDX-License-Identifier: MIT */
+   pixel for pixel, taps on it never ink the page, the brush cursors. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "check.h"
 #include <stdio.h>
 #include "gallery.h"

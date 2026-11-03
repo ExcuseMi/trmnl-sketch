@@ -1,5 +1,5 @@
 /* The page menu, Exit, printing from it, damaged pages, and the walks through every screen with the pen only and with the
-   tablet buttons only. SPDX-License-Identifier: MIT */
+   tablet buttons only. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "check.h"
 #include <stdio.h>
 #include "util.h"

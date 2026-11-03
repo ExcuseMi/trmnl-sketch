@@ -1,4 +1,4 @@
-/* Undo, redo, clear: the exact pixels come back; the log is bounded. SPDX-License-Identifier: MIT */
+/* Undo, redo, clear: the exact pixels come back; the log is bounded. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "check.h"
 #include <stdlib.h>
 #include <string.h>

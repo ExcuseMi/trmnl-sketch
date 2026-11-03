@@ -1,5 +1,5 @@
 /* A 1-bit page bitmap (MSB leftmost, 1 = white, same layout as the panel's framebuffer) with the pen's drawing:
-   discs and interpolated segments, plus the dirty boxes that follow. SPDX-License-Identifier: MIT */
+   discs and interpolated segments, plus the dirty boxes that follow. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #ifndef CANVAS_H
 #define CANVAS_H
 #include <stdint.h>

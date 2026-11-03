@@ -1,5 +1,5 @@
 /* The in-app Settings screen: steps and wraps, saved and read again, a failed save says so, old values still work,
-   the tablet buttons and the pen reach every row. SPDX-License-Identifier: MIT */
+   the tablet buttons and the pen reach every row. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "check.h"
 #include <stdio.h>
 #include "util.h"

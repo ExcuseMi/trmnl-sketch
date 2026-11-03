@@ -1,7 +1,7 @@
 /* The toolbar lag of 2026-11-02 ("super laggy", "the toolbar causing huge lag"): a pen move over the open strip drew the
    whole strip twice (tb_draw, 0.87 ms a move on a PC, tens of ms on the X at ~100 moves a second, so the app fell behind
    the pen and the arrow pointer never kept up). The strip is drawn only when what it shows changes (src/sktbimg.c); the
-   no pills on the page. SPDX-License-Identifier: MIT */
+   no pills on the page. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "check.h"
 #include "util.h"
 

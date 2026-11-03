@@ -2,7 +2,7 @@
    rows (app_api_table.cpp: bbep.partialUpdate(true, y0, y1), x and w are ignored) and the library scans the whole panel
    pp + 1 times whatever the rows (FastEPD bbepPartialUpdate: every pass writes all 1404 rows, then one neutral scan),
    so a call costs about 200 ms however small (the model: host/speed.c). All partial rectangles of one push therefore go as one
-   call over the rows they span; flash halves and the whole screen go as they are. SPDX-License-Identifier: MIT */
+   call over the rows they span; flash halves and the whole screen go as they are. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #ifndef SKPUSH_H
 #define SKPUSH_H
 #include <app_api.h>

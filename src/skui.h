@@ -1,5 +1,5 @@
 /* What Sketch draws besides ink: the hover cursor, the corner notes (legend, toast), the menu and the Wi-Fi screen.
-   Text is drawn in the user's frame of the X's position (gfx.h). SPDX-License-Identifier: MIT */
+   Text is drawn in the user's frame of the X's position (gfx.h). SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #ifndef SKUI_H
 #define SKUI_H
 #include <app_api.h>

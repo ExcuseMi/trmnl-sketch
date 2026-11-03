@@ -1,6 +1,6 @@
 /* The paintbrush: picked from the toolbar; a light touch lays fewer dots than a hard one, full pressure is solid in the
    core and the rim is sparse; black darkens, white lays white over black, grey never goes past its own dots; its
-   own sizes; undo and redo give back the stroke. SPDX-License-Identifier: MIT */
+   own sizes; undo and redo give back the stroke. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "check.h"
 #include "util.h"
 

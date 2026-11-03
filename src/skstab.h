@@ -1,6 +1,6 @@
 /* The stabiliser: smooths the pen's points while drawing (a one-euro filter: heavy at a slow, shaky pen, nearly none at a
    fast one, so it does not lag). The pen's events are the clock (one per 5 ms, the tablet reports about 200 a second), so
-   a stall of the app never changes the line. Pure: no clock, no libm. SPDX-License-Identifier: MIT */
+   a stall of the app never changes the line. Pure: no clock, no libm. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #ifndef SKSTAB_H
 #define SKSTAB_H
 

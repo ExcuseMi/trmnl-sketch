@@ -1,6 +1,6 @@
 /* The mirror picker (owner 2026-11-02: leaving a symmetry mode took up to 4 taps): a tap on Mirror opens a row of the five
    modes under the strip, one tap picks and closes it, a tap elsewhere, the pen out of range or a tablet button closes it
-   unchanged. Fast ink only (no flash to open or close), never inks, in all four positions. SPDX-License-Identifier: MIT */
+   unchanged. Fast ink only (no flash to open or close), never inks, in all four positions. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "check.h"
 #include <stdio.h>
 #include "font.h"

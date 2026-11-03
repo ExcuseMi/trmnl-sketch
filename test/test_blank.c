@@ -1,5 +1,5 @@
 /* At most one blank page exists (owner 2026-11-01): the one on screen. Blank pages are never on disk, a blank file is
-   removed at the start and when its page is left, a file that does not decode is never touched. SPDX-License-Identifier: MIT */
+   removed at the start and when its page is left, a file that does not decode is never touched. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "check.h"
 #include <stdio.h>
 #include "util.h"

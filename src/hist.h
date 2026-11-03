@@ -6,7 +6,7 @@
    presses minutes). A stroke whose delta did not fit (the pool full: the oldest ones give theirs up first) is undone by
    the page drawn again from the base, the strokes with a delta XORed, the rest stamped; with `lazy` set that rebuild
    waits for hist_settle, so a row of presses in one frame costs one rebuild.
-   SPDX-License-Identifier: MIT */
+   SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #ifndef HIST_H
 #define HIST_H
 #include <stdint.h>

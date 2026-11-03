@@ -1,4 +1,4 @@
-/* The stabiliser: smooths, lags a bounded distance, ends where the pen ended, is on by default. SPDX-License-Identifier: MIT */
+/* The stabiliser: smooths, lags a bounded distance, ends where the pen ended, is on by default. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "check.h"
 #include <math.h>
 #include <stdlib.h>

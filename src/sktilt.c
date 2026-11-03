@@ -1,4 +1,4 @@
-/* The pen's tilt in the page's frame, as the byte a stroke point carries (brush.h bt_code). SPDX-License-Identifier: MIT */
+/* The pen's tilt in the page's frame, as the byte a stroke point carries (brush.h bt_code). SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "sketch.h"
 
 /* The tablet's lean (degrees, its own x right and y down) turned the way pm_map turns the tablet onto the page: the turned

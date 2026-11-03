@@ -1,5 +1,5 @@
 /* Refresh rectangles: bounded in number, aligned, and together they cover every pixel that changed. The fast-stroke
-   run prints how many rectangles and pixels per second the app pushes. SPDX-License-Identifier: MIT */
+   run prints how many rectangles and pixels per second the app pushes. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "check.h"
 #include <stdio.h>
 #include "util.h"

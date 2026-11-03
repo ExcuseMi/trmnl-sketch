@@ -1,6 +1,6 @@
 /* White as an ink colour (shade SH_WHITE, the toolbar's White swatch): every brush draws it in its own shape over
    black, undo and redo give back the exact pixels, the settings keep it, the bucket uses it.
-   SPDX-License-Identifier: MIT */
+   SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "check.h"
 #include <stdio.h>
 #include "util.h"

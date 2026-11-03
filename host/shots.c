@@ -1,5 +1,5 @@
 /* make shots: the app's screens to PNG (shots/): strokes of three sizes with pressure, the legend, the eraser and its
-   cursor, a portrait position, the menu and the Wi-Fi screen. SPDX-License-Identifier: MIT */
+   cursor, a portrait position, the menu and the Wi-Fi screen. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include <math.h>
 #include <stdio.h>
 #include "util.h"

@@ -1,4 +1,4 @@
-/* A memory file system for the host tests, with the failures the flash has. SPDX-License-Identifier: MIT */
+/* A memory file system for the host tests, with the failures the flash has. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #ifndef MEMFS_H
 #define MEMFS_H
 #include <stddef.h>

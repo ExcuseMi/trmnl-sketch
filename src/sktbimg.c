@@ -1,7 +1,7 @@
 /* The toolbar strip's image: tb_draw runs only when what it shows changed (the key); everything else puts the strip's
    pixels back from the image. A pen move over the open strip cost two whole-strip paints before (the arrow's old box
    restored through fb_put, then the strip again: 0.87 ms a move on a PC, tens of ms on the X at ~100 moves a second):
-   the lag of 2026-11-02. SPDX-License-Identifier: MIT */
+   the lag of 2026-11-02. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include <stdlib.h>
 #include <string.h>
 #include "sketch.h"

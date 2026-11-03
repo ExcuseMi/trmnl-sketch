@@ -1,5 +1,5 @@
 /* Mirror drawing: the images, one undo step, replay, the screen-only guide, the pushed rectangles, every position of
-   the X, the bucket. SPDX-License-Identifier: MIT */
+   the X, the bucket. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "util.h"
 #include <math.h>
 

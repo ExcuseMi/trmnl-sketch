@@ -1,7 +1,7 @@
 /* An undo step as its changed pixels: the XOR of the page after and before it over the step's box, run-length coded
    per row (skips of unchanged bytes, repeats, literals), so undo and redo are the same cheap XOR whatever the step
    cost to draw (owner 2026-11-03: undo after a big fill took minutes, every press stamped all strokes again).
-   SPDX-License-Identifier: MIT */
+   SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #ifndef HDELTA_H
 #define HDELTA_H
 #include <stdint.h>

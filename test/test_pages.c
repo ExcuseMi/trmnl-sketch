@@ -1,5 +1,5 @@
 /* The page files: temp + rename saves, a lost power or full disk keeps the old file, a damaged or missing file is an
-   empty page and nothing is deleted, the page list. SPDX-License-Identifier: MIT */
+   empty page and nothing is deleted, the page list. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "check.h"
 #include <stdlib.h>
 #include <string.h>

@@ -1,5 +1,5 @@
 /* Sketch for the TRMNL X: draw with a USB pen tablet (docs: README.md). An ELF app for the firmware fork's loader
-   (app_api.h); everything it decides is in src/sketch.c, tested on the host. SPDX-License-Identifier: MIT */
+   (app_api.h); everything it decides is in src/sketch.c, tested on the host. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include <app_api.h>
 #include <stdlib.h>
 #include <string.h>

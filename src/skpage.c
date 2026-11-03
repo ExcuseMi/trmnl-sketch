@@ -1,4 +1,4 @@
-/* Pages in the controller: saving the page on screen, opening, leaving and making pages. SPDX-License-Identifier: MIT */
+/* Pages in the controller: saving the page on screen, opening, leaving and making pages. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "sketch.h"
 #include <string.h>
 

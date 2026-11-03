@@ -21,6 +21,7 @@ build/%: test/%.c $(CORE) $(HOST) test/check.h test/util.h $(wildcard src/*.h ho
 	@mkdir -p build
 	$(CC) $(CFLAGS) $< $(CORE) $(HOST) -o $@ -lm -lz -lstdc++
 test: $(TESTS) speed cost frames undo actions
+	@./tools/check_license.sh
 	@for t in $(TESTS); do ./$$t || exit 1; done
 build/shots: host/shots.c host/shots_fill.c host/shots_mirror.c host/shots_tools.c host/shots_pro.c host/png.c $(CORE) $(HOST) test/util.h $(wildcard src/*.h host/*.h)
 	@mkdir -p build

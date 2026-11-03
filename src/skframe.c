@@ -1,4 +1,4 @@
-/* The frame's points, thinned; the stamp step's scale (skframe.h). SPDX-License-Identifier: MIT */
+/* The frame's points, thinned; the stamp step's scale (skframe.h). SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "skframe.h"
 
 int sk_thin(const sk_qpt_t *in, int n, int thin_px, int *keep)

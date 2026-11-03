@@ -1,6 +1,6 @@
 /* The gallery of saved pages: the grid in the user's frame (four positions of the X), the paging, the thumbnails
    (box filtered to 16 grays, cached per page and dropped when the page is saved) and the gray screen they are drawn
-   into. Pure: no file access except through the page loader the caller hands in. SPDX-License-Identifier: MIT */
+   into. Pure: no file access except through the page loader the caller hands in. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #ifndef GALLERY_H
 #define GALLERY_H
 #include <stdint.h>

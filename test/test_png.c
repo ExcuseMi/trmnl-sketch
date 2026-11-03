@@ -1,5 +1,5 @@
 /* The page file: exact round trip, a valid PNG for any reader (zlib checks the stream), small, and every damaged or
-   foreign file refused without touching the page. SPDX-License-Identifier: MIT */
+   foreign file refused without touching the page. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "check.h"
 #include <stdlib.h>
 #include <string.h>

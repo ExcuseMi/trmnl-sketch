@@ -1,4 +1,4 @@
-/* The bucket: regions, gaps, shades, the log, the tap, the screen. SPDX-License-Identifier: MIT */
+/* The bucket: regions, gaps, shades, the log, the tap, the screen. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "util.h"
 #include <time.h>
 #include "fill.h"

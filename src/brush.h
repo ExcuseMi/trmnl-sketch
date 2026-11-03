@@ -1,7 +1,7 @@
 /* The brushes: one table, one drawing path. A stroke is a log of points (x, y, p); `p` is one byte whose meaning the
    brush gives (a diameter, a side, a pressure), so a stroke is drawn again from the log with the same pixels (undo,
    redo, replay): everything here is a pure function of the style and the points, nothing reads a clock or a random
-   source. Also each brush's hover cursor shape. SPDX-License-Identifier: MIT */
+   source. Also each brush's hover cursor shape. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #ifndef BRUSH_H
 #define BRUSH_H
 #include <stdint.h>

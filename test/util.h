@@ -1,4 +1,4 @@
-/* Helpers shared by the host tests: a sketch on a memory file system, pen strokes, a panel copy. SPDX-License-Identifier: MIT */
+/* Helpers shared by the host tests: a sketch on a memory file system, pen strokes, a panel copy. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #ifndef UTIL_H
 #define UTIL_H
 #include "check.h"

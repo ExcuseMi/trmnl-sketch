@@ -1,4 +1,4 @@
-/* Discs and segments: no gaps at any speed, clipping, dirty boxes, flips. SPDX-License-Identifier: MIT */
+/* Discs and segments: no gaps at any speed, clipping, dirty boxes, flips. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "check.h"
 #include <stdlib.h>
 #include <string.h>

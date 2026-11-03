@@ -1,6 +1,6 @@
 /* The tests below were written for three pen sizes, 0 thin, 1 medium, 2 thick. A pen size is now its diameter in px
    (1..48, the slider); these map the old indices to the same pens (5, 9 and 17 px) at the calls that take a size.
-   SPDX-License-Identifier: MIT */
+   SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #ifndef OLDSIZES_H
 #define OLDSIZES_H
 #define SZ(i) ((i) == 0 ? 5 : (i) == 1 ? 9 : 17)

@@ -1,4 +1,4 @@
-/* The gallery, the action list, thumbnails, full refreshes, printing and the pen in the menus. SPDX-License-Identifier: MIT */
+/* The gallery, the action list, thumbnails, full refreshes, printing and the pen in the menus. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "check.h"
 #include <stdio.h>
 #include "util.h"

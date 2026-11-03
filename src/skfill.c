@@ -1,4 +1,4 @@
-/* The Fill tool in the controller: a tap (tip down and up without moving much) fills. SPDX-License-Identifier: MIT */
+/* The Fill tool in the controller: a tap (tip down and up without moving much) fills. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include <stdlib.h>
 #include <string.h>
 #include "fill.h"

@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: MIT */
+/* SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "rects.h"
 
 void rs_init(rset_t *s) { s->n = 0; }

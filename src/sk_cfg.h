@@ -1,4 +1,4 @@
-/* Sketch: constants. SPDX-License-Identifier: MIT */
+/* Sketch: constants. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #ifndef SK_CFG_H
 #define SK_CFG_H
 

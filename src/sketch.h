@@ -1,6 +1,6 @@
 /* The Sketch app without the firmware: pen, tablet buttons and touch bar in; pixels in the framebuffer and the
    rectangles to push out. The same code runs on the X (apps/trmnl-sketch/main.c) and in the host tests.
-   SPDX-License-Identifier: MIT */
+   SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #ifndef SKETCH_H
 #define SKETCH_H
 #include <stdint.h>

@@ -1,5 +1,5 @@
 /* The flash: one inverted-then-clean path for every clean-up, and the two clean-up rules (an overlay left the page; idle
-   with traces). SPDX-License-Identifier: MIT */
+   with traces). SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "check.h"
 #include <stdio.h>
 #include "util.h"

@@ -1,6 +1,6 @@
 /* A page drawn with a tool that is gone still opens and shows as it was: a page is its pixels (a 1-bit PNG), and the
    settings of the earlier toolbar (a removed brush id, the tone slider, sizes, the Recent slots, smooth, tilt, pressure
-   curve) are read without an error and become a valid pick. SPDX-License-Identifier: MIT */
+   curve) are read without an error and become a valid pick. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "check.h"
 #include "util.h"
 

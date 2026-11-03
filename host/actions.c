@@ -7,7 +7,7 @@
    `make actions` fails when an action's X ms is over its bound (ACT_MS unless the row says less), when it pushes more
    FULL refreshes than its row allows, or when an action that must not grow with the pages (start, gallery) costs more
    with 40 pages than ACT_GROW times its cost with 10.
-   SPDX-License-Identifier: MIT */
+   SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #define _POSIX_C_SOURCE 200809L
 #include <stdio.h>
 #include <stdlib.h>

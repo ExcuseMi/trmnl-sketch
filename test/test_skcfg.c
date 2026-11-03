@@ -1,4 +1,4 @@
-/* Sketch's settings reads with and without the X's device settings (API 2.11). SPDX-License-Identifier: MIT */
+/* Sketch's settings reads with and without the X's device settings (API 2.11). SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "check.h"
 #include <stdio.h>
 #include <string.h>

@@ -1,4 +1,4 @@
-/* The one flash path (an inverted flash, then the clean refresh) and the clean-up rules that ask for it. SPDX-License-Identifier: MIT */
+/* The one flash path (an inverted flash, then the clean refresh) and the clean-up rules that ask for it. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include <string.h>
 #include "sketch.h"
 

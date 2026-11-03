@@ -1,5 +1,5 @@
 /* The frame's thinning and the Brush's step scale (src/skframe.h), and that a frame draws the same stroke as point by
-   point stamping for the tools whose stamps must touch. SPDX-License-Identifier: MIT */
+   point stamping for the tools whose stamps must touch. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "check.h"
 #include "util.h"
 

@@ -1,5 +1,5 @@
 /* Sketch's settings reads. On API 2.11 (api->size >= APP_API_SLOT(58)) pen_area and cleanup_s are the X's device
-   settings (also on the X's phone page, Devices; Sketch's Settings screen sets them too); on older firmware they stay Sketch's own settings. SPDX-License-Identifier: MIT */
+   settings (also on the X's phone page, Devices; Sketch's Settings screen sets them too); on older firmware they stay Sketch's own settings. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #ifndef SKCFG_H
 #define SKCFG_H
 #include <app_api.h>

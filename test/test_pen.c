@@ -1,4 +1,4 @@
-/* Pressure to width, and the tablet's area onto the page in the four positions. SPDX-License-Identifier: MIT */
+/* Pressure to width, and the tablet's area onto the page in the four positions. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "check.h"
 #include <app_api.h>
 #include <math.h>

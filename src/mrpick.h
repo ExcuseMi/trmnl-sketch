@@ -1,7 +1,7 @@
 /* The mirror picker: a tap on the toolbar's Mirror item opens a small row of the five modes (Off, Left-right, Top-bottom,
    4-way, Kaleidoscope), each a glyph with a short label, right under the strip (above it when the strip is at the bottom).
    One tap picks and closes it. Layout and hit test are pure (user frame); the drawing goes through gfx.h.
-   SPDX-License-Identifier: MIT */
+   SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #ifndef MRPICK_H
 #define MRPICK_H
 #include "gfx.h"

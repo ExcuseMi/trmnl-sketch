@@ -6,7 +6,7 @@
    second through the app's frame loop (the glue's order: flush, tick, the frame's events, sk_frame, sk_frame_cost). It
    fails when a press takes over UNDO_PRESS_MS from its report to the end of the frame that showed it, or when the page
    after a press is not the page as it was drawn at that point of the history (a snapshot taken while drawing).
-   SPDX-License-Identifier: MIT */
+   SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #define _POSIX_C_SOURCE 200809L
 #include <stdio.h>
 #include <stdlib.h>

@@ -1,5 +1,5 @@
 /* The page's paper in the controller: loading it with the page, saving it beside the page (the sidecar and the printed
-   copy with the paper under the ink), the screen overlay, the page menu's Paper item. SPDX-License-Identifier: MIT */
+   copy with the paper under the ink), the screen overlay, the page menu's Paper item. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include <stdlib.h>
 #include <string.h>
 #include "sketch.h"

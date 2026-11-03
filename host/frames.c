@@ -11,7 +11,7 @@
    same three minutes (no tip). It fails when a frame drew the cursor more than once, the cursor is not at the last
    report of a hover frame, pushes a second exceed the frame rate, or the report-to-cursor p95 is over FRAMES_HOVER_P95_MS.
    The drawing run checks the first two as well.
-   SPDX-License-Identifier: MIT */
+   SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #define _POSIX_C_SOURCE 200809L
 #include <stdio.h>
 #include <stdlib.h>

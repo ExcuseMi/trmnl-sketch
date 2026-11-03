@@ -1,5 +1,5 @@
 /* Sketch's settings screen (page menu, Settings): one row per setting, stepped with < and >. A change applies at once and is
-   saved with the app's setting store (the X's device settings for pen_area and cleanup_s on API 2.11). SPDX-License-Identifier: MIT */
+   saved with the app's setting store (the X's device settings for pen_area and cleanup_s on API 2.11). SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #ifndef SKSETTINGS_H
 #define SKSETTINGS_H
 #include "sketch.h"

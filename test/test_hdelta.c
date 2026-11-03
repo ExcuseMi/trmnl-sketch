@@ -1,7 +1,7 @@
 /* Undo by deltas (hdelta.h, hist.h): the codec gives back the exact bytes; a long random history of strokes, clears,
    undos, redos and bakes gives the page as drawn at every point, with no pool, a pool too small for most deltas (the
    oldest give theirs up: drawn again) and one with room, presses left stale (lazy) and settled once.
-   SPDX-License-Identifier: MIT */
+   SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "check.h"
 #include <stdlib.h>
 #include <string.h>

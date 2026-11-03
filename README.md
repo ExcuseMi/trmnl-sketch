@@ -72,4 +72,4 @@ Needs the [trmnl-print](https://github.com/ExcuseMi/trmnl-print) repository chec
 
 ## License
 
-MIT, see [LICENSE](LICENSE).
+[PolyForm Noncommercial 1.0.0](LICENSE): free to use, change and share for any noncommercial purpose, at home, in schools and in other noncommercial organisations. Commercial use needs a separate licence from the author: open an issue to ask. Versions released before this change stay MIT. The Barlow Condensed fonts keep the SIL Open Font License.

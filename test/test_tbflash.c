@@ -4,7 +4,7 @@
    strokes near it with a pause every 5. The arrow, the item frame, the pick shown inverted, the brush cursor
    and a toast change only black and white pixels: they go as fast ink and never ask for a flash. Strokes leave traces:
    the drawing page gets one idle clean-up a pause (owner 2026-11-03, skflash.c), never while the pen moves.
-   Before the fix: 3 flashes (the strip, two idle clean-ups). SPDX-License-Identifier: MIT */
+   Before the fix: 3 flashes (the strip, two idle clean-ups). SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "check.h"
 #include <stdio.h>
 #include "util.h"

@@ -1,6 +1,6 @@
 /* The bucket's regions stay the same when its passes get faster: the mask, box and size of taps on a busy page (every
    look, every gap, a small seed stack, regions at the page edges) hashed against the plan before the passes were
-   windowed (2026-11-03, round 2). Run with an argument to print the sums. SPDX-License-Identifier: MIT */
+   windowed (2026-11-03, round 2). Run with an argument to print the sums. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "util.h"
 #include "fill.h"
 #include <math.h>

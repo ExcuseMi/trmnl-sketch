@@ -1,6 +1,6 @@
 /* Mirror drawing: every stroke is repeated through a symmetry about the page's centre (page = framebuffer frame, so
    the axes follow the page in every position of the X). The images are integer maps (no floats: replay is exact), a
-   stroke's log holds only the pen's own points. Also the dashed guide drawn over the screen only. SPDX-License-Identifier: MIT */
+   stroke's log holds only the pen's own points. Also the dashed guide drawn over the screen only. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #ifndef MIRROR_H
 #define MIRROR_H
 #include "canvas.h"

@@ -1,5 +1,5 @@
 /* make shots (fill part): a kids' house with a sun, filled in the three shades and mixed; the toolbar with Fill; the
-   bucket cursor over paper, black and a shade. SPDX-License-Identifier: MIT */
+   bucket cursor over paper, black and a shade. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include <math.h>
 #include <stdio.h>
 #include "util.h"

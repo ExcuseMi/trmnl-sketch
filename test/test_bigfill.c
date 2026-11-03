@@ -1,6 +1,6 @@
 /* Large fills (owner 2026-11-03: "Too intricate to fill" for a Grey fill over a busy black page, 44,096 runs against a
    log of SK_HIST_POINTS): a fill is kept as its delta, any size; undo and redo give the exact pages; a row of large fills
-   stays inside the delta pool (the oldest go into the base, never a crash or a wrong page). SPDX-License-Identifier: MIT */
+   stays inside the delta pool (the oldest go into the base, never a crash or a wrong page). SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "util.h"
 #include "fill.h"
 

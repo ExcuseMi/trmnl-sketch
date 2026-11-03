@@ -1,6 +1,6 @@
 /* The rectangles waiting to be pushed to the panel: new ink, the cursor and overlays add boxes; they merge when
    that costs little, never more than SK_MAX_RECTS wait, and each leaves aligned to whole bytes (the panel pushes whole
-   bytes of a row). SPDX-License-Identifier: MIT */
+   bytes of a row). SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #ifndef RECTS_H
 #define RECTS_H
 #include <stdint.h>

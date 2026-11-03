@@ -1,5 +1,5 @@
 /* Drawing latency, measured on the device: rolling statistics of "pen event to push issued" and "push duration". The
-   last SK_LAT_N samples of each; median and p95 on demand. Pure: the app feeds it milliseconds. SPDX-License-Identifier: MIT */
+   last SK_LAT_N samples of each; median and p95 on demand. Pure: the app feeds it milliseconds. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #ifndef SKLAT_H
 #define SKLAT_H
 #include <stddef.h>

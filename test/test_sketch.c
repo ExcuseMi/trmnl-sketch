@@ -1,4 +1,4 @@
-/* The app without the firmware: pen, tablet buttons, touch bar, pages, autosave, a restart. SPDX-License-Identifier: MIT */
+/* The app without the firmware: pen, tablet buttons, touch bar, pages, autosave, a restart. SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
 #include "check.h"
 #include <stdio.h>
 #include "util.h"
