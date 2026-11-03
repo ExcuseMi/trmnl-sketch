@@ -2,16 +2,6 @@
 #include "skcfg.h"
 #include <string.h>
 
-/* Not a device setting of the X (its keys are fixed): always Sketch's own */
-static const app_setting_decl_t decl_turn = { "tablet_turn", "Tablet in portrait (auto: used turned a quarter, long side up and down; off: as it lies)", "auto|off", 0, 0, APP_SETTING_CHOICE };
-static const app_setting_decl_t decl_gap = { "fill_gap", "Bucket fill: close gaps in outlines up to this many px (0: none)", 0, 0, 6, APP_SETTING_NUMBER };
-static const app_setting_decl_t decl_paper = { "paper", "Paper for new pages (the page menu's Paper changes one page)", "blank|grid|lines|dots", 0, 0, APP_SETTING_CHOICE };
-static const app_setting_decl_t decl_psp = { "paper_sp", "Paper spacing in px (16..200, default 48)", 0, 0, 200, APP_SETTING_NUMBER };
-static const app_setting_decl_t decl[] = {
-    { "cleanup_s", "Clean the screen after this many idle seconds (0: never)", 0, 0, 600, APP_SETTING_NUMBER },
-    { "pen_area", "Tablet area on the page (fill: every tablet edge is a screen edge; keep: no stretching)", "fill|keep", 0, 0, APP_SETTING_CHOICE },
-};
-
 static int has_dev(const app_api_t *api) { return api->size >= APP_API_SLOT(58) && api->device_setting_get; }
 
 int skcfg_is_device_key(const char *key) { return !strcmp(key, "pen_area") || !strcmp(key, "cleanup_s"); }
@@ -26,17 +16,16 @@ int skcfg_get(const app_api_t *api, const char *key, char *buf, int cap)
     return api->setting_get(key, buf, (size_t)cap);
 }
 
+int skcfg_set(const app_api_t *api, const char *key, const char *val, int n)
+{
+    if (n < 0) return -1;
+    if (has_dev(api) && api->device_setting_set && skcfg_is_device_key(key)) return api->device_setting_set(key, val, (size_t)n);
+    return api->setting_set(key, val, (size_t)n);
+}
+
+/* Sketch's settings are on its own screen: nothing is declared to the phone page. An older build's form is cleared. */
 int skcfg_declare(const app_api_t *api)
 {
     if (api->size < APP_API_SLOT(47) || !api->settings_declare) return 0;
-    app_setting_decl_t all[12];
-    uint32_t n = 0;
-    all[n++] = decl_turn;
-    all[n++] = decl_gap;
-    all[n++] = decl_paper;
-    all[n++] = decl_psp;
-    if (!has_dev(api)) all[n++] = decl[0], all[n++] = decl[1];
-    int rc = api->settings_declare(all, n);
-    if (rc != 0 && api->log) api->log("sketch: the settings form was refused (rc %d)", rc); /* old firmware refused labels over 48 bytes */
-    return rc;
+    return api->settings_declare(0, 0);
 }

@@ -285,8 +285,6 @@ static void test_orientations_render(void)
     }
 }
 
-/* The action list: a framed preview like a gallery tile, and "Settings" opens the phone's settings form (the printer) */
-
 /* The dithered thumbnail keeps the area average of the page: per 24 x 24 block of thumbnail pixels within 3 % */
 static void test_dither_keeps_the_average(void)
 {

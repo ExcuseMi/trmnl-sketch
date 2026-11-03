@@ -27,6 +27,7 @@
 ../../../trmnl-print/src/printer.c
 ../../../trmnl-print/src/printjob.c
 ../../src/skcfg.c
+../../src/sksettings.c
 ../../src/skflash.c
 ../../src/fill.c
 ../../src/skfill.c

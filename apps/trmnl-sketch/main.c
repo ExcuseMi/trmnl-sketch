@@ -51,7 +51,7 @@ static int f_list(void *c, const char *dir, int (*cb)(const char *, void *), voi
 static const sk_fs_t fs = { 0, f_open, f_read, f_write, f_close, f_rename, f_remove, f_mkdir, f_list };
 
 static int cfg_get(void *u, const char *k, char *b, int cap) { return (void)u, skcfg_get(api, k, b, cap); }
-static int cfg_set(void *u, const char *k, const char *v, int n) { return (void)u, api->setting_set(k, v, (size_t)n); }
+static int cfg_set(void *u, const char *k, const char *v, int n) { return (void)u, skcfg_set(api, k, v, n); }
 
 /* One IPP POST per print job (the same adaptor as the Print app's main.c) */
 static int f_post(void *u, const char *url, const void *body, size_t n, uint8_t *resp, size_t cap, size_t *rn)
@@ -134,10 +134,7 @@ int app_main(const app_api_t *a)
         sk_tick(&sk, now);
         if (sk.share_req > 0 && !sharing) {
             app_webshare_files_t opt = { SK_DIR, ".png", 4u * 1024 * 1024 };
-            if (sk.share_req == 2) /* the settings form */
-                share_rc = api->size >= APP_API_SLOT(47) ? api->webshare_start_settings(APP_WEBSHARE_AUTO) : APP_ENOTSUP;
-            else
-                share_rc = api->size >= APP_API_SLOT(37) ? api->webshare_start_files(APP_WEBSHARE_AUTO, &opt) : APP_ENOTSUP;
+            share_rc = api->size >= APP_API_SLOT(37) ? api->webshare_start_files(APP_WEBSHARE_AUTO, &opt) : APP_ENOTSUP;
             sharing = share_rc == 0;
             if (share_rc) api->log("sketch: wi-fi page start %d", share_rc);
             sk.share_req = 0;

@@ -310,8 +310,6 @@ static void test_menu_and_share(void)
     share_view_t v;
     share_view(&v, APP_ENONET, &st);
     CHECK(strstr(v.note, "No network") && !v.address[0]); /* a start that failed says so */
-    share_view(&v, APP_ENOENT, &st);
-    CHECK(!strcmp(v.note, "The X refused this app's settings."));
     share_view(&v, APP_EBUSY, &st);
     CHECK(!strcmp(v.note, "The Wi-Fi is still closing. Try again in a moment."));
     share_view(&v, APP_ENOMEM, &st);

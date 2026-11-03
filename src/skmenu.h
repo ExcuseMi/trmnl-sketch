@@ -31,6 +31,9 @@ typedef struct {
 /* A list as the firmware's menus: a title and the items (bold), the selected one inverted. The text column starts a
    third into the area `L`. */
 void ui_list(gfx_t *g, const gal_layout_t *L, const char *title, const char *const *items, int n, int sel, list_geom_t *geo);
+/* The settings list: the name of each row at the left; the value at the right between < and > (vals[i] NULL: a plain row,
+   like Back). Rows span the area; geo as for ui_list */
+void ui_settings(gfx_t *g, const gal_layout_t *L, const char *title, const char *const *names, const char *const *vals, int n, int sel, list_geom_t *geo);
 /* The user-frame box (inclusive) of row i as drawn (the inverted bar; also what the pen hits) */
 void ui_list_row(const list_geom_t *geo, int i, int *x0, int *y0, int *x1, int *y1);
 /* The gallery: tile 0 is "New page", the others pages. nums[slot] is the page number (0 = the new-page tile) for the

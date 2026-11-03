@@ -247,11 +247,11 @@ static void a_menus(void)
     key(7), settle(), key(2), key(2), settle(); /* Settings */
     begin();
     key(4);
-    sk_share_update(&R.s, 0, &(app_webshare_status_t){ 0 });
-    put("settings page start", end(), ACT_MS, 1);
-    sk_touch(&R.s, APP_TOUCH_MIDDLE, APP_GESTURE_TAP, R.now += 10);
-    settle();
-    key(5), settle(); /* back to drawing */
+    put("settings screen open", end(), ACT_MS, 1);
+    begin();
+    key(4); /* a setting steps */
+    put("settings step", end(), ACT_MS, 0);
+    key(5), key(5), settle(); /* the page menu, then back to drawing */
     key(7), settle(); /* Print is selected */
     begin();
     key(4);

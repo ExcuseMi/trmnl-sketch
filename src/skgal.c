@@ -7,6 +7,7 @@
 #include <string.h>
 #include "sk_cfg.h"
 #include "font.h"
+#include "sksettings.h"
 
 enum { MBLK_ = GFX_BLACK, MWHT_ = GFX_WHITE };
 
@@ -178,6 +179,18 @@ static void menu_draw(sketch_t *s)
         ui_button(&g, &s->L, CTL_BACK, hot == CTL_BACK);
         break;
     }
+    case SK_SETTINGS: {
+        char nm[SKS_N][32], vl[SKS_N][16];
+        const char *names[SKS_N + 1] = { "Back" }, *vals[SKS_N + 1] = { 0 };
+        for (int i = 0; i < SKS_N; i++) sks_row(s, i, nm[i], vl[i]), names[i + 1] = nm[i], vals[i + 1] = vl[i];
+        ui_settings(&g, &s->L, "Settings", names, vals, SKS_N + 1, s->act_sel, &s->lg);
+        s->list_n = SKS_N + 1;
+        if (s->gnote[0]) ui_footer(&g, &s->L, s->gnote);
+        else ui_footer(&g, &s->L, "Tap < or > to change a setting. Changes apply at once.");
+        ui_menu_pills(&g, &s->bar, "Change", hot);
+        ui_button(&g, &s->L, CTL_BACK, hot == CTL_BACK);
+        break;
+    }
     case SK_ACTIONS: { /* a damaged page: the file can be rescued through the phone page */
         static const char *const items[] = { "Back", "Send to phone" };
         num_text(t, "Damaged ", s->act_num);
@@ -239,7 +252,7 @@ void sk_screen_render(sketch_t *s)
 
 /* ---- the pointer and the highlight: partial refreshes ---- */
 
-static int is_list(const sketch_t *s) { return s->mode == SK_ACTIONS || s->mode == SK_CONFIRM || s->mode == SK_PAGEMENU; }
+static int is_list(const sketch_t *s) { return s->mode == SK_ACTIONS || s->mode == SK_CONFIRM || s->mode == SK_PAGEMENU || s->mode == SK_SETTINGS; }
 static int menu_pointer(const sketch_t *s) { return s->ui.px && (s->mode == SK_GALLERY || is_list(s) || s->mode == SK_RESULT); }
 
 void sk_menu_cursor(sketch_t *s)
@@ -436,17 +449,18 @@ static void menu_back(sketch_t *s)
     case SK_ACTIONS: to_menu(s, SK_GALLERY, s->act_sel); break;
     case SK_CONFIRM: to_menu(s, SK_PAGEMENU, s->exit_unsaved ? 7 : 1); break;
     case SK_RESULT: to_menu(s, SK_PAGEMENU, 1); break;
+    case SK_SETTINGS: to_menu(s, SK_PAGEMENU, 3); break; /* the row that opened it */
     default: to_draw(s); /* the page menu, the gallery */
     }
 }
 
-static void share_from(sketch_t *s, int kind)
+static void share_from(sketch_t *s)
 {
     sk_cursor_hide(s);
-    /* the phone page: the files (download the drawings) or the settings form */
+    /* the phone page: the files (download the drawings) */
     s->ret_mode = s->mode;
     s->mode = SK_SHARE;
-    s->share_req = s->share_kind = kind;
+    s->share_req = 1;
     s->share_rc = 0;
     memset(&s->share_shown, 0xff, sizeof(s->share_shown));
 }
@@ -465,13 +479,26 @@ static void print_start(sketch_t *s)
     to_menu(s, SK_CONFIRM, 1);
 }
 
+/* A setting row stepped: only its row and the note line are redrawn. A failed save says so on the note line */
+static void settings_step(sketch_t *s, int dir)
+{
+    box_t a, n;
+    sel_box(s, s->act_sel, &a);
+    int rc = sks_step(s, s->act_sel - 1, dir);
+    sk_cpy(s->gnote, sizeof(s->gnote), rc ? "Could not save this setting" : "");
+    if (s->want_full) return sk_screen_render(s);
+    note_box(s, &n);
+    redraw_boxes(s, &a, &n, 0);
+}
+
 static void list_select(sketch_t *s, uint32_t now)
 {
     if (s->mode == SK_PAGEMENU) {
         switch (s->act_sel) { /* the rows: Back on top, then the actions */
         case 0: to_draw(s); break;
         case 1: print_start(s); break;
-        case 2: case 3: share_from(s, s->act_sel - 1); break;
+        case 2: share_from(s); break;
+        case 3: s->gnote[0] = 0, to_menu(s, SK_SETTINGS, 1); break; /* Back is row 0; the first setting is selected */
         case 4: sk_set_paper(s, (s->paper + 1) % PP_N, now), to_menu(s, SK_PAGEMENU, 4); break; /* Paper cycles in place */
         case 5: to_draw(s), sk_new_page(s, now); break;
         case 6: sk_to_gallery(s, now); break;
@@ -479,8 +506,11 @@ static void list_select(sketch_t *s, uint32_t now)
             if (sk_save_page(s, now)) s->exit_req = 1;
             else s->exit_unsaved = 1, to_menu(s, SK_CONFIRM, 1);
         }
+    } else if (s->mode == SK_SETTINGS) {
+        if (s->act_sel == 0) menu_back(s);
+        else settings_step(s, 1);
     } else if (s->mode == SK_ACTIONS) {
-        if (s->act_sel == 1) share_from(s, 1);
+        if (s->act_sel == 1) share_from(s);
         else menu_back(s);
     } else if (s->mode == SK_CONFIRM) {
         if (s->act_sel == 0) return menu_back(s); /* Back, the top row */
@@ -580,7 +610,7 @@ void sk_menu_key(sketch_t *s, unsigned down, uint32_t now)
         return;
     }
     for (int b = 0; b < 8; b++) {
-        int gal = s->mode == SK_GALLERY, pm = s->mode == SK_PAGEMENU;
+        int gal = s->mode == SK_GALLERY, pm = s->mode == SK_PAGEMENU || s->mode == SK_SETTINGS;
         if (!(down >> b & 1) || (s->mode < SK_GALLERY)) continue;
         if (b == 0 || (b == 6 && !gal && !pm)) menu_move(s, -1);
         else if (b == 1 || (b == 7 && !gal && !pm)) menu_move(s, 1);
@@ -646,7 +676,10 @@ void sk_menu_pen(sketch_t *s, unsigned flags, int fx, int fy, int inside, uint32
     if (s->mode == SK_GALLERY) s->sel = s->ptr_item, gal_activate(s, now);
     else if (s->mode == SK_SHARE) sk_touch(s, APP_TOUCH_MIDDLE, APP_GESTURE_TAP, now);
     else if (s->mode == SK_RESULT) sk_menu_touch(s, APP_TOUCH_MIDDLE, APP_GESTURE_TAP, now);
-    else if (s->mode != SK_BUSY) s->act_sel = s->ptr_item, list_select(s, now);
+    else if (s->mode == SK_SETTINGS && s->ptr_item > 0) { /* the left half of the row steps back, the right half forward */
+        s->act_sel = s->ptr_item;
+        settings_step(s, ux < (s->lg.x - 30 + s->lg.x1) / 2 ? -1 : 1);
+    } else if (s->mode != SK_BUSY) s->act_sel = s->ptr_item, list_select(s, now);
 }
 
 void sk_run_print(sketch_t *s)

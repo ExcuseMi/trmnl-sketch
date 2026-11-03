@@ -46,6 +46,7 @@ typedef struct {
     int inverted;       /* inverted halves seen (rig_flush) */
     int bare_fulls;     /* full refreshes handed out without their inverted half first: the flash helper was bypassed */
     box_t pre;          /* the area of the last inverted half */
+    int cfg_fail;       /* the setting store refuses every write (cfg_set returns an error) */
 } rig_t;
 
 static int fake_post(void *u, const char *url, const void *body, size_t n, uint8_t *resp, size_t cap, size_t *rn)
@@ -95,6 +96,7 @@ static int rig_set(void *u, const char *k, const char *v, int n)
 {
     rig_t *r = u;
     int at = -1;
+    if (r->cfg_fail) return -1;
     for (int i = 0; i < 24 && at < 0; i++)
         if (!strcmp(r->cfg[i].k, k) || !r->cfg[i].k[0]) at = i;
     if (at < 0 || n > 15) return -1;

@@ -424,10 +424,10 @@ static void test_walk_with_the_pen_only(void)
         CHECK(r.s.mode == SK_SHARE && r.s.share_req == 1);
         pen_anywhere(&r);
         CHECK(r.s.mode == SK_PAGEMENU);
-        pen_row(&r, 3); /* Settings */
-        CHECK(r.s.mode == SK_SHARE && r.s.share_req == 2);
-        pen_anywhere(&r);
-        CHECK(r.s.mode == SK_PAGEMENU);
+        pen_row(&r, 3); /* Settings: its own screen, not the phone page */
+        CHECK(r.s.mode == SK_SETTINGS);
+        pen_row(&r, 0); /* Back */
+        CHECK(r.s.mode == SK_PAGEMENU && r.s.act_sel == 3);
         pen_row(&r, 6); /* Gallery */
         CHECK(r.s.mode == SK_GALLERY);
         rig_frame(&r, (rect_t[SK_MAX_RECTS]){ 0 });
@@ -504,8 +504,9 @@ static void test_walk_with_the_tablet_buttons_only(void)
         CHECK(r.s.mode == SK_PAGEMENU);
         row_button(&r, 3);
         btn(&r, 4);
-        CHECK(r.s.mode == SK_SHARE && r.s.share_req == 2);
-        btn(&r, 1);
+        CHECK(r.s.mode == SK_SETTINGS);
+        btn(&r, 5); /* tablet 5 returns */
+        CHECK(r.s.mode == SK_PAGEMENU);
         row_button(&r, 6);
         btn(&r, 4);
         CHECK(r.s.mode == SK_GALLERY);

@@ -121,6 +121,23 @@ void ui_list(gfx_t *g, const gal_layout_t *L, const char *title, const char *con
     }
 }
 
+void ui_settings(gfx_t *g, const gal_layout_t *L, const char *title, const char *const *names, const char *const *vals, int n, int sel, list_geom_t *geo)
+{
+    const font_face_t *big = mface(1, 64);
+    mtext(g, big, L->ax0, L->ay0 + 110, title, MBLK);
+    int x = L->ax0 + 60, mid = (L->ay0 + L->ay1) / 2, vw = mtext_w(big, "Lines") + 140, vx = L->ax1 - 70 - vw;
+    geo->x = x, geo->y0 = mid - (n - 1) * LIST_PITCH / 2, geo->x1 = L->ax1 - 40;
+    for (int i = 0; i < n; i++) {
+        int y = geo->y0 + i * LIST_PITCH, c = i == sel ? MWHT : MBLK;
+        if (i == sel) gfx_rrect(g, x - 30, y - 74, geo->x1, y + 28, 14, 0, MBLK, MBLK);
+        mtext(g, big, x, y, names[i], c);
+        if (!vals[i]) continue;
+        mtext(g, big, vx, y, "<", c);
+        mtext(g, big, vx + vw - mtext_w(big, ">"), y, ">", c);
+        mtext(g, big, vx + vw / 2 - mtext_w(big, vals[i]) / 2, y, vals[i], c);
+    }
+}
+
 void ui_list_row(const list_geom_t *geo, int i, int *x0, int *y0, int *x1, int *y1)
 {
     *x0 = geo->x - 30, *x1 = geo->x1, *y0 = geo->y0 + i * LIST_PITCH - 74, *y1 = geo->y0 + i * LIST_PITCH + 28;

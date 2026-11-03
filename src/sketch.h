@@ -38,7 +38,7 @@ typedef struct {
     int (*printer)(void *user, pj_printer_t *out); /* the default printer (pj_default_printer): 0, PJ_NO_PRINTER, APP_ENOTSUP, APP_EIO */
 } sk_env_t;
 
-enum { SK_DRAW, SK_SHARE, SK_GALLERY, SK_ACTIONS, SK_CONFIRM, SK_BUSY, SK_RESULT, SK_PAGEMENU }; /* from SK_GALLERY on: menu screens drawn from `ui` */
+enum { SK_DRAW, SK_SHARE, SK_GALLERY, SK_ACTIONS, SK_CONFIRM, SK_BUSY, SK_RESULT, SK_PAGEMENU, SK_SETTINGS }; /* from SK_GALLERY on: menu screens drawn from `ui` */
 #define SK_DMG_MAX 32
 #define SK_BLITS 40
 enum { SK_NONE = 0, SK_FULL = -1, SK_NOFLASH = -2 }; /* sk_flush: nothing due / a full refresh; SK_NOFLASH: only inside (sk_flash_step) */
@@ -121,7 +121,7 @@ typedef struct {
     uint32_t last_push;
     int batch_ms;        /* new ink waits this long after the last push (SK_BATCH_MS; the speed run tries others) */
     uint32_t wz_push; int wz_zero; /* sk_wait_ms: last_push at the last zero, zeros since a push */
-    int want_full, share_req, share_kind; /* share_req: 1 start the files page, 2 the settings page, -1 stop; share_kind: which one is on screen */
+    int want_full, share_req; /* share_req: 1 start the files page, -1 stop */
     share_view_t share, share_shown;
     int share_rc;
     /* gallery and menus (1-bit like the page, so the pointer and the highlight need only partial refreshes) */
@@ -163,7 +163,7 @@ int sk_init(sketch_t *s, const sk_env_t *env, uint8_t *fb, int w, int h, int str
 void sk_free(sketch_t *s);
 void sk_set_tablet(sketch_t *s, uint32_t width_um, uint32_t height_um, int connected);
 void sk_set_orient(sketch_t *s, int orient, const app_touchbar_t *bar);
-/* Reads the settings the phone page can change (pen_area) again; the app calls it when that page closes */
+/* Reads the settings (pen_area, tablet_turn, paper ...) from the store; at start */
 void sk_cfg_reload(sketch_t *s);
 
 /* Brush, shade and size button (the toolbar calls these; each toasts its name) */

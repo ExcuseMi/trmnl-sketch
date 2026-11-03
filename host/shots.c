@@ -14,6 +14,7 @@ static int bad;
 #define TAP(z) sk_touch(&r.s, APP_TOUCH_##z, APP_GESTURE_TAP, r.now += 50)
 static void brush_shots(const char *dir);
 static void paging_shots(const char *dir);
+static void settings_shots(const char *dir);
 
 static void save(rig_t *r, const char *dir, const char *name)
 {
@@ -116,6 +117,27 @@ static void gallery_shots(const char *dir)
         TAP(RIGHT); /* back on the damaged tile: its list */
         TAP(MIDDLE);
         gshot(&r, dir, o ? "e-damaged-portrait" : "d-damaged-landscape");
+        rig_end(&r);
+    }
+}
+
+/* The Settings screen: a few values changed so the pictures show more than the defaults */
+static void settings_shots(const char *dir)
+{
+    static rig_t r;
+    for (int o = 0; o < 2; o++) {
+        rig_new(&r, o);
+        draw_page(&r);
+        r.now += 3000;
+        sk_tick(&r.s, r.now);
+        rig_pen(&r, 10, 10, 0, 0);
+        sk_touch(&r.s, APP_TOUCH_MIDDLE, APP_GESTURE_TAP, r.now += 50); /* the page menu */
+        for (int k = 0; k < 2; k++) sk_touch(&r.s, APP_TOUCH_RIGHT, APP_GESTURE_TAP, r.now += 50);
+        sk_touch(&r.s, APP_TOUCH_MIDDLE, APP_GESTURE_TAP, r.now += 50); /* Settings */
+        sk_touch(&r.s, APP_TOUCH_MIDDLE, APP_GESTURE_TAP, r.now += 50); /* Paper for new pages: Grid */
+        sk_touch(&r.s, APP_TOUCH_RIGHT, APP_GESTURE_TAP, r.now += 50);
+        sk_touch(&r.s, APP_TOUCH_MIDDLE, APP_GESTURE_TAP, r.now += 50); /* Paper spacing: 56 */
+        gshot(&r, dir, o ? "s2-settings-portrait" : "s1-settings-landscape");
         rig_end(&r);
     }
 }
@@ -262,6 +284,7 @@ int main(int argc, char **argv)
     rig_end(&r);
     gallery_shots(dir);
     paging_shots(dir);
+    settings_shots(dir);
 
     /* portrait: the touch bar on the left, the legend and a page of strokes turned with it */
     rig_new(&r, APP_ORIENT_BAR_LEFT);

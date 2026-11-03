@@ -17,8 +17,11 @@ static int dev_get(const char *k, char *b, size_t cap)
     if (!strcmp(k, "pen_area")) return snprintf(b, cap, "keep");
     return APP_ENOENT;
 }
-static int refuse, logged;
-static void log_fn(const char *fmt, ...) { (void)fmt; logged++; }
+static char set_own[16], set_dev[16];
+static int dev_rc;
+static int own_set(const char *k, const void *v, size_t n) { (void)v, (void)n; snprintf(set_own, sizeof(set_own), "%s", k); return 0; }
+static int dev_set(const char *k, const char *v, size_t n) { (void)v, (void)n; snprintf(set_dev, sizeof(set_dev), "%s", k); return dev_rc; }
+static int refuse;
 static int removed_declared; /* a setting of a removed feature in the form */
 static int decl_fn(const app_setting_decl_t *d, uint32_t n)
 {
@@ -39,7 +42,7 @@ int main(void)
     CHECK(skcfg_get(&a, "pen_area", b, sizeof(b)) == 4 && !strcmp(b, "keep"));
     CHECK(skcfg_get(&a, "size", b, sizeof(b)) > 0 && !strcmp(b, "own-size") && own_calls == 1);   /* Sketch's own state */
     skcfg_declare(&a);
-    CHECK(declares == 1 && declared_n == 4 && !removed_declared); /* the form on 2.11: tablet_turn, fill_gap and the two paper settings (pen_area and cleanup_s are the X's); no stabiliser, pressure or tilt rows */
+    CHECK(declares == 1 && declared_n == 0 && !removed_declared); /* nothing is declared to the phone page: Sketch's settings are on its own screen */
     a.device_setting_get = 0;                          /* the slot is there but empty: own settings, no crash */
     CHECK(skcfg_get(&a, "cleanup_s", b, sizeof(b)) > 0 && !strcmp(b, "own-cleanup_s"));
     a.device_setting_get = dev_get;
@@ -47,13 +50,18 @@ int main(void)
     int dc = dev_calls;
     CHECK(skcfg_get(&a, "cleanup_s", b, sizeof(b)) > 0 && !strcmp(b, "own-cleanup_s") && dev_calls == dc);
     skcfg_declare(&a);
-    CHECK(declares == 2 && declared_n == 6 && !removed_declared); /* the own form: tablet_turn, fill_gap, paper, paper_sp, cleanup_s and pen_area */
-    /* a refused form is returned and logged, never ignored (old firmware refused labels over 48 bytes) */
-    refuse = APP_ENOENT;
-    a.log = log_fn;
+    CHECK(declares == 2 && declared_n == 0);
+    /* writes: the X's device setting for its two keys on 2.11, Sketch's own store otherwise */
+    a.setting_set = own_set, a.device_setting_set = dev_set;
     a.size = sizeof(a);
-    CHECK(skcfg_declare(&a) == APP_ENOENT && logged == 1);
-    refuse = 0;
-    CHECK(skcfg_declare(&a) == 0 && logged == 1);
+    CHECK(skcfg_set(&a, "cleanup_s", "30", 2) == 0 && !strcmp(set_dev, "cleanup_s") && !set_own[0]);
+    CHECK(skcfg_set(&a, "pen_area", "keep", 4) == 0 && !strcmp(set_dev, "pen_area"));
+    CHECK(skcfg_set(&a, "paper", "grid", 4) == 0 && !strcmp(set_own, "paper"));
+    set_own[0] = set_dev[0] = 0;
+    a.size = APP_API_SLOT(58) - 1;
+    CHECK(skcfg_set(&a, "cleanup_s", "30", 2) == 0 && !strcmp(set_own, "cleanup_s") && !set_dev[0]);
+    a.size = sizeof(a);
+    dev_rc = APP_EIO;
+    CHECK(skcfg_set(&a, "cleanup_s", "30", 2) == APP_EIO); /* a refused write is returned, never hidden */
     return CHECK_DONE("test_skcfg");
 }

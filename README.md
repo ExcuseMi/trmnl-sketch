@@ -24,6 +24,7 @@ Drawing a cat on the tablet, live on the X (twice as fast here; [the full video]
 | <img src="shots/t1-toolbar-landscape.png" width="420"><br>The toolbar along the top edge (landscape) | <img src="shots/t2-toolbar-portrait.png" width="420"><br>The same toolbar in portrait |
 | <img src="shots/m5-mirror-picker-landscape.png" width="420"><br>The mirror picker: pick how your strokes are repeated | <img src="shots/m1-mirror-kaleidoscope.png" width="420"><br>A kaleidoscope drawing |
 | <img src="shots/m-pagemenu-landscape.png" width="420"><br>The page menu | <img src="shots/p2-paper-grid.png" width="420"><br>Paper styles: grid (also lines, dots, blank) |
+| <img src="shots/s1-settings-landscape.png" width="420"><br>Settings: tap < or > on a row | |
 | <img src="shots/b1-brushes-black.png" width="420"><br>The brushes: brush, pen, pencil, marker, spray, eraser | <img src="shots/f-print-confirm.png" width="420"><br>Print confirm screen |
 
 ## Requirements
@@ -48,7 +49,7 @@ Drawing a cat on the tablet, live on the X (twice as fast here; [the full video]
 | Tablet button 4 | Show or hide the toolbar |
 | Tablet button 5 | Clear the page (one undo brings it back) |
 | Tablet button 6 | New page |
-| Tablet button 7 or 8 | Page menu: print, send to phone, settings, paper, new page, gallery, exit |
+| Tablet button 7 or 8 | Page menu: print, send to phone, settings, paper, new page, gallery, exit. Settings (paper, fill gap, tablet, clean-up) are on Sketch's own screen |
 | Touch bar, middle tap | Page menu |
 | Touch bar, long press | Leave the app |
 

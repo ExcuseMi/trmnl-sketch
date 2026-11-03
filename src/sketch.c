@@ -546,7 +546,6 @@ void sk_touch(sketch_t *s, int zone, int gesture, uint32_t now)
     sk_settle(s, now);
     if (s->mode == SK_SHARE) { /* any touch ends the phone page */
         s->share_req = -1;
-        if (s->share_kind == 2) sk_cfg_reload(s); /* the settings form was open */
         s->mode = s->ret_mode;
         sk_screen_render(s);
         return;
@@ -560,8 +559,6 @@ void sk_share_update(sketch_t *s, int start_rc, const app_webshare_status_t *st)
     if (s->mode != SK_SHARE) return;
     share_view_t v;
     share_view(&v, start_rc, st);
-    v.settings = s->share_kind == 2;
-    if (v.settings && v.up) sk_cpy(v.note, sizeof(v.note), "Save the form on your phone, then tap Back.");
     if (share_view_same(&v, &s->share_shown)) return;
     s->share_shown = s->share = v;
     gfx_t g;

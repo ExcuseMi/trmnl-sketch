@@ -32,7 +32,6 @@ typedef struct {
     char code[8];
     char note[96];
     int up;
-    int settings; /* the settings form, not the files */
 } share_view_t;
 void share_view(share_view_t *v, int start_rc, const app_webshare_status_t *st);
 int share_view_same(const share_view_t *a, const share_view_t *b);
