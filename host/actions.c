@@ -25,8 +25,8 @@
 /* Rows with their own bound (today's cost and a margin: a ratchet, lower it when they get cheaper; 2026-11-03 round 2):
    Print's whole job (made a few rows a loop turn, each turn under ACT_MS; ../trmnl-print/src/imgfit.c), a whole-page
    fill's plan (src/fill.c), and the 4-way and kaleidoscope Brush per 30 ms frame (4 and 16 images a point) */
-#define PRINT_MS 3000
-#define FILL_PAGE_MS 520
+#define PRINT_MS 2300
+#define FILL_PAGE_MS 230
 #define MIRROR4_MS 60
 #define KALEIDO_MS 230
 #define FULL_MS 1130

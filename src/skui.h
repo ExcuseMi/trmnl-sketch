@@ -17,6 +17,7 @@ void ui_legend(gfx_t *g, box_t *out);
 /* The hover cursor of a brush at a size (its shape: brush.h) black with a white outline; *out: its box. Undone by copying the
    page back */
 void ui_cursor(canvas_t *fb, int cx, int cy, int brush, int size, box_t *out);
+void ui_cursor_warm(int brush, int size); /* works the cursor out now (a tool or size picked), so the first hover only draws it */
 
 #define ARROW_W 28
 #define ARROW_H 48

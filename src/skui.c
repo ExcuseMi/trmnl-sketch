@@ -51,25 +51,49 @@ void ui_legend(gfx_t *g, box_t *out)
 /* Draws a black shape with a white outline BR_CUR_OUT wide: `in(ctx, dx, dy)` for dx, dy within +-r */
 #define CUR_MAXR 100 /* the text I-beam of the largest size */
 typedef int (*cur_in_fn)(const void *ctx, int dx, int dy);
-static uint8_t cur_mask[(2 * (CUR_MAXR + BR_CUR_OUT) + 1) * (2 * (CUR_MAXR + BR_CUR_OUT) + 1)];
 
-static void cur_outline(canvas_t *fb, int cx, int cy, int r, cur_in_fn in, const void *ctx, int orient, box_t *out)
+/* A cursor's shape and outline, worked out once for a shape and size (bit 0: inside, bits 1-2: the colour + 1) and
+   kept: a hover only draws them (the bucket's took 2 ms on the host, 40 ms on the X, at each new hover; 2026-11-03).
+   The brush cursor and the menu arrow keep one each, so the menus do not throw the brush's away */
+typedef struct {
+    int a, b, r, valid;
+    uint8_t *m;
+} cur_cache_t;
+static uint8_t brush_grid[(2 * (CUR_MAXR + BR_CUR_OUT) + 1) * (2 * (CUR_MAXR + BR_CUR_OUT) + 1)];
+static uint8_t arrow_grid[(2 * (ARROW_H / 2 + 1 + BR_CUR_OUT) + 1) * (2 * (ARROW_H / 2 + 1 + BR_CUR_OUT) + 1)];
+static cur_cache_t brush_cc = { 0, 0, 0, 0, brush_grid }, arrow_cc = { 0, 0, 0, 0, arrow_grid };
+
+static void cur_make(cur_cache_t *c, int r, cur_in_fn in, const void *ctx, int ka, int kb)
 {
+    if (c->valid && c->a == ka && c->b == kb && c->r == r) return;
     int n = 2 * (r + BR_CUR_OUT) + 1, o = r + BR_CUR_OUT;
-    box_clear(out);
+    uint8_t *m = c->m;
     for (int dy = -o; dy <= o; dy++)
-        for (int dx = -o; dx <= o; dx++) cur_mask[(dy + o) * n + dx + o] = (dx >= -r && dx <= r && dy >= -r && dy <= r) && in(ctx, dx, dy);
+        for (int dx = -o; dx <= o; dx++) m[(dy + o) * n + dx + o] = (dx >= -r && dx <= r && dy >= -r && dy <= r) && in(ctx, dx, dy);
     for (int dy = -o; dy <= o; dy++)
         for (int dx = -o; dx <= o; dx++) {
             int colour = -1;
-            if (cur_mask[(dy + o) * n + dx + o]) colour = 0;
+            if (m[(dy + o) * n + dx + o] & 1) colour = 0;
             else
                 for (int y = dy - BR_CUR_OUT; y <= dy + BR_CUR_OUT && colour < 0; y++)
                     for (int x = dx - BR_CUR_OUT; x <= dx + BR_CUR_OUT; x++)
-                        if (x >= -o && x <= o && y >= -o && y <= o && cur_mask[(y + o) * n + x + o]) {
+                        if (x >= -o && x <= o && y >= -o && y <= o && (m[(y + o) * n + x + o] & 1)) {
                             colour = 1;
                             break;
                         }
+            m[(dy + o) * n + dx + o] |= (uint8_t)((colour + 1) << 1);
+        }
+    c->a = ka, c->b = kb, c->r = r, c->valid = 1;
+}
+
+/* Draws a black shape with a white outline BR_CUR_OUT wide (the cache made by cur_make) */
+static void cur_outline(canvas_t *fb, int cx, int cy, const cur_cache_t *c, int orient, box_t *out)
+{
+    int r = c->r, n = 2 * (r + BR_CUR_OUT) + 1, o = r + BR_CUR_OUT;
+    box_clear(out);
+    for (int dy = -o; dy <= o; dy++)
+        for (int dx = -o; dx <= o; dx++) {
+            int colour = (c->m[(dy + o) * n + dx + o] >> 1) - 1;
             int fx, fy;
             if (orient < 0) fx = cx + dx, fy = cy + dy;
             else app_orient_to_fb(orient, fb->w, fb->h, cx + dx, cy + dy, &fx, &fy);
@@ -86,11 +110,17 @@ static int brush_in(const void *ctx, int dx, int dy)
     return brush_cursor_px(b->brush, b->size, dx, dy);
 }
 
-void ui_cursor(canvas_t *fb, int cx, int cy, int brush, int size, box_t *out)
+void ui_cursor_warm(int brush, int size)
 {
     cur_brush_t b = { brush, size };
     int r = brush_cursor_r(brush, size);
-    cur_outline(fb, cx, cy, r > CUR_MAXR ? CUR_MAXR : r, brush_in, &b, -1, out);
+    cur_make(&brush_cc, r > CUR_MAXR ? CUR_MAXR : r, brush_in, &b, brush, size);
+}
+
+void ui_cursor(canvas_t *fb, int cx, int cy, int brush, int size, box_t *out)
+{
+    ui_cursor_warm(brush, size);
+    cur_outline(fb, cx, cy, &brush_cc, -1, out);
 }
 
 /* The pointer of the menus: the classic arrow, tip at the point, scaled to 28 x 48 */
@@ -113,7 +143,8 @@ static int arrow_in(const void *ctx, int dx, int dy)
 void ui_arrow(canvas_t *fb, int orient, int ux, int uy, box_t *out)
 {
     /* the shape spans 0..ARROW_W-1 x 0..ARROW_H-1 from the tip: drawn about its centre, the outline included */
-    cur_outline(fb, ux + ARROW_W / 2, uy + ARROW_H / 2, ARROW_H / 2 + 1, arrow_in, 0, orient, out);
+    cur_make(&arrow_cc, ARROW_H / 2 + 1, arrow_in, 0, 0, 0);
+    cur_outline(fb, ux + ARROW_W / 2, uy + ARROW_H / 2, &arrow_cc, orient, out);
 }
 
 static void put(char *dst, size_t cap, const char *s)

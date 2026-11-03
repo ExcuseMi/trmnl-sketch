@@ -67,11 +67,20 @@ static void bf_push(bfs_t *s, int x, int y)
    starts are the fillable bits whose left neighbour is not) */
 static void bf_seeds(const bfc_t *k, bfs_t *s, int ny, int xl, int xr)
 {
-    int carry = 0;
-    for (int b = xl >> 3; b <= xr >> 3; b++) {
-        uint8_t o = bf_ok(k, b, ny);
-        if (b == xl >> 3) o &= (uint8_t)(0xff >> (xl & 7));
-        if (b == xr >> 3) o &= (uint8_t)(0xff << (7 - (xr & 7)));
+    int carry = 0, b0 = xl >> 3, b1 = xr >> 3;
+    size_t at = (size_t)ny * (size_t)k->stride;
+    const uint8_t *pg = k->pg->px + at, *vr = k->vis + at, *dr = k->dil ? k->dil + at : 0;
+    uint8_t pw = k->pw[ny & 3], m0 = (uint8_t)(0xff >> (xl & 7)), m1 = (uint8_t)(0xff << (7 - (xr & 7)));
+    if (b1 == k->stride - 1 && (k->w & 7)) m1 &= (uint8_t)(0xff << (8 - (k->w & 7)));
+    for (int b = b0; b <= b1; b++) {
+        uint8_t o = (uint8_t)~(pg[b] ^ pw) & (uint8_t)~vr[b]; /* bf_ok, the row's pointers once */
+        if (dr) o &= (uint8_t)~dr[b];
+        if (b == b0) o &= m0;
+        if (b == b1) o &= m1;
+        if (!o) {
+            carry = 0;
+            continue;
+        }
         uint8_t st = (uint8_t)(o & ~(o >> 1 | carry << 7));
         for (int i = 0; st; i++)
             if (st >> (7 - i) & 1) bf_push(s, b * 8 + i, ny), st &= (uint8_t)~(0x80 >> i);
@@ -151,6 +160,23 @@ static bfw_t bf_win(const box_t *b, int g, int stride, int h)
     return w;
 }
 
+/* d |= s over n bytes; two at a time when both start on an even address (the masks' rows do on an even stride) */
+static void bf_or(uint8_t *restrict d, const uint8_t *restrict s, int n)
+{
+    int i = 0;
+    if (!(((uintptr_t)d | (uintptr_t)s) & 1)) {
+        uint8_t *d2 = __builtin_assume_aligned(d, 2);
+        const uint8_t *s2 = __builtin_assume_aligned(s, 2);
+        for (; i + 2 <= n; i += 2) {
+            uint16_t a, b;
+            memcpy(&a, d2 + i, 2), memcpy(&b, s2 + i, 2);
+            a |= b;
+            memcpy(d2 + i, &a, 2);
+        }
+    }
+    for (; i < n; i++) d[i] |= s[i];
+}
+
 static void bf_dil(uint8_t *m, int stride, bfw_t W, int g)
 {
     if (g <= 0) return;
@@ -178,14 +204,12 @@ static void bf_dil(uint8_t *m, int stride, bfw_t W, int g)
     for (int y = W.y0; y <= W.y1; y++) {
         uint8_t *row = m + (size_t)y * (size_t)stride;
         for (int k = 1; k <= g && y + k <= W.y1; k++) {
-            const uint8_t *nb = row + (size_t)k * (size_t)stride;
-            for (int i = W.b0; i <= W.b1; i++) row[i] |= nb[i];
+            bf_or(row + W.b0, row + (size_t)k * (size_t)stride + W.b0, W.b1 - W.b0 + 1);
         }
     }
     for (int y = W.y1; y >= W.y0 + g; y--) {
         uint8_t *row = m + (size_t)y * (size_t)stride;
-        const uint8_t *up = row - (size_t)g * (size_t)stride;
-        for (int i = W.b0; i <= W.b1; i++) row[i] |= up[i];
+        bf_or(row + W.b0, row - (size_t)g * (size_t)stride + W.b0, W.b1 - W.b0 + 1);
     }
 }
 
@@ -277,8 +301,11 @@ int bf_plan(bf_t *r, const canvas_t *page, int x, int y, int shade, int gap, siz
     box_clear(&k.fb);
     bfw_t page_w = { 0, k.stride - 1, 0, k.h - 1 };
     for (int g = gap; gap; g--) { /* the lines (what does not look like the class) grown by the gap; a tap within the gap of a line: a smaller gap */
-        for (int yy = 0; yy < k.h; yy++)
-            for (int b = 0; b < k.stride; b++) tmp[yy * k.stride + b] = (uint8_t)~bf_match(&k, b, yy);
+        for (int yy = 0; yy < k.h; yy++) {
+            const uint8_t *pg = page->px + (size_t)yy * (size_t)k.stride, pw = k.pw[yy & 3];
+            uint8_t *t = tmp + (size_t)yy * (size_t)k.stride;
+            for (int b = 0; b < k.stride; b++) t[b] = (uint8_t)(pg[b] ^ pw); /* ~bf_match */
+        }
         bf_dil(tmp, k.stride, page_w, g);
         if (g == 0 || !(tmp[y * k.stride + (x >> 3)] >> (7 - (x & 7)) & 1)) {
             gap = g;
@@ -294,8 +321,12 @@ int bf_plan(bf_t *r, const canvas_t *page, int x, int y, int shade, int gap, siz
     if (gap) { /* the band between the flood and the lines: M and D pixels within the gap of the flood */
         for (int yy = W.y0; yy <= W.y1; yy++) memcpy(tmp + yy * k.stride + W.b0, vis + yy * k.stride + W.b0, (size_t)(W.b1 - W.b0 + 1));
         bf_dil(tmp, k.stride, W, gap);
-        for (int yy = W.y0; yy <= W.y1; yy++)
-            for (int b = W.b0; b <= W.b1; b++) vis[yy * k.stride + b] |= (uint8_t)(tmp[yy * k.stride + b] & dil[yy * k.stride + b] & bf_match(&k, b, yy));
+        for (int yy = W.y0; yy <= W.y1; yy++) {
+            size_t at = (size_t)yy * (size_t)k.stride;
+            const uint8_t *pg = page->px + at, *t = tmp + at, *d = dil + at, pw = k.pw[yy & 3];
+            uint8_t *v = vis + at;
+            for (int b = W.b0; b <= W.b1; b++) v[b] |= (uint8_t)(t[b] & d[b] & ~(pg[b] ^ pw));
+        }
     }
     if (cls != 0 && cls != 1) { /* black dots touching a line stay as they are: the outline is never eaten */
         for (int yy = W.y0; yy <= W.y1; yy++)

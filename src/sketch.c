@@ -283,6 +283,7 @@ void sk_set_size(sketch_t *s, int cls, uint32_t now)
     s->sty.size = (uint8_t)brush_size(s->sty.brush, cls);
     sk_cfg_num(s, "size_cls", cls);
     sk_picked(s, cls == 0 ? "Small" : cls == 1 ? "Medium" : "Big", now);
+    ui_cursor_warm(s->sty.brush, size_for(s, s->sty.brush));
 }
 
 void sk_set_brush(sketch_t *s, int brush, uint32_t now)
@@ -292,6 +293,7 @@ void sk_set_brush(sketch_t *s, int brush, uint32_t now)
     s->sty.brush = (uint8_t)brush;
     s->sty.size = (uint8_t)brush_size(brush, s->size_cls);
     sk_picked(s, brush_name(brush), now);
+    ui_cursor_warm(brush, size_for(s, brush));
 }
 
 void sk_set_shade(sketch_t *s, int shade, uint32_t now)
@@ -570,6 +572,7 @@ void sk_share_update(sketch_t *s, int start_rc, const app_webshare_status_t *st)
 void sk_tick(sketch_t *s, uint32_t now)
 {
     sk_settle(s, now);
+    if (s->bk_plan.mask && (int32_t)(now - s->bk_ask_until) >= 0) sk_fill_forget(s); /* the question ran out */
     if (s->note_on && !s->legend && (int32_t)(now - s->note_until) >= 0) {
         sk_note_hide(s);
         if (s->hover_valid) cursor_show(s, s->hover_x, s->hover_y);
@@ -745,6 +748,7 @@ int sk_init(sketch_t *s, const sk_env_t *env, uint8_t *fb, int w, int h, int str
 
 void sk_free(sketch_t *s)
 {
+    sk_fill_forget(s);
     pj_job_free(s->pjob); /* the app left while printing: the job is given up, nothing sent */
     s->pjob = 0;
     sk_tb_img_free(s);

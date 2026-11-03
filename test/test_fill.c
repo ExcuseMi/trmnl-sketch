@@ -344,6 +344,59 @@ static void test_big_asks(void)
     rig_end(&r);
 }
 
+/* The region asked about is kept for the confirming tap (2026-11-03: a whole-page fill planned twice, 430 ms a tap):
+   the page then is what a fresh plan of the asked tap makes; a changed page, another shade or a tap outside it plans
+   again; the kept region goes when the question runs out or the app ends (ASan) */
+static void fill_direct(rig_t *r, int x, int y) /* a tap that does not ask (as if confirmed): a fresh plan */
+{
+    sk_fill_forget(&r->s);
+    r->s.bk_ask_until = r->now + 5000;
+    tap_at(r, x, y);
+}
+static void test_big_kept(void)
+{
+    static rig_t a, b;
+    static uint8_t want[TS * TH];
+    int e[] = { 1500, 1000, 1600, 1100, 1700, 1000 };
+    for (int way = 0; way < 4; way++) {
+        rig_t *rs[2] = { &a, &b };
+        for (int i = 0; i < 2; i++) {
+            rig_new(rs[i], APP_ORIENT_BAR_BOTTOM);
+            app_frame(rs[i]);
+            sk_set_brush(&rs[i]->s, BR_FILL, rs[i]->now += 50);
+            sk_set_shade(&rs[i]->s, SH_BLACK, rs[i]->now += 50);
+            rs[i]->now += 3000;
+            sk_tick(&rs[i]->s, rs[i]->now);
+        }
+        tap_at(&a, 100, 100); /* asks, keeps the region */
+        CHECK(a.s.bk_plan.mask && a.s.note_on);
+        if (way == 1) sk_set_brush(&a.s, BR_PEN, a.now += 50), rig_stroke(&a, e, 3, 60000, 0), sk_set_brush(&a.s, BR_FILL, a.now += 50);
+        if (way == 1) sk_set_brush(&b.s, BR_PEN, b.now += 50), rig_stroke(&b, e, 3, 60000, 0), sk_set_brush(&b.s, BR_FILL, b.now += 50);
+        if (way == 2) sk_set_shade(&a.s, SH_GREY, a.now += 50), sk_set_shade(&b.s, SH_GREY, b.now += 50);
+        if (way == 3) { /* the question runs out: the region is let go */
+            a.now += 7000;
+            sk_tick(&a.s, a.now);
+            CHECK(!a.s.bk_plan.mask);
+            rig_end(&a), rig_end(&b);
+            continue;
+        }
+        tap_at(&a, 1750, 1300); /* yes, from another spot of the same region */
+        fill_direct(&b, 100, 100);
+        memcpy(want, b.s.page.px, sizeof(want));
+        CHECK(!a.s.bk_plan.mask && !memcmp(want, a.s.page.px, sizeof(want)));
+        CHECK(!cv_get(&a.s.page, 100, 100) || way == 2);
+        rig_end(&a), rig_end(&b);
+    }
+    rig_new(&a, APP_ORIENT_BAR_BOTTOM); /* asked, then the app ends: nothing kept leaks */
+    app_frame(&a);
+    sk_set_brush(&a.s, BR_FILL, a.now += 50);
+    a.now += 3000;
+    sk_tick(&a.s, a.now);
+    tap_at(&a, 100, 100);
+    CHECK(a.s.bk_plan.mask);
+    rig_end(&a);
+}
+
 /* the bucket's cursor: black with a white outline, 32 px across at least, over paper, black ink and every shade, and
    gone again without a mark */
 static void test_cursor(void)
@@ -412,6 +465,7 @@ int main(void)
     test_log();
     test_app();
     test_big_asks();
+    test_big_kept();
     test_cursor();
     test_toolbar_item();
     return CHECK_DONE("test_fill");

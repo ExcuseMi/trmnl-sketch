@@ -1,5 +1,6 @@
 /* The Fill tool in the controller: a tap (tip down and up without moving much) fills. SPDX-License-Identifier: MIT */
 #include <stdlib.h>
+#include <string.h>
 #include "fill.h"
 #include "sketch.h"
 
@@ -29,12 +30,35 @@ int sk_fill_pen(sketch_t *s, int tip, int inside, int fx, int fy, uint32_t now)
     return 0;
 }
 
+/* The page's pixels summed 8 bytes at a time: the kept region is used only on the page it was planned on */
+static uint64_t page_sum(const canvas_t *c)
+{
+    size_t n = (size_t)c->stride * (size_t)c->h, i = 0;
+    uint64_t h = 0x9e3779b97f4a7c15ull, v;
+    for (; i + 8 <= n; i += 8) memcpy(&v, c->px + i, 8), h = (h ^ v) * 0x100000001b3ull, h ^= h >> 29;
+    for (; i < n; i++) h = (h ^ c->px[i]) * 0x100000001b3ull;
+    return h;
+}
+
+void sk_fill_forget(sketch_t *s) { bf_free(&s->bk_plan); }
+
+static int kept_fits(const sketch_t *s, int x, int y, uint32_t now)
+{
+    const bf_t *k = &s->bk_plan;
+    if (!k->mask || (int32_t)(now - s->bk_ask_until) >= 0 || s->bk_shade != s->sty.shade || s->bk_mirror != s->sty.mirror) return 0;
+    if (x < 0 || y < 0 || x >= k->w || y >= k->h || !(k->mask[y * k->stride + (x >> 3)] >> (7 - (x & 7)) & 1)) return 0;
+    return page_sum(&s->page) == s->bk_sum;
+}
+
 void sk_fill_at(sketch_t *s, int x, int y, uint32_t now)
 {
     bf_t r = { 0 };
     hist_end(&s->hist);
     int rc = BF_NOTHING;
-    for (int img = 0, n = mr_images(s->sty.mirror); img < n; img++) { /* the tap and its mirror images, one region in all */
+    if (kept_fits(s, x, y, now)) /* "Tap again" inside the region asked about: that region, not planned again */
+        r = s->bk_plan, s->bk_plan.mask = 0, rc = BF_OK;
+    else sk_fill_forget(s);
+    for (int img = 0, n = r.mask ? 0 : mr_images(s->sty.mirror); img < n; img++) { /* the tap and its mirror images, one region in all */
         int ix, iy;
         mr_map(s->sty.mirror, img, s->page.w, s->page.h, x, y, &ix, &iy);
         if (ix < 0 || iy < 0 || ix >= s->page.w || iy >= s->page.h) continue;
@@ -52,7 +76,8 @@ void sk_fill_at(sketch_t *s, int x, int y, uint32_t now)
     if (rc == BF_MEM) return sk_toast(s, "Not enough memory to fill", now);
     if (rc == BF_COMPLEX) return sk_toast(s, "Too intricate to fill", now);
     if ((uint64_t)r.px * 10 > (uint64_t)s->page.w * (uint64_t)s->page.h * 7 && (int32_t)(now - s->bk_ask_until) >= 0) {
-        bf_free(&r); /* nearly the whole page: ask first, a second tap within a few seconds says yes */
+        s->bk_plan = r; /* nearly the whole page: ask first, a second tap within a few seconds says yes (to this region) */
+        s->bk_sum = page_sum(&s->page), s->bk_shade = s->sty.shade, s->bk_mirror = s->sty.mirror;
         s->bk_ask_until = now + BK_ASK_MS;
         sk_toast(s, "Fill the whole page? Tap again", now);
         s->note_until = now + BK_ASK_MS;

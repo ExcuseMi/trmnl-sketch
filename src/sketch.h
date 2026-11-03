@@ -12,6 +12,7 @@
 #include "printjob.h"
 #include "gfx.h"
 #include "hist.h"
+#include "fill.h"
 #include "mirror.h"
 #include "pages.h"
 #include "paper.h"
@@ -104,6 +105,9 @@ typedef struct {
     int bk_gap;          /* setting fill_gap: gaps up to this many px close for the bucket (0..6) */
     int bk_down, bk_moved, bk_x, bk_y; /* a bucket tap: the tip is down (where), and moved too far to be a tap */
     uint32_t bk_ask_until; /* "Fill the whole page?" was asked: a tap before this confirms */
+    struct bf_s bk_plan;   /* the region asked about, kept for that tap (skfill.c), with the page's sum, shade and mirror */
+    uint64_t bk_sum;
+    int bk_shade, bk_mirror;
     int cur_draws;       /* cursors and arrows drawn so far (the frames bench counts them: at most one a frame) */
     int cursor, cx, cy, cr, cb, csz; /* the hover cursor is drawn at fb (cx, cy) with half size cr, for brush cb */
     box_t note;          /* the corner note (legend or toast) on screen, when note_on */
@@ -207,6 +211,7 @@ void sk_save_now(sketch_t *s);
 void sk_run_print(sketch_t *s);
 /* Page `num`'s saved file as a print job (skprint.c); 0 with s->pres.msg set when it cannot start */
 pj_job_t *sk_print_start(sketch_t *s, int num);
+void sk_fill_forget(sketch_t *s); /* the region kept for "Fill the whole page?" is let go (skfill.c) */
 /* The same job made and sent at once: 0 or < 0 with s->pres.msg set */
 int sk_print_page(sketch_t *s, int num);
 void sk_fb_restore(sketch_t *s, const box_t *b); /* the page (and strip) back on the screen in b, and pushed */
