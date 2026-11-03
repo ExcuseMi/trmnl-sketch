@@ -83,12 +83,13 @@ static void test_shades(void)
     CHECK(black() == 0);
     line(BR_MARKER, SH_GREY, 1, 100, 100, 160, 100, 30000);
     CHECK(!memcmp(once, page_px, sizeof(once))); /* erased and drawn again: the same dots */
-    /* a shade only blackens; the eraser ignores the shade */
+    /* a shade lays its pattern over black too (2026-11-03: grey showed nothing on black): the same shape, only its own
+       dots black; the eraser ignores the shade */
     blank();
     line(BR_MARKER, SH_BLACK, 1, 100, 100, 160, 100, 0);
     int solid = black();
     line(BR_MARKER, SH_GREY, 1, 100, 100, 160, 100, 0);
-    CHECK(black() == solid);
+    CHECK(!memcmp(once, page_px, sizeof(once)));
     line(BR_ERASER, SH_GREY, 2, 130, 100, 130, 100, 0);
     CHECK(black() < solid && cv_get(&page, 130, 100));
 }

@@ -21,7 +21,8 @@ void box_clip(box_t *b, int w, int h);
 
 /* Pen shades: black, and two grays as 4 x 4 ordered-dither patterns fixed to the page (the same pixel is black or not
    whatever stroke draws it, so erasing and redrawing, undo and redo give the same pattern). Only ink (colour 0) is
-   shaded; the eraser and SH_WHITE ink are always solid white. */
+   shaded: it lays the pattern, black and white dots, so grey shows over black too; the eraser and SH_WHITE ink are
+   always solid white. */
 /* The tone: 9 steps, 0 black then lighter to 8, the 4 x 4 Bayer levels 16 (black), 15, 14, 12, 10, 8, 6, 4 and 2 of 16 dots.
    The settings of the earlier tone slider and three shades migrate to black, grey or white (sketch.c) */
 enum { SH_BLACK = 0, SH_GREY = 5, SH_N = 9 }; /* the toolbar's three swatches are SH_BLACK, SH_GREY (8 of 16 dots) and SH_WHITE */

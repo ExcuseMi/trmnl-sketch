@@ -77,8 +77,7 @@ void cv_bits_row(canvas_t *c, int y, int xb, const uint8_t *bits, int n, int rev
                 if (m >> (7 - k) & 1) cv_px_s(c, b * 8 + k, y, colour, shade);
             continue;
         }
-        m &= sm;
-        row[b] = colour ? (uint8_t)(row[b] | m) : (uint8_t)(row[b] & ~m);
+        row[b] = colour ? (uint8_t)(row[b] | m) : (uint8_t)((row[b] & ~m) | (m & ~sm)); /* ink: the shade's pattern */
     }
 }
 
@@ -91,20 +90,21 @@ void cv_px_list(canvas_t *c, const int16_t *xs, const int16_t *ys, int n, int co
     for (int i = 0; i < n; i++) {
         int x = xs[i], y = ys[i];
         if ((unsigned)x >= (unsigned)c->w || (unsigned)y >= (unsigned)c->h) continue;
-        uint8_t m = (uint8_t)((0x80 >> (x & 7)) & sm[y & 3]), *b = c->px + y * c->stride + (x >> 3);
-        *b = colour ? (uint8_t)(*b | m) : (uint8_t)(*b & ~m);
+        uint8_t m = (uint8_t)(0x80 >> (x & 7)), *b = c->px + y * c->stride + (x >> 3);
+        *b = colour ? (uint8_t)(*b | m) : (uint8_t)((*b & ~m) | (m & ~sm[y & 3]));
     }
 }
 
-/* x0..x1 of row y, already clipped: colour 1 whitens, colour 0 blackens where `mask` (a byte of black pixels) says */
+/* x0..x1 of row y, already clipped: colour 1 whitens, colour 0 lays `mask` (a byte of black pixels): black there,
+   white elsewhere (grey shows over black too) */
 static void span_m(canvas_t *c, int y, int x0, int x1, int colour, uint8_t mask)
 {
     uint8_t *row = c->px + y * c->stride;
     for (int b = x0 >> 3; b <= x1 >> 3; b++) {
-        uint8_t m = mask;
+        uint8_t m = 0xff;
         if (b == x0 >> 3) m &= (uint8_t)(0xff >> (x0 & 7));
         if (b == x1 >> 3) m &= (uint8_t)(0xff << (7 - (x1 & 7)));
-        row[b] = colour ? (uint8_t)(row[b] | m) : (uint8_t)(row[b] & ~m);
+        row[b] = colour ? (uint8_t)(row[b] | m) : (uint8_t)((row[b] & ~m) | (m & ~mask));
     }
 }
 
@@ -136,10 +136,9 @@ void cv_span_s(canvas_t *c, int y, int x0, int x1, int colour, int shade)
 void cv_px_s(canvas_t *c, int x, int y, int colour, int shade)
 {
     if (x < 0 || y < 0 || x >= c->w || y >= c->h) return;
-    if (!colour && !cv_shade_black(shade, x, y)) return;
     uint8_t m = (uint8_t)(0x80 >> (x & 7));
     uint8_t *b = c->px + y * c->stride + (x >> 3);
-    *b = colour ? (uint8_t)(*b | m) : (uint8_t)(*b & ~m);
+    *b = colour || !cv_shade_black(shade, x, y) ? (uint8_t)(*b | m) : (uint8_t)(*b & ~m); /* ink: the pattern's dot */
 }
 
 /* floor(sqrt(n)) */
