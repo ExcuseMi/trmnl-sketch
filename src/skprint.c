@@ -45,16 +45,25 @@ int sk_print_check(sketch_t *s)
     return fail(s, "The printer file could not be read."), -1;
 }
 
-int sk_print_page(sketch_t *s, int num)
+pj_job_t *sk_print_start(sketch_t *s, int num)
 {
     size_t n = 0;
     uint8_t *file = 0; /* the printed copy has the paper under the ink; a page without paper (or whose copy is missing) prints plain */
     if (num == s->cur ? s->paper : 1) file = read_file(s, num, "-paper.png", &n);
     if (!file) file = read_file(s, num, ".png", &n);
-    if (!file) return fail(s, "The page could not be read."), -1;
+    if (!file) return fail(s, "The page could not be read."), (pj_job_t *)0;
     pj_net_t net = s->env.net;
     net.format = s->prn.format;
-    int rc = pj_print_png(&net, &s->prn, file, n, &s->pres);
+    pj_job_t *j = pj_png_start(&net, &s->prn, file, n, &s->pres); /* the job keeps the decoded page, not the file */
     free(file);
+    return j;
+}
+
+int sk_print_page(sketch_t *s, int num)
+{
+    pj_job_t *j = sk_print_start(s, num);
+    int rc = -1;
+    while (j && (rc = pj_job_step(j, SK_PRINT_ROWS)) > 0) {}
+    pj_job_free(j);
     return rc;
 }

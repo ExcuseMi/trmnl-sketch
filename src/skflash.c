@@ -24,7 +24,7 @@ int sk_flash_busy(const sketch_t *s) { return s->fl_phase != 0; }
 static void fl_rect(const box_t *b, int flash, rect_t *r) { *r = (rect_t){ (int16_t)b->x0, (int16_t)b->y0, (int16_t)(b->x1 - b->x0 + 1), (int16_t)(b->y1 - b->y0 + 1), (int16_t)flash }; }
 
 /* May the screen be cleaned now (the pen is not drawing)? */
-static int fl_calm(const sketch_t *s) { return !s->tip && !s->stroke && !s->fl_phase && !s->want_full && box_empty(&s->flash); }
+static int fl_calm(const sketch_t *s) { return !s->tip && !s->stroke && !s->fl_phase && !s->want_full && box_empty(&s->flash) && !s->print_req; }
 
 /* The drawing page never flashes by itself (owner 2026-11-02: a flash costs 1.1 s and blocks the app): the toolbar, the
    legend, the arrow and the cursors are ink only. Only a menu or gallery screen with traces gets the idle flash. */

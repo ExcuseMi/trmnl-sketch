@@ -651,12 +651,18 @@ void sk_menu_pen(sketch_t *s, unsigned flags, int fx, int fy, int inside, uint32
 
 void sk_run_print(sketch_t *s)
 {
+    if (!s->pjob) {
+        s->cursor = 0;
+        gal_cache_free(&s->cache); /* memory for the job */
+        free(s->ui.px);
+        s->ui.px = 0;
+        if ((s->pjob = sk_print_start(s, s->act_num))) return; /* its rows from the next turn on */
+    } else {
+        if (pj_job_step(s->pjob, SK_PRINT_ROWS) > 0) return;
+        pj_job_free(s->pjob);
+        s->pjob = 0;
+    }
     s->print_req = 0;
-    s->cursor = 0;
-    gal_cache_free(&s->cache); /* memory for the job */
-    free(s->ui.px);
-    s->ui.px = 0;
-    sk_print_page(s, s->act_num);
     s->ui.px = malloc((size_t)s->fb.stride * (size_t)s->fb.h);
     if (!s->ui.px) { /* no memory for the result screen: back to the page, with the reason as a note */
         to_draw(s);

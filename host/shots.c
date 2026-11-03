@@ -91,7 +91,7 @@ static void gallery_shots(const char *dir)
             TAP(MIDDLE);
             gshot(&r, dir, "g-printing");
             r.pr.status = 200;
-            sk_run_print(&r.s);
+            while (r.s.print_req) sk_run_print(&r.s);
             gshot(&r, dir, "h-printed");
             TAP(MIDDLE); /* OK */
             r.pr_rc = PJ_NO_PRINTER;

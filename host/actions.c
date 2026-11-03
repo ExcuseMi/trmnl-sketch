@@ -22,10 +22,10 @@
 #define COST_X_RATIO 40
 #define ACT_MS 300   /* the bound of an action's compute on the X */
 #define ACT_GROW 1.5 /* 40 pages against 10 */
-/* Rows still over ACT_MS carry their own bound (today's cost and a margin: a ratchet, lower it when they get cheaper):
-   Print's raster (../trmnl-print/src/imgfit.c fit_row, a box filter per printer pixel), a whole-page fill's plan (whole-page
-   mask passes in src/fill.c), and the 4-way and kaleidoscope Brush (4 and 16 stamps a point) */
-#define PRINT_MS 46000
+/* Rows with their own bound (today's cost and a margin: a ratchet, lower it when they get cheaper; 2026-11-03 round 2):
+   Print's whole job (made a few rows a loop turn, each turn under ACT_MS; ../trmnl-print/src/imgfit.c), a whole-page
+   fill's plan (src/fill.c), and the 4-way and kaleidoscope Brush per 30 ms frame (4 and 16 images a point) */
+#define PRINT_MS 3000
 #define FILL_PAGE_MS 520
 #define MIRROR4_MS 60
 #define KALEIDO_MS 230
@@ -172,6 +172,7 @@ typedef struct {
     int full, ink;
     double bound;
     int max_full;
+    double tbound; /* the bound of the total, 0: none */
 } row_t;
 
 #define ROWS 64
@@ -184,7 +185,7 @@ static double put(const char *name, double ms, double bound, int max_full)
     if (getenv("ACT_V")) fprintf(stderr, "= %s\n", name);
     row_t *r = &rows[nrows++];
     if (pass && r->ms <= ms) return r->ms; /* the cheaper of the passes: a busy machine's spike is not the app's */
-    *r = (row_t){ name, ms, total, fulls, inks, bound, max_full };
+    *r = (row_t){ name, ms, total, fulls, inks, bound, max_full, 0 };
     return ms;
 }
 
@@ -257,7 +258,8 @@ static void a_menus(void)
     put("print confirm screen", end(), ACT_MS, 1);
     begin();
     key(2), key(4); /* Print: the busy screen, the job, the result */
-    put("print: raster build and send", end(), PRINT_MS, 3);
+    put("print: raster build and send", end(), ACT_MS, 3);
+    rows[nrows - 1].tbound = PRINT_MS; /* made a few rows a turn: no turn over ACT_MS, the whole job under PRINT_MS */
     CHECK(R.pr.posts > 0);
     key(5), settle();
     down();
@@ -428,7 +430,7 @@ int main(int argc, char **argv)
     printf("%-42s %9s %9s %5s %4s %8s\n", "action", "X ms", "total", "FULL", "INK", "screen ms");
     for (int i = 0; i < nrows; i++) {
         const row_t *r = &rows[i];
-        int over = r->ms > r->bound || r->full > r->max_full;
+        int over = r->ms > r->bound || r->full > r->max_full || (r->tbound > 0 && r->total > r->tbound);
         bad |= over;
         if (verbose) printf("%-42s %9.0f %9.0f %5d %4d %8d%s\n", r->name, r->ms, r->total, r->full, r->ink, r->full * FULL_MS + r->ink * INK_MS, over ? "  OVER" : "");
     }

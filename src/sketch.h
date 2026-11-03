@@ -129,6 +129,7 @@ typedef struct {
     int list_n;
     char gnote[64];
     int print_req;
+    pj_job_t *pjob;      /* the print job being made, a few rows a loop turn (sk_run_print) */
     pj_result_t pres;
     pj_printer_t prn;    /* the default printer for the job on screen */
     int need_setup;      /* the result screen offers "Set up printer" */
@@ -200,9 +201,13 @@ void sk_lat_tick(sketch_t *s, uint32_t now);
 void sk_lat_debug(sketch_t *s, uint32_t now);
 /* The pages saved now (the app ends or is told to) */
 void sk_save_now(sketch_t *s);
-/* After sk_flush showed the "Printing" screen (print_req): sends the page, sets the result screen */
+/* After sk_flush showed the "Printing" screen (print_req), once a loop turn while print_req: the first turn starts the
+   job, each later one makes SK_PRINT_ROWS printer rows (the loop and its input go on between), the last sends it and
+   sets the result screen */
 void sk_run_print(sketch_t *s);
-/* Sends page `num`'s saved file to the printer; 0 or < 0 with s->pres.msg set (skprint.c) */
+/* Page `num`'s saved file as a print job (skprint.c); 0 with s->pres.msg set when it cannot start */
+pj_job_t *sk_print_start(sketch_t *s, int num);
+/* The same job made and sent at once: 0 or < 0 with s->pres.msg set */
 int sk_print_page(sketch_t *s, int num);
 void sk_fb_restore(sketch_t *s, const box_t *b); /* the page (and strip) back on the screen in b, and pushed */
 void sk_mark(sketch_t *s, const box_t *b);       /* b is to be pushed */

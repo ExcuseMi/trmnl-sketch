@@ -16,6 +16,7 @@
 #define SK_SIZE_MIN 1  /* pen size = the diameter in px */
 #define SK_SIZE_MAX 48
 #define SK_MIN_SLEEP_MS 10 /* sk_wait_ms: the shortest sleep after a due time that pushed nothing */
+#define SK_PRINT_ROWS 384 /* printer rows (600 dpi) a loop turn makes of a print job: about 120 ms on the X (make actions, no turn over 300 ms) */
 #define SK_CLEAN_TRACES 10 /* the drawing page's idle clean-up flash comes only after this many strokes, page changes or toasts (test_tbflash) */
 
 #endif

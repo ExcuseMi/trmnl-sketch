@@ -598,7 +598,7 @@ int sk_flush(sketch_t *s, uint32_t now, rect_t *out)
 uint32_t sk_next_due(const sketch_t *s, uint32_t now)
 {
     uint32_t due = 1000000;
-    if (s->want_full || !box_empty(&s->flash) || s->fl_phase || (s->gal_todo && s->mode == SK_GALLERY)) return 0;
+    if (s->want_full || !box_empty(&s->flash) || s->fl_phase || (s->gal_todo && s->mode == SK_GALLERY) || s->print_req) return 0;
     uint32_t cd = sk_cleanup_due(s, now);
     if (cd < due) due = cd;
     if (s->pend.n) {
@@ -745,6 +745,8 @@ int sk_init(sketch_t *s, const sk_env_t *env, uint8_t *fb, int w, int h, int str
 
 void sk_free(sketch_t *s)
 {
+    pj_job_free(s->pjob); /* the app left while printing: the job is given up, nothing sent */
+    s->pjob = 0;
     sk_tb_img_free(s);
     free(s->ui.px);
     gal_cache_free(&s->cache);

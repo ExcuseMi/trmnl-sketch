@@ -130,7 +130,7 @@ int app_main(const app_api_t *a)
         uint32_t now = api->millis();
         rect_t out[SK_MAX_RECTS];
         do push(sk_flush(&sk, api->millis(), out), out); while (sk_flash_busy(&sk)); /* the inverted half, then the clean one */
-        if (sk.print_req) sk_run_print(&sk); /* "Printing..." is on the glass; blocks while the job goes out */
+        if (sk.print_req) sk_run_print(&sk); /* "Printing..." is on the glass; a few rows a turn, the post blocks */
         sk_tick(&sk, now);
         if (sk.share_req > 0 && !sharing) {
             app_webshare_files_t opt = { SK_DIR, ".png", 4u * 1024 * 1024 };

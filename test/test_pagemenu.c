@@ -58,12 +58,13 @@ static void pen_tile(rig_t *r, int idx)
     pen_xy(r, tx + r->s.L.tw / 2, ty + r->s.L.th / 2);
 }
 static void pen_anywhere(rig_t *r) { pen_xy(r, 400, 300); }
-/* sk_run_print as the glue does after the "Printing..." screen was shown */
+/* sk_run_print as the glue does after the "Printing..." screen was shown: once a loop turn until the job is out */
 static void run_print(rig_t *r)
 {
     CHECK(r->s.mode == SK_BUSY && r->s.print_req);
     frames(r);
-    sk_run_print(&r->s);
+    for (int k = 0; k < 100 && r->s.print_req; k++) sk_run_print(&r->s);
+    CHECK(!r->s.print_req && !r->s.pjob);
 }
 
 /* ---- the menu opens, Back brings the same drawing ---- */
@@ -246,6 +247,42 @@ static void test_print_from_the_menu(void)
 }
 
 /* No printer file: no job, the words from the coordinator, a "Set up printer" button the pen and button 6 reach */
+/* The job is made a few rows a loop turn (owner 2026-11-03: Print took 38 s with the loop stopped): the loop does not
+   sleep, input between the turns changes nothing, the post comes at the last turn; leaving half way sends nothing */
+static void test_print_in_steps(void)
+{
+    static rig_t r;
+    for (int leave = 0; leave < 2; leave++) {
+        rig_new(&r, APP_ORIENT_BAR_BOTTOM);
+        make_pages(&r, 1);
+        btn(&r, 7);
+        btn(&r, 4);
+        btn(&r, 4);
+        frames(&r);
+        int turns = 0;
+        while (r.s.print_req && turns < 100) {
+            sk_run_print(&r.s);
+            turns++;
+            if (!r.s.print_req) break;
+            CHECK(r.s.mode == SK_BUSY && r.pr.posts == 0 && sk_next_due(&r.s, r.now) == 0);
+            btn(&r, 5), btn(&r, 4), tap(&r, APP_TOUCH_MIDDLE), tap(&r, APP_TOUCH_LEFT); /* ignored while printing */
+            rig_pen_user(&r, 400, 300, APP_PEN_TIP | APP_PEN_IN_RANGE, 20000), rig_pen_user(&r, 400, 300, 0, 0);
+            r.now += 2000;
+            sk_tick(&r.s, r.now); /* no idle clean-up flash of the busy screen */
+            CHECK(!r.s.want_full && box_empty(&r.s.flash));
+            if (leave && turns == 4) break;
+        }
+        if (leave) {
+            CHECK(r.s.pjob && r.pr.posts == 0);
+            rig_end(&r); /* the job is freed (ASan: no leak), nothing was posted */
+            CHECK(r.pr.posts == 0);
+            continue;
+        }
+        CHECK(turns > 10 && r.pr.posts == 1 && r.s.mode == SK_RESULT && r.s.pres.pages == 1);
+        rig_end(&r);
+    }
+}
+
 static void test_no_printer_offers_setup(void)
 {
     static rig_t r;
@@ -498,6 +535,7 @@ int main(void)
     test_exit();
     test_gallery_from_menu();
     test_print_from_the_menu();
+    test_print_in_steps();
     test_no_printer_offers_setup();
     test_damaged_page();
     test_walk_with_the_pen_only();
