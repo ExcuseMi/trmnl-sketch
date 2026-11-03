@@ -15,7 +15,7 @@ Drawing a cat on the tablet, live on the X (twice as fast here; [the full video]
 - Gallery of all pages, undo and redo
 - Print to a network printer
 - Download pages from a phone
-- Autosave after every stroke
+- Pages save themselves while you draw
 
 ## Screenshots
 
