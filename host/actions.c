@@ -248,6 +248,7 @@ static void a_menus(void)
     begin();
     key(4);
     put("settings screen open", end(), ACT_MS, 1);
+    key(2), settle(); /* Settings opens on Back: one down to the first setting */
     begin();
     key(4); /* a setting steps */
     put("settings step", end(), ACT_MS, 0);
