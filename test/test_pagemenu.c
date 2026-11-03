@@ -537,7 +537,7 @@ static void test_walk_with_the_tablet_buttons_only(void)
 
 static int again_title(const rig_t *r) { return sk_print_again(&r->s); }
 
-/* ---- closing the menu never prints (owner 2026-11-03: a child tapped Select to close the menu and the page printed twice) ---- */
+/* ---- closing the menu never prints (2026-11-03: a tap on Select meant to close the menu printed the page twice) ---- */
 static void test_close_never_prints(void)
 {
     static rig_t r;
