@@ -180,6 +180,53 @@ static void test_undo_replay_png(void)
     }
 }
 
+/* A frame's mirrored stamps are written once a pixel per image (brush_batch, 2026-11-03): the live page is exactly the
+   page the log replays one stamp and one image at a time; every symmetry, the pixel brushes and the others, black,
+   grey, white and the eraser over them, long fast strokes that leave the batch's mask */
+static void scribble(rig_t *r, int k, int len)
+{
+    int x = 300 + (k * 211) % 1200, y = 250 + (k * 97) % 800, dx = 23 - k % 7 * 5, dy = 7 + k % 5 * 6;
+    rig_pen(r, x, y, APP_PEN_IN_RANGE, 0);
+    for (int i = 0; i < len; i++) {
+        x += dx, y += dy;
+        if (x < 20 || x > TW - 20) dx = -dx;
+        if (y < 20 || y > TH - 20) dy = -dy;
+        rig_pen(r, x, y, APP_PEN_TIP | APP_PEN_IN_RANGE, 9000 + (unsigned)((i * 3001) % 56000));
+        if (i % 6 == 5) settle(r);
+    }
+    rig_pen(r, x, y, 0, 0);
+    settle(r);
+}
+static void test_live_equals_replay(void)
+{
+    static uint8_t px[TS * TH];
+    static const int bs[] = { BR_BRUSH, BR_PENCIL, BR_SPRAY, BR_PEN, BR_BRUSH };
+    static const int shs[] = { SH_BLACK, SH_GREY, SH_WHITE, SH_BLACK, SH_GREY };
+    for (int m = MR_LR; m < MR_N; m++) {
+        rig_t r;
+        rig_new(&r, APP_ORIENT_BAR_BOTTOM);
+        set_mirror(&r, m);
+        for (int k = 0; k < 6; k++) {
+            brush(&r, k == 5 ? BR_ERASER : bs[k % 5], shs[k % 5], 2);
+            scribble(&r, k + m, k == 2 ? 90 : 40);
+        }
+        canvas_t c = { px, TW, TH, TS };
+        memcpy(px, r.s.hist.base.px, sizeof(px));
+        const hist_t *h = &r.s.hist;
+        for (int i = 0; i < h->st_cur; i++) { /* the log, drawn again stamp by stamp (no batch) */
+            const hstroke_t *st = &h->st[i];
+            const hpt_t *p = h->pts + st->first;
+            for (uint32_t j = 0; j < st->n; j++) {
+                const hpt_t *a = j ? &p[j - 1] : &p[j];
+                brush_segt(&st->style, st->kind == HK_ERASE, &c, a->x, a->y, a->d, a->t, p[j].x, p[j].y, p[j].d, p[j].t, 0);
+            }
+        }
+        CHECK(h->st_cur >= 6 && blacks(&r.s.page) > 5000);
+        CHECK(!memcmp(px, r.s.page.px, sizeof(px)));
+        rig_end(&r);
+    }
+}
+
 /* pixels on the page's two axes (the columns and rows through its centre) where the glass differs from the page */
 static int guide_px(const rig_t *r)
 {
@@ -324,6 +371,7 @@ int main(void)
     test_images_exact();
     test_k8_and_shades();
     test_undo_replay_png();
+    test_live_equals_replay();
     test_guide();
     test_rects_cover();
     test_orientations();

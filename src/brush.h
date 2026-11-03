@@ -39,6 +39,11 @@ void brush_segt(const bstyle_t *st, int colour, canvas_t *c, int x0, int y0, int
 /* The stroke from (x0, y0, p0) to (x1, y1, p1); one stamp when both are the same. colour 1: white (an erasing stroke) */
 int brush_stamp_step(int b, int size); /* pixels between the stamps of a segment */
 void brush_seg(const bstyle_t *st, int colour, canvas_t *c, int x0, int y0, int p0, int x1, int y1, int p1, box_t *dirty);
+/* Mirrored strokes of the Brush, Pencil and Spray onto c between brush_batch(c) and brush_batch(0) are written once a
+   pixel per image (the same page as one by one, faster): the dirty boxes come at once, the pixels at brush_flush (and
+   brush_batch). Other canvases (a replay into the base) draw as always. Whoever reads c in between calls brush_flush */
+void brush_batch(canvas_t *c);
+void brush_flush(void);
 
 /* The brush's footprint outline about its hot spot (0, 0) inside a square of half side brush_shape_r */
 int brush_shape_r(int brush, int size);

@@ -229,6 +229,7 @@ void hist_add_t(hist_t *h, int x, int y, int d, int tilt, box_t *dirty)
     const hpt_t *last = s->n ? &h->pts[s->first + s->n - 1] : 0;
     if (last && last->x == x && last->y == y && last->d == d && last->t == tilt) return;
     if (h->pt_n >= h->pt_cap) {
+        brush_flush(); /* the page is read below (the shadow): a batch's pixels first */
         /* full: older strokes go into the base; if the open stroke alone fills the log, it goes too and continues
            from its last point as a stroke of its own */
         bake(h, h->st_cur - 1);

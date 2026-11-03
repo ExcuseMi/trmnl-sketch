@@ -377,10 +377,12 @@ static void frame_ink(sketch_t *s)
     /* the stroke keeps its step: undo and redo replay it exactly; sk_frame_cost sets the next stroke's */
     box_t dirty;
     box_clear(&dirty);
+    brush_batch(s->hist.page); /* mirrored: each image's pixels once (brush.h) */
     for (int i = 0; i < k; i++) {
         const sk_qpt_t *q = &f->q[keep[i]];
         hist_add_t(&s->hist, q->x, q->y, q->p, q->tilt, &dirty);
     }
+    brush_batch(0);
     f->n = 0;
     if (!box_empty(&dirty)) {
         fb_put(s, &dirty);

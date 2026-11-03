@@ -2,6 +2,7 @@
 #include "brush.h"
 #include "fmath.h"
 #include "mirror.h"
+#include <string.h>
 #include "penmap.h"
 #include "sk_cfg.h"
 
@@ -69,7 +70,38 @@ typedef struct {
     box_t *dirty;
     int mode, img; /* the mirror's symmetry and which image this pass draws (0: the pen's own, no map) */
     int tx, ty;    /* the pen's tilt at the stamp, degrees (bt_decode), in the page's frame */
+    int batch;     /* the pen's own image goes into the batch's mask, every image's box into dirty (brush_batch) */
 } bctx_t;
+
+/* ---- the batch: a frame's mirrored stamps drawn once a pixel ----
+   Stamps overlap (the Brush every sixth of its size, each point starts the next segment) and every image of every
+   stamp was mapped and written again: 16 images of the kaleidoscope cost 184 ms a 30 ms frame on the X (2026-11-03).
+   A write is the same whatever writes it first (cv_px_s: the pixel, the colour and the shade's page-fixed pattern),
+   so the pen's own image of a frame's stamps is collected in a mask and each image writes each pixel of it once: the
+   same page as stamping image by image (test_mirror: live against replay). */
+#define BT_W 512 /* the mask's side in px; a stamp outside it writes what is there first and moves it */
+static struct {
+    canvas_t *on; /* the canvas being batched (the page), 0: none */
+    int used;
+    canvas_t *c;
+    int colour, shade, mode;
+    int ox, oy; /* the mask's corner in page pixels (ox a multiple of 8) */
+    box_t bb;   /* the set pixels, in the mask */
+    uint8_t m[BT_W / 8 * BT_W];
+} bt;
+
+static void bt_write(void);
+static void bt_set(int x, int y)
+{
+    int mx = x - bt.ox, my = y - bt.oy;
+    if (!bt.used || mx < 0 || my < 0 || mx >= BT_W || my >= BT_W) {
+        bt_write();
+        bt.ox = (x - BT_W / 2) & ~7, bt.oy = y - BT_W / 2, bt.used = 1;
+        mx = x - bt.ox, my = y - bt.oy;
+    }
+    bt.m[my * (BT_W / 8) + (mx >> 3)] |= (uint8_t)(0x80 >> (mx & 7));
+    box_add(&bt.bb, mx, my);
+}
 
 /* Where the stamp's pixel (x, y) lands: the mirror image of it (every pixel is mapped, so a stamp's own shape and its
    random grain come out mirrored exactly) */
@@ -92,15 +124,19 @@ static void add_box(const bctx_t *k, int x0, int y0, int x1, int y1)
 {
     if (!k->dirty) return;
     int cx[4] = { x0, x1, x0, x1 }, cy[4] = { y0, y0, y1, y1 };
-    for (int i = 0; i < 4; i++) {
-        int X, Y;
-        mp(k, cx[i], cy[i], &X, &Y);
-        box_add(k->dirty, X, Y);
-    }
+    bctx_t m = *k;
+    int last = k->batch ? mr_images(k->mode) - 1 : k->img; /* batched: every image's box now */
+    for (m.img = k->batch ? 0 : k->img; m.img <= last; m.img++)
+        for (int i = 0; i < 4; i++) {
+            int X, Y;
+            mp(&m, cx[i], cy[i], &X, &Y);
+            box_add(k->dirty, X, Y);
+        }
 }
 
 static void px(const bctx_t *k, int x, int y)
 {
+    if (k->batch) return bt_set(x, y);
     int X, Y;
     mp(k, x, y, &X, &Y);
     cv_px_s(k->c, X, Y, k->colour, k->shade);
@@ -205,9 +241,53 @@ int brush_stamp_step(int b, int size)
 }
 
 /* A stamp every brush_stamp_step pixels along the longer axis, the byte interpolated: no gaps whatever the speed */
+static void bt_write(void)
+{
+    if (!bt.used || box_empty(&bt.bb)) return box_clear(&bt.bb);
+    canvas_t *c = bt.c;
+    int n = mr_images(bt.mode);
+    for (int img = 0; img < n; img++)
+        for (int my = bt.bb.y0; my <= bt.bb.y1; my++) {
+            const uint8_t *row = bt.m + my * (BT_W / 8);
+            for (int b = bt.bb.x0 >> 3; b <= bt.bb.x1 >> 3; b++) {
+                uint8_t v = row[b];
+                for (int i = 0; v; i++, v = (uint8_t)(v << 1))
+                    if (v & 0x80) {
+                        int X = bt.ox + b * 8 + i, Y = bt.oy + my;
+                        if (img) mr_map(bt.mode, img, c->w, c->h, X, Y, &X, &Y);
+                        cv_px_s(c, X, Y, bt.colour, bt.shade);
+                    }
+            }
+        }
+    for (int my = bt.bb.y0; my <= bt.bb.y1; my++) memset(bt.m + my * (BT_W / 8) + (bt.bb.x0 >> 3), 0, (size_t)((bt.bb.x1 >> 3) - (bt.bb.x0 >> 3) + 1));
+    box_clear(&bt.bb);
+}
+
+void brush_flush(void)
+{
+    bt_write();
+    bt.used = 0;
+}
+
+void brush_batch(canvas_t *c)
+{
+    brush_flush();
+    bt.on = c;
+}
+
+/* The brushes whose stamps write mapped pixels one by one (the pen's disc and the squares map their centre only) */
+static int by_pixel(int b) { return b == BR_BRUSH || b == BR_PENCIL || b == BR_SPRAY; }
+
 void brush_segt(const bstyle_t *st, int colour, canvas_t *c, int x0, int y0, int p0, int t0, int x1, int y1, int p1, int t1, box_t *dirty)
 {
     int imgs = mr_images(st->mirror);
+    if (bt.on == c && c && imgs > 1 && by_pixel(st->brush < BR_N ? st->brush : 0)) {
+        int col = st->shade == SH_WHITE ? 1 : colour, sh = st->shade < SH_N ? st->shade : 0;
+        if (bt.used && (bt.c != c || bt.colour != col || bt.shade != sh || bt.mode != st->mirror)) brush_flush();
+        if (!bt.used) box_clear(&bt.bb);
+        bt.c = c, bt.colour = col, bt.shade = sh, bt.mode = st->mirror;
+        return seg_img(st, -1, colour, c, x0, y0, p0, t0, x1, y1, p1, t1, dirty); /* img -1: into the batch */
+    }
     for (int img = 0; img < imgs; img++) seg_img(st, img, colour, c, x0, y0, p0, t0, x1, y1, p1, t1, dirty);
 }
 void brush_seg(const bstyle_t *st, int colour, canvas_t *c, int x0, int y0, int p0, int x1, int y1, int p1, box_t *dirty)
@@ -219,7 +299,7 @@ static void seg_img(const bstyle_t *st, int img, int colour, canvas_t *c, int x0
 {
     int b = st->brush < BR_N ? st->brush : 0;
     if (st->shade == SH_WHITE) colour = 1; /* white ink: the brush's own shape in solid white */
-    bctx_t k = { c, colour, st->shade < SH_N ? st->shade : 0, sz(st->size), dirty, st->mirror, img, 0, 0 };
+    bctx_t k = { c, colour, st->shade < SH_N ? st->shade : 0, sz(st->size), dirty, st->mirror, img < 0 ? 0 : img, 0, 0, img < 0 };
     stamp_fn fn = stamps[b];
     int dx = x1 - x0, dy = y1 - y0, adx = dx < 0 ? -dx : dx, ady = dy < 0 ? -dy : dy, n = adx > ady ? adx : ady;
     int ax, ay, bx, by; /* the tilt at each end; the stamps read it from k */
