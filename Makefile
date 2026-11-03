@@ -20,7 +20,7 @@ build/tbfw.o: host/tbfw.cpp $(FW)/lib/trmnl/src/touchbar_layout.cpp
 build/%: test/%.c $(CORE) $(HOST) test/check.h test/util.h $(wildcard src/*.h host/*.h)
 	@mkdir -p build
 	$(CC) $(CFLAGS) $< $(CORE) $(HOST) -o $@ -lm -lz -lstdc++
-test: $(TESTS) speed cost frames undo
+test: $(TESTS) speed cost frames undo actions
 	@for t in $(TESTS); do ./$$t || exit 1; done
 build/shots: host/shots.c host/shots_fill.c host/shots_mirror.c host/shots_tools.c host/shots_pro.c host/png.c $(CORE) $(HOST) test/util.h $(wildcard src/*.h host/*.h)
 	@mkdir -p build
@@ -76,3 +76,12 @@ undo: build/undo
 undo-table: build/undo
 	./build/undo
 .PHONY: undo undo-table
+# Every user action costed as the X with its panel calls (host/actions.c): fails over an action's bound
+build/actions: host/actions.c $(CORE) host/memfs.c build/tbfw_cost.o test/util.h $(wildcard src/*.h host/*.h)
+	@mkdir -p build
+	$(CC) $(COSTFLAGS) host/actions.c $(CORE) host/memfs.c build/tbfw_cost.o -o $@ -lm -lz -lstdc++
+actions: build/actions
+	./build/actions --check
+actions-table: build/actions
+	./build/actions
+.PHONY: actions actions-table
