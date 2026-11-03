@@ -135,8 +135,10 @@ static void settings_shots(const char *dir)
         sk_tick(&r.s, r.now);
         rig_pen(&r, 10, 10, 0, 0);
         sk_touch(&r.s, APP_TOUCH_MIDDLE, APP_GESTURE_TAP, r.now += 50); /* the page menu */
-        for (int k = 0; k < 2; k++) sk_touch(&r.s, APP_TOUCH_RIGHT, APP_GESTURE_TAP, r.now += 50);
+        for (int k = 0; k < 3; k++) sk_touch(&r.s, APP_TOUCH_RIGHT, APP_GESTURE_TAP, r.now += 50); /* from Back */
         sk_touch(&r.s, APP_TOUCH_MIDDLE, APP_GESTURE_TAP, r.now += 50); /* Settings */
+        if (r.s.mode != SK_SETTINGS) fprintf(stderr, "shots: the settings walk did not reach Settings\n"), bad++;
+        sk_touch(&r.s, APP_TOUCH_RIGHT, APP_GESTURE_TAP, r.now += 50); /* from Back to the first setting */
         sk_touch(&r.s, APP_TOUCH_MIDDLE, APP_GESTURE_TAP, r.now += 50); /* Paper for new pages: Grid */
         sk_touch(&r.s, APP_TOUCH_RIGHT, APP_GESTURE_TAP, r.now += 50);
         sk_touch(&r.s, APP_TOUCH_MIDDLE, APP_GESTURE_TAP, r.now += 50); /* Paper spacing: 56 */
