@@ -5,12 +5,11 @@
 #define MIRROR_H
 #include "canvas.h"
 
-enum { MR_OFF, MR_LR, MR_TB, MR_4, MR_K8, MR_N }; /* off, left-right, top-bottom, 4-way, kaleidoscope (8 turns + mirror) */
+enum { MR_OFF, MR_LR, MR_TB, MR_4, MR_K8, MR_N }; /* off, left-right, top-bottom, 4-way, kaleidoscope (4 quarter turns + mirror: one image a 45 degree sector) */
 
 const char *mr_name(int mode);
-int mr_images(int mode); /* 1, 2, 2, 4, 16 */
-/* Image `img` (0 is the identity) of the page point (x, y) on a w x h page. Exact for the flips and the quarter turns;
-   the 45 degree turns round to the nearest pixel. The result may lie off the page (a turned page is cropped) */
+int mr_images(int mode); /* 1, 2, 2, 4, 8 */
+/* Image `img` (0 is the identity) of the page point (x, y) on a w x h page. Exact (flips and quarter turns). The result may lie off the page (a turned page is cropped) */
 void mr_map(int mode, int img, int w, int h, int x, int y, int *ox, int *oy);
 /* 1 when image img is only flips (x to w - 1 - x when *fx, y to h - 1 - y when *fy), as mr_map makes it */
 int mr_flips(int mode, int img, int *fx, int *fy);

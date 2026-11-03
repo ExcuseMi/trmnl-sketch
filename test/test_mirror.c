@@ -1,6 +1,7 @@
 /* Mirror drawing: the images, one undo step, replay, the screen-only guide, the pushed rectangles, every position of
    the X, the bucket. SPDX-License-Identifier: MIT */
 #include "util.h"
+#include <math.h>
 
 static void settle(rig_t *r)
 {
@@ -83,21 +84,18 @@ static void test_maps(void)
     CHECK(x == 300 && y == TH - 1 - 200);
     mr_map(MR_4, 3, TW, TH, 300, 200, &x, &y);
     CHECK(x == TW - 1 - 300 && y == TH - 1 - 200);
-    for (int img = 0; img < 16; img++) { /* the mirrors are involutions, the quarter turns exact */
+    CHECK(mr_images(MR_K8) == 8);
+    for (int img = 0; img < 8; img++) { /* the mirrors are involutions, the quarter turns exact */
         mr_map(MR_K8, img, TW, TH, 777, 123, &x, &y);
-        if (img == 8) {
+        if (img == 4) {
             mr_map(MR_K8, img, TW, TH, x, y, &x2, &y2);
             CHECK(x2 == 777 && y2 == 123);
         }
-        if (img == 4) {
-            int rx, ry;
-            mr_map(MR_K8, 0, TW, TH, 777, 123, &rx, &ry);
-            CHECK(x == TW - 1 - 777 && y == TH - 1 - 123 && rx == 777); /* 180 degrees */
-        }
+        if (img == 2) CHECK(x == TW - 1 - 777 && y == TH - 1 - 123); /* 180 degrees */
     }
-    int px = 1500, py = 300; /* eight turns of 45 degrees come back (rounding: a pixel or two) */
-    for (int k = 0; k < 8; k++) mr_map(MR_K8, 1, TW, TH, px, py, &px, &py);
-    CHECK(px >= 1497 && px <= 1503 && py >= 297 && py <= 303);
+    int px = 1000, py = 600; /* four quarter turns come back exactly */
+    for (int k = 0; k < 4; k++) mr_map(MR_K8, 1, TW, TH, px, py, &px, &py);
+    CHECK(px == 1000 && py == 600);
 }
 
 static void test_images_exact(void)
@@ -142,11 +140,11 @@ static void test_k8_and_shades(void)
         brush(&r, BR_PEN, sh, 1);
         set_mirror(&r, MR_K8);
         stroke(&r);
-        /* the pen's own points and their 15 images are all inked (the dither only thins it: look about each) */
+        /* the pen's own points and their 7 images are all inked (the dither only thins it: look about each) */
         const hist_t *h = &r.s.hist;
         CHECK(h->st_cur == 1 && h->st[0].n >= 4);
         for (uint32_t i = 0; i < h->st[0].n; i++)
-            for (int img = 0; img < 16; img++) {
+            for (int img = 0; img < mr_images(MR_K8); img++) {
                 int ox, oy, hit = 0;
                 mr_map(MR_K8, img, TW, TH, h->pts[i].x, h->pts[i].y, &ox, &oy);
                 if (ox < 8 || oy < 8 || ox > TW - 9 || oy > TH - 9) continue; /* a turned page is cropped */
@@ -383,9 +381,28 @@ static void test_cursor_and_toolbar(void)
     rig_end(&r);
 }
 
+/* The kaleidoscope's guide cuts the page into 8 sectors of 45 degrees: a point inside one sector has exactly one
+   image in every sector (16 images, 8 turns of 45 degrees and their mirrors, put two in each: a circle came out twice
+   in its own sector, 2026-11-03) */
+static void test_k8_one_per_sector(void)
+{
+    const int offs[][2] = { { 100, 40 }, { 30, 110 }, { -90, 20 }, { 70, -150 } }; /* off the axes and diagonals */
+    for (unsigned o = 0; o < sizeof(offs) / sizeof(offs[0]); o++) {
+        int cnt[8] = { 0 };
+        for (int img = 0; img < mr_images(MR_K8); img++) {
+            int x, y;
+            mr_map(MR_K8, img, TW, TH, (TW - 1) / 2 + offs[o][0], (TH - 1) / 2 + offs[o][1], &x, &y);
+            double a = atan2(2.0 * y - (TH - 1), 2.0 * x - (TW - 1)) * 180.0 / 3.14159265358979;
+            cnt[(int)floor((a < 0 ? a + 360.0 : a) / 45.0) & 7]++;
+        }
+        for (int k = 0; k < 8; k++) CHECK(cnt[k] == 1);
+    }
+}
+
 int main(void)
 {
     test_maps();
+    test_k8_one_per_sector();
     test_images_exact();
     test_k8_and_shades();
     test_undo_replay_png();

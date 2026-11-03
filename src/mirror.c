@@ -9,7 +9,7 @@ const char *mr_name(int mode)
 
 int mr_images(int mode)
 {
-    static const uint8_t n[MR_N] = { 1, 2, 2, 4, 16 };
+    static const uint8_t n[MR_N] = { 1, 2, 2, 4, 8 };
     return n[mode < 0 || mode >= MR_N ? 0 : mode];
 }
 
@@ -24,7 +24,7 @@ void mr_map(int mode, int img, int w, int h, int x, int y, int *ox, int *oy)
     case MR_LR: fx = img & 1; break;
     case MR_TB: fy = img & 1; break;
     case MR_4: fx = img & 1, fy = img >> 1 & 1; break;
-    case MR_K8: fx = img >> 3 & 1, k = img & 7; break;
+    case MR_K8: fx = img >> 2 & 1, k = 2 * (img & 3); break; /* quarter turns, each also mirrored */
     default: break;
     }
     if (fx) u = -u;
@@ -44,8 +44,8 @@ int mr_flips(int mode, int img, int *fx, int *fy)
     case MR_TB: *fy = img & 1; return 1;
     case MR_4: *fx = img & 1, *fy = img >> 1 & 1; return 1;
     case MR_K8: /* no turn, or the half turn (both flips: exact in mr_map's products) */
-        if ((img & 7) != 0 && (img & 7) != 4) return 0;
-        *fx = (img >> 3 & 1) ^ ((img & 7) == 4), *fy = (img & 7) == 4;
+        if ((img & 1) != 0) return 0;
+        *fx = (img >> 2 & 1) ^ ((img & 3) == 2), *fy = (img & 3) == 2;
         return 1;
     default: return 1;
     }
@@ -59,7 +59,7 @@ void mr_map_pts(int mode, int img, int w, int h, int x, int y, const int16_t *dx
     case MR_LR: fx = img & 1; break;
     case MR_TB: fy = img & 1; break;
     case MR_4: fx = img & 1, fy = img >> 1 & 1; break;
-    case MR_K8: fx = img >> 3 & 1, k = img & 7; break;
+    case MR_K8: fx = img >> 2 & 1, k = 2 * (img & 3); break; /* quarter turns, each also mirrored */
     default: break;
     }
     int du = fx ? -2 : 2;
