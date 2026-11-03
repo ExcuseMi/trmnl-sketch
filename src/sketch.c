@@ -421,6 +421,7 @@ void sk_pen(sketch_t *s, unsigned flags, unsigned x, unsigned y, unsigned pressu
 {
     s->barrel = (flags & (APP_PEN_BARREL | APP_PEN_BARREL2)) != 0;
     s->tip = (flags & APP_PEN_TIP) != 0;
+    s->pen_near = (flags & (APP_PEN_IN_RANGE | APP_PEN_TIP)) != 0;
     s->last_act = now;
     s->hv_pend = 0;
     sk_settle(s, now);
@@ -597,6 +598,7 @@ int sk_flush(sketch_t *s, uint32_t now, rect_t *out)
     s->pushed_rects += (uint32_t)n;
     s->last_push = now;
     s->ghost = 1; /* a partial refresh left its traces: the idle clean-up has something to do */
+    if (s->mode == SK_DRAW) for (int i = 0; i < n; i++) s->ghost_px += (uint32_t)(out[i].w * out[i].h);
     return n;
 }
 

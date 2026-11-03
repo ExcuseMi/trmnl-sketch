@@ -3,7 +3,8 @@
    session with the strip shown: the pen hovers 400 moves over it, picks 5 buttons (looking 3 s at each), draws 20
    strokes near it with a pause every 5. The arrow, the item frame, the pick shown inverted, the brush cursor
    and a toast change only black and white pixels: they go as fast ink and never ask for a flash. Strokes leave traces:
-   the drawing page has no idle clean-up at all (skflash.c).
+   the drawing page gets its idle clean-up only after a build-up far over such a session (owner 2026-11-03, skflash.c):
+   then one, with the pen away.
    Before the fix: 3 flashes (the strip, two idle clean-ups). SPDX-License-Identifier: MIT */
 #include "check.h"
 #include <stdio.h>
@@ -114,6 +115,27 @@ static void test_session(void)
     CHECK(f_strokes == 0); /* 20 strokes: no idle flash on the drawing page */
     CHECK(total == 0);
     CHECK(r.s.tb_on);
+    printf("test_tbflash: the session's build-up %.1f screens (the clean-up at %d)\n", (double)r.s.ghost_px / (TW * TH), SK_GHOST_SCREENS);
+    CHECK(r.s.ghost_px * 3 < (uint32_t)(SK_GHOST_SCREENS * TW * TH)); /* a normal session is far under it */
+    /* a long session: big strokes all over the page with the strip shown, the pen staying near; then away and idle */
+    int rounds = 0;
+    while (r.s.ghost_px < (uint32_t)(SK_GHOST_SCREENS * TW * TH) && rounds < 400) {
+        int y = 200 + (rounds * 53) % 1100;
+        for (int k = 0; k < 60; k++) pen(&r, 60 + k * 29, y + (k % 9) * 8, APP_PEN_TIP | APP_PEN_IN_RANGE, 50000);
+        pen(&r, 1800, y, APP_PEN_IN_RANGE, 0);
+        wait(&r, 1000); /* the pen hovers, looking: near */
+        rounds++;
+    }
+    int f_long = r.inverted - f0;
+    wait(&r, 10000); /* still near: nothing */
+    int f_near = r.inverted - f0 - f_long;
+    pen(&r, 600, 600, 0, 0);
+    wait(&r, 10000);
+    int f_idle = r.inverted - f0 - f_long - f_near;
+    printf("test_tbflash: long session (%d strokes) flashes while drawing %d, near %d, then away %d\n", rounds, f_long, f_near, f_idle);
+    CHECK(rounds > 30 && f_long == 0 && f_near == 0 && f_idle == 1); /* never while the pen is near; once, away and idle */
+    wait(&r, 30000);
+    CHECK(r.inverted - f0 == 1); /* at most once a build-up */
     rig_end(&r);
 }
 

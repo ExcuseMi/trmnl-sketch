@@ -36,7 +36,7 @@ static void rest(rig_t *r, int orient)
     CHECK(!r->s.note_on);
 }
 static void ink(rig_t *r) { rig_line(r, 300, 500, 900, 560, 40000, 0); } /* a stroke, the pen lifts (stays in range) */
-static void inks(rig_t *r, int n) /* n strokes: SK_CLEAN_TRACES of them make the idle clean-up due (test_tbflash.c) */
+static void inks(rig_t *r, int n) /* n strokes, each a fast-ink push of its own box */
 {
     for (int i = 0; i < n; i++) rig_line(r, 300, 500 + i * 9, 900, 560 + i * 9, 40000, 0);
 }
@@ -111,8 +111,8 @@ static void test_draw_never(void)
     sk_set_brush(&r.s, BR_PENCIL, r.now += 10);
     key(&r, 3);
     CHECK(run(&r, 20000) == 0);
-    inks(&r, 3 * SK_CLEAN_TRACES); /* many strokes, then a long pause */
-    CHECK(run(&r, 60000) == 0);
+    inks(&r, 30); /* many strokes, then a long pause: no build-up yet */
+    CHECK(run(&r, 60000) == 0 && r.s.ghost_px < (uint32_t)(SK_GHOST_SCREENS * TW * TH));
     rig_pt(&r, 400, 700, &x, &y); /* a long press */
     sk_pen(&r.s, APP_PEN_TIP | APP_PEN_IN_RANGE, x, y, 30000, r.now += 10);
     drain(&r);
@@ -126,6 +126,43 @@ static void test_draw_never(void)
     CHECK(r.s.legend && r.s.note_on);
     inv0 = r.inverted;
     CHECK(run(&r, 41000) == 0 && r.inverted == inv0);
+    rig_end(&r);
+}
+
+/* The drawing page's idle clean-up after a build-up (owner 2026-11-03): fast ink over SK_GHOST_SCREENS screens, then
+   only with the pen out of range and idle for cleanup_s, once; never while the pen is near or drawing */
+static void big_strokes(rig_t *r, int n)
+{
+    for (int i = 0; i < n; i++) {
+        int y = 60 + (i * 37) % (TH - 120);
+        rig_line(r, 40, y, TW - 40, TH - 40 - y, 60000, 0); /* the pen lifts and stays in range */
+        drain(r);
+    }
+}
+static void test_draw_built_up(void)
+{
+    rig_t r;
+    rest(&r, APP_ORIENT_BAR_BOTTOM);
+    int inv0 = r.inverted;
+    big_strokes(&r, 200);
+    CHECK(r.s.ghost_px >= (uint32_t)(SK_GHOST_SCREENS * TW * TH));
+    CHECK(run(&r, 20000) == 0 && r.inverted == inv0); /* the pen in range above the page: never */
+    unsigned x, y;
+    rig_pt(&r, 400, 700, &x, &y);
+    sk_pen(&r.s, APP_PEN_TIP | APP_PEN_IN_RANGE, x, y, 30000, r.now += 10); /* down and held: never */
+    CHECK(run(&r, 20000) == 0);
+    sk_pen(&r.s, APP_PEN_IN_RANGE, x, y, 0, r.now += 10);
+    sk_pen(&r.s, 0, x, y, 0, r.now += 10); /* away */
+    CHECK(run(&r, 4000) == 0); /* not before cleanup_s */
+    CHECK(run(&r, 2000) == 1 && r.inverted == inv0 + 1 && r.s.mode == SK_DRAW); /* once, the inverted half first */
+    CHECK(r.s.ghost_px == 0 && run(&r, 60000) == 0); /* the build-up starts again: no second one */
+    big_strokes(&r, 10);
+    sk_pen(&r.s, 0, x, y, 0, r.now += 10);
+    CHECK(run(&r, 30000) == 0); /* a few strokes after it: no flash */
+    r.s.cleanup_s = 0; /* the setting off: never */
+    big_strokes(&r, 200);
+    sk_pen(&r.s, 0, x, y, 0, r.now += 10);
+    CHECK(run(&r, 30000) == 0);
     rig_end(&r);
 }
 
@@ -161,7 +198,7 @@ static void test_idle_screens(void)
     run(&r, 300);
     CHECK(r.s.ghost && r.s.tb_on);
     CHECK(run(&r, 6000) == 0 && r.s.tb_on); /* the arrow and the frame are ink only (test_tbflash.c) */
-    inks(&r, SK_CLEAN_TRACES);
+    inks(&r, 10);
     CHECK(run(&r, 6000) == 0 && r.s.tb_on); /* strokes under the strip: still no flash */
     rig_end(&r);
 }
@@ -171,6 +208,7 @@ int main(void)
     test_helper();
     test_every_path();
     test_draw_never();
+    test_draw_built_up();
     test_idle_screens();
     return CHECK_DONE("test_flash");
 }
