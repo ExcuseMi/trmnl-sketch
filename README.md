@@ -2,6 +2,25 @@
 
 Sketch for the TRMNL X with a USB pen tablet (XP-Pen Deco 01 V2; firmware API 2.7, `pen_enable`). Pressure sets the line width, the page autosaves as a PNG.
 
+<!-- video -->
+
+| | |
+|---|---|
+| <img src="shots/t1-toolbar-landscape.png" width="420"><br>The toolbar along the top edge (landscape) | <img src="shots/t2-toolbar-portrait.png" width="420"><br>The same toolbar in portrait |
+| <img src="shots/m5-mirror-picker-landscape.png" width="420"><br>The mirror picker: pick how your strokes are repeated | <img src="shots/m1-mirror-kaleidoscope.png" width="420"><br>A kaleidoscope drawing |
+| <img src="shots/m-pagemenu-landscape.png" width="420"><br>The page menu | <img src="shots/p2-paper-grid.png" width="420"><br>Paper styles: grid (also lines, dots, blank) |
+| <img src="shots/b1-brushes-black.png" width="420"><br>The brushes: brush, pen, pencil, marker, spray, eraser | <img src="shots/f-print-confirm.png" width="420"><br>Print confirm screen |
+
+## How to use
+
+1. Draw with the pen. Pressing harder gives a thicker or darker line.
+2. Tablet buttons: 1 undo, 2 redo, 4 show or hide the toolbar, 5 clear the page.
+3. Buttons 7 and 8, or a tap in the middle of the touch bar, open the page menu (print, new page, gallery, paper).
+4. Tap a tool, colour, size or Mirror in the toolbar with the pen to pick it.
+5. A long press on the touch bar leaves the app.
+
+## Details
+
 | Control | Does |
 |---|---|
 | pen | the brush picked, width or grain from pressure; the pen's button held: eraser (on the eraser: ink); hovering shows the brush's cursor at its size |
